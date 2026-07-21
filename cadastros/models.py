@@ -140,6 +140,7 @@ class Produto(models.Model):
     unidade_medida = models.CharField(
         max_length=5, choices=UnidadeMedida.choices, default=UnidadeMedida.UNIDADE
     )
+    imagem = models.ImageField(upload_to="produtos/", null=True, blank=True)
     reutilizavel = models.BooleanField(
         default=False, help_text="Exige devolução ao término do projeto"
     )
