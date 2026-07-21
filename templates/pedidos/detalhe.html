@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block titulo %}Pedido #{{ pedido.pk }}{% endblock %}
+{% block conteudo %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold">Pedido #{{ pedido.pk }}</h1>
+    <p class="text-slate-500 text-sm mt-1">
+      {{ pedido.requisitante }} → {{ pedido.almoxarifado_destino }} ·
+      {{ pedido.centro_custo }}{% if pedido.subcentro %} / {{ pedido.subcentro.nome }}{% endif %} ·
+      {{ pedido.motivo }}
+    </p>
+  </div>
+  <span class="text-xs font-medium px-3 py-1.5 rounded-full {{ pedido.status|badge_status }}">{{ pedido.get_status_display }}</span>
+</div>
+
+<div class="grid gap-6 lg:grid-cols-3">
+  <div class="lg:col-span-2 space-y-6">
+    <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left">
+          <tr>
+            <th class="px-6 py-3 font-medium">Produto</th>
+            <th class="px-6 py-3 font-medium text-right">Qtd</th>
+            <th class="px-6 py-3 font-medium">Atendimento</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          {% for item in itens %}
+          <tr>
+            <td class="px-6 py-3.5">{{ item.produto }}</td>
+            <td class="px-6 py-3.5 text-right">{{ item.quantidade|floatformat:"-3" }}</td>
+            <td class="px-6 py-3.5">
+              {% if item.origem_atendimento == 'ESTOQUE' %}
+                <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">Estoque · 72h</span>
+              {% elif item.origem_atendimento == 'COMPRA' %}
+                <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">Compra · 7 dias úteis</span>
+              {% else %}
+                <span class="text-xs text-slate-400">—</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if pedido.status == 'ENVIADO' and pode_aprovar %}
+    <div class="bg-white rounded-3xl border border-slate-200 p-6">
+      <h2 class="font-medium mb-4">Decisão do aprovador</h2>
+      <form method="post" class="space-y-3">
+        {% csrf_token %}
+        <input name="observacao" placeholder="Motivo (obrigatório para recusar)"
+               class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+        <div class="flex gap-3">
+          <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 transition">Aprovar</button>
+          <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium px-5 py-2.5 transition">Recusar</button>
+        </div>
+      </form>
+    </div>
+    {% endif %}
+
+    {% if e_gestor %}
+      {% if pedido.status == 'APROVADO_UNIDADE' %}
+      <form method="post">{% csrf_token %}
+        <button name="acao" value="separar" class="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-5 py-2.5 transition">Iniciar separação</button>
+      </form>
+      {% elif pedido.status == 'EM_SEPARACAO' %}
+      <form method="post">{% csrf_token %}
+        <button name="acao" value="entregar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 transition">Registrar entrega (baixa no estoque)</button>
+      </form>
+      {% endif %}
+    {% endif %}
+
+    {% if pedido.status == 'ENTREGUE' and user == pedido.requisitante %}
+    <form method="post">{% csrf_token %}
+      <button name="acao" value="concluir" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 transition">Confirmar recebimento</button>
+    </form>
+    {% endif %}
+  </div>
+
+  <div class="bg-white rounded-3xl border border-slate-200 p-6 h-fit">
+    <h2 class="font-medium mb-4">Histórico</h2>
+    <ol class="space-y-4 text-sm">
+      {% for e in eventos %}
+      <li class="flex gap-3">
+        <span class="mt-1 h-2 w-2 rounded-full bg-blue-400 shrink-0"></span>
+        <div>
+          <p class="font-medium">{{ e.get_para_status_display }}</p>
+          <p class="text-slate-500">{{ e.usuario }} · {{ e.criado_em|date:"d/m H:i" }}</p>
+          {% if e.observacao %}<p class="text-slate-500 italic mt-0.5">"{{ e.observacao }}"</p>{% endif %}
+        </div>
+      </li>
+      {% empty %}
+      <p class="text-slate-400">Sem eventos.</p>
+      {% endfor %}
+    </ol>
+  </div>
+</div>
+{% endblock %}

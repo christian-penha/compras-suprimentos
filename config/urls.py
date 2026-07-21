@@ -1,22 +1,20 @@
-"""
-URL configuration for config project.
-
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.0/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
 from django.contrib import admin
+from django.contrib.auth import views as auth_views
 from django.urls import path
 
+from estoque import views as estoque_views
+from pedidos import views as pedidos_views
+
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path("admin/", admin.site.urls),
+    path("entrar/", auth_views.LoginView.as_view(), name="login"),
+    path("sair/", auth_views.LogoutView.as_view(), name="logout"),
+    path("", pedidos_views.painel, name="painel"),
+    path("pedidos/novo/", pedidos_views.pedido_novo, name="pedido_novo"),
+    path("pedidos/", pedidos_views.pedido_lista, name="pedido_lista"),
+    path("pedidos/<int:pk>/", pedidos_views.pedido_detalhe, name="pedido_detalhe"),
+    path("aprovacoes/", pedidos_views.aprovacoes, name="aprovacoes"),
+    path("suprimentos/", pedidos_views.fila_suprimentos, name="fila_suprimentos"),
+    path("estoque/entrada-planilha/", estoque_views.entrada_planilha, name="entrada_planilha"),
+    path("estoque/posicao/", estoque_views.posicao_estoque, name="posicao_estoque"),
 ]

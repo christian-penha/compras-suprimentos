@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block titulo %}Novo pedido{% endblock %}
+{% block conteudo %}
+<h1 class="text-2xl font-semibold mb-1">Novo pedido</h1>
+<p class="text-slate-500 text-sm mb-8">Busque o produto pelo código ou nome — o saldo em estoque aparece ao selecionar.</p>
+
+{% if erros_itens %}
+<div class="rounded-2xl bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3 mb-6">
+  <ul class="list-disc ml-4">{% for e in erros_itens %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form method="post" class="space-y-6">
+  {% csrf_token %}
+  <div class="bg-white rounded-3xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2">
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5">Destino (almoxarifado)</label>
+      {{ form.almoxarifado_destino }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5">Motivo</label>
+      {{ form.motivo }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5">Centro de custo</label>
+      {{ form.centro_custo }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5">Subcentro (opcional)</label>
+      {{ form.subcentro }}
+    </div>
+    <div class="sm:col-span-2">
+      <label class="block text-sm font-medium text-slate-600 mb-1.5">Observação</label>
+      {{ form.observacao }}
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3xl border border-slate-200 p-6">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="font-medium">Itens</h2>
+      <button type="button" id="add-linha" class="text-sm text-blue-700 hover:text-blue-900 font-medium">+ adicionar item</button>
+    </div>
+    <datalist id="catalogo">
+      {% for p in catalogo %}<option value="{{ p.rotulo }}" data-saldo="{{ p.saldo }}"></option>{% endfor %}
+    </datalist>
+    <div id="linhas" class="space-y-3"></div>
+    <template id="tpl-linha">
+      <div class="flex gap-3 items-center linha-item">
+        <input list="catalogo" name="item_codigo" placeholder="Código ou nome do produto"
+               class="flex-1 rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400 campo-produto">
+        <input name="item_quantidade" placeholder="Qtd" inputmode="decimal"
+               class="w-24 rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+        <span class="text-xs text-slate-400 w-28 saldo-info"></span>
+        <button type="button" class="remover text-slate-300 hover:text-red-500 text-lg leading-none" aria-label="Remover item">×</button>
+      </div>
+    </template>
+  </div>
+
+  <div class="flex justify-end gap-3">
+    <a href="{% url 'painel' %}" class="rounded-xl px-5 py-2.5 text-sm text-slate-500 hover:bg-slate-200 transition">Cancelar</a>
+    <button class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-6 py-2.5 transition">Enviar pedido</button>
+  </div>
+</form>
+
+<script>
+const linhas = document.getElementById('linhas');
+const tpl = document.getElementById('tpl-linha');
+const catalogo = document.getElementById('catalogo');
+
+function addLinha() {
+  const nova = tpl.content.cloneNode(true);
+  linhas.appendChild(nova);
+  const linha = linhas.lastElementChild;
+  linha.querySelector('.remover').addEventListener('click', () => {
+    if (linhas.children.length > 1) linha.remove();
+  });
+  const campo = linha.querySelector('.campo-produto');
+  campo.addEventListener('change', () => {
+    const opt = [...catalogo.options].find(o => o.value === campo.value);
+    linha.querySelector('.saldo-info').textContent =
+      opt ? `saldo: ${opt.dataset.saldo}` : '';
+  });
+  campo.focus();
+}
+document.getElementById('add-linha').addEventListener('click', addLinha);
+addLinha();
+</script>
+{% endblock %}

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block titulo %}Meus pedidos{% endblock %}
+{% block conteudo %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Meus pedidos</h1>
+  <a href="{% url 'pedido_novo' %}" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 transition">+ Novo pedido</a>
+</div>
+<div class="bg-white rounded-3xl border border-slate-200 divide-y divide-slate-100">
+  {% for p in pedidos %}
+  <a href="{% url 'pedido_detalhe' p.pk %}" class="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition">
+    <div>
+      <p class="font-medium">Pedido #{{ p.pk }}</p>
+      <p class="text-sm text-slate-500">{{ p.almoxarifado_destino }} · {{ p.motivo }} · {{ p.criado_em|date:"d/m/Y" }}</p>
+    </div>
+    <span class="text-xs font-medium px-3 py-1.5 rounded-full {{ p.status|badge_status }}">{{ p.get_status_display }}</span>
+  </a>
+  {% empty %}
+  <p class="px-6 py-8 text-sm text-slate-400 text-center">Nenhum pedido ainda.</p>
+  {% endfor %}
+</div>
+{% endblock %}

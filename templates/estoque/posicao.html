@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titulo %}Posição de estoque{% endblock %}
+{% block conteudo %}
+<h1 class="text-2xl font-semibold mb-6">Posição de estoque</h1>
+<div class="bg-white rounded-3xl border border-slate-200 overflow-hidden">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left">
+      <tr>
+        <th class="px-6 py-3 font-medium">Almoxarifado</th>
+        <th class="px-6 py-3 font-medium">Produto</th>
+        <th class="px-6 py-3 font-medium text-right">Saldo</th>
+        <th class="px-6 py-3 font-medium text-right">Custo médio</th>
+        <th class="px-6 py-3 font-medium text-center">Mínimo</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100">
+      {% for s in saldos %}
+      <tr {% if s.abaixo_do_minimo %}class="bg-red-50"{% endif %}>
+        <td class="px-6 py-3">{{ s.almoxarifado }}</td>
+        <td class="px-6 py-3">{{ s.produto }}</td>
+        <td class="px-6 py-3 text-right font-medium">{{ s.quantidade|floatformat:"-3" }}</td>
+        <td class="px-6 py-3 text-right">R$ {{ s.custo_medio|floatformat:2 }}</td>
+        <td class="px-6 py-3 text-center">
+          {% if s.abaixo_do_minimo %}<span class="text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 text-red-700">repor</span>
+          {% elif s.estoque_minimo %}<span class="text-xs text-slate-400">{{ s.estoque_minimo|floatformat:"-3" }}</span>
+          {% else %}<span class="text-xs text-slate-300">—</span>{% endif %}
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="px-6 py-8 text-center text-slate-400 text-sm">Nenhum saldo registrado ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

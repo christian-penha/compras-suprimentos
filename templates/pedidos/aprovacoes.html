@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Aprovações pendentes{% endblock %}
+{% block conteudo %}
+<h1 class="text-2xl font-semibold mb-6">Aprovações pendentes</h1>
+<div class="bg-white rounded-3xl border border-slate-200 divide-y divide-slate-100">
+  {% for p in pedidos %}
+  <a href="{% url 'pedido_detalhe' p.pk %}" class="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition">
+    <div>
+      <p class="font-medium">Pedido #{{ p.pk }} — {{ p.requisitante }}</p>
+      <p class="text-sm text-slate-500">{{ p.almoxarifado_destino }} · {{ p.motivo }} · {{ p.criado_em|date:"d/m/Y H:i" }}</p>
+    </div>
+    <span class="text-sm text-blue-700 font-medium">Analisar →</span>
+  </a>
+  {% empty %}
+  <p class="px-6 py-8 text-sm text-slate-400 text-center">Nenhum pedido aguardando sua aprovação. 🎉</p>
+  {% endfor %}
+</div>
+{% endblock %}

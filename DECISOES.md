@@ -11,3 +11,7 @@
 - **`VinculoAprovacao` com ordem única por requisitante ativo** e check de autoaprovação no banco.
 - **`Produto.codigo` como chave de reimportação**: o código interno do Glide (ABAC-001…) permite reimportar a planilha sem duplicar (update_or_create). Importador com prévia por padrão e `--aplicar` para gravar; `reset_dimensions()` obrigatório porque o export do Glide tem metadados de dimensão corrompidos (A1:C1).
 - **Produtos importados na categoria "A classificar"**: a planilha não traz categoria; reclassificação será feita no admin pela equipe. Saldos da planilha NÃO são importados — entram pela tela de entrada por planilha (fase 3).
+- **Tailwind v4 via CLI standalone em `tools/` (gitignorado)**: build com `./tools/tailwindcss.exe -i static/src/app.css -o static/css/app.css --minify` após alterar templates.
+- **Entrega = transferência central → almoxarifado destino**: a baixa da entrega credita o saldo lógico da unidade; débito entre almoxarifados só é gerado em transferências fora desse fluxo (unidade → unidade).
+- **Entrada por planilha com prévia em sessão**: upload → prévia validada → confirmação; cada confirmação gera Movimentações com `arquivo_origem` preenchido.
+- **Design system**: fundo slate-100, cards rounded-3xl brancos, azul-600 como cor primária, badges por status (pedidos/templatetags/ui.py).

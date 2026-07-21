@@ -1,0 +1,48 @@
+{% load static %}<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Compras & Suprimentos{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-800 antialiased">
+  {% if user.is_authenticated %}
+  <header class="bg-white border-b border-slate-200">
+    <div class="mx-auto max-w-6xl px-4 flex items-center justify-between h-16">
+      <a href="{% url 'painel' %}" class="flex items-center gap-2 font-semibold text-blue-700">
+        <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-blue-600 text-white text-lg">⬡</span>
+        <span>Compras <span class="text-slate-400 font-normal">&</span> Suprimentos</span>
+      </a>
+      <nav class="hidden md:flex items-center gap-1 text-sm">
+        <a href="{% url 'pedido_novo' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Novo pedido</a>
+        <a href="{% url 'pedido_lista' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Meus pedidos</a>
+        <a href="{% url 'aprovacoes' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Aprovações</a>
+        <a href="{% url 'fila_suprimentos' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Suprimentos</a>
+        <a href="{% url 'entrada_planilha' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Entrada</a>
+        <a href="{% url 'posicao_estoque' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Estoque</a>
+      </nav>
+      <div class="flex items-center gap-3 text-sm">
+        <span class="text-slate-500 hidden sm:inline">{{ user }}</span>
+        <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+          <button class="px-3 py-2 rounded-xl text-slate-500 hover:bg-slate-100">Sair</button>
+        </form>
+      </div>
+    </div>
+  </header>
+  {% endif %}
+
+  <main class="mx-auto max-w-6xl px-4 py-8">
+    {% if messages %}
+      <div class="space-y-2 mb-6">
+        {% for m in messages %}
+          <div class="rounded-2xl px-4 py-3 text-sm {% if m.tags == 'error' %}bg-red-50 text-red-700 border border-red-100{% elif m.tags == 'success' %}bg-emerald-50 text-emerald-700 border border-emerald-100{% else %}bg-blue-50 text-blue-700 border border-blue-100{% endif %}">
+            {{ m }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+    {% block conteudo %}{% endblock %}
+  </main>
+</body>
+</html>
