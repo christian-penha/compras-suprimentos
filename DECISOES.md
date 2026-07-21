@@ -9,3 +9,5 @@
 - **Seed via data migration (`cadastros.0002`)**: filiais, 22 almoxarifados (1 central no CSC), categorias, motivos, centros de custo por filial e as 4 alçadas entram junto com o schema — todo ambiente novo nasce operável e os testes validam o seed.
 - **`Alcada.para_valor()`**: resolução da faixa centralizada no model; testes cobrem limites exatos (R$ 300,00 automática / R$ 300,01 diretoria) e faixa sem teto (CEO).
 - **`VinculoAprovacao` com ordem única por requisitante ativo** e check de autoaprovação no banco.
+- **`Produto.codigo` como chave de reimportação**: o código interno do Glide (ABAC-001…) permite reimportar a planilha sem duplicar (update_or_create). Importador com prévia por padrão e `--aplicar` para gravar; `reset_dimensions()` obrigatório porque o export do Glide tem metadados de dimensão corrompidos (A1:C1).
+- **Produtos importados na categoria "A classificar"**: a planilha não traz categoria; reclassificação será feita no admin pela equipe. Saldos da planilha NÃO são importados — entram pela tela de entrada por planilha (fase 3).
