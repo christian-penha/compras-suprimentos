@@ -15,14 +15,18 @@
         <span>Compras <span class="text-slate-400 font-normal">&</span> Suprimentos</span>
       </a>
       <nav class="hidden md:flex items-center gap-1 text-sm">
-        <a href="{% url 'pedido_novo' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Novo pedido</a>
+        <a href="{% url 'catalogo' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Catálogo</a>
         <a href="{% url 'pedido_lista' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Meus pedidos</a>
         <a href="{% url 'aprovacoes' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Aprovações</a>
         <a href="{% url 'fila_suprimentos' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Suprimentos</a>
         <a href="{% url 'entrada_planilha' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Entrada</a>
         <a href="{% url 'posicao_estoque' %}" class="px-3 py-2 rounded-xl hover:bg-slate-100">Estoque</a>
       </nav>
-      <div class="flex items-center gap-3 text-sm">
+      <div class="flex items-center gap-4 text-sm">
+        <a href="{% url 'carrinho_ver' %}" class="relative flex items-center gap-1.5 text-slate-600 hover:text-blue-700">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" class="w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
+          {% if carrinho_qtd %}<span class="absolute -top-2 -right-2 bg-blue-600 text-white text-xs font-medium h-5 min-w-5 px-1 rounded-full flex items-center justify-center">{{ carrinho_qtd }}</span>{% endif %}
+        </a>
         <span class="text-slate-500 hidden sm:inline">{{ user }}</span>
         <form method="post" action="{% url 'logout' %}">{% csrf_token %}
           <button class="px-3 py-2 rounded-xl text-slate-500 hover:bg-slate-100">Sair</button>

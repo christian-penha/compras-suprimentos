@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block titulo %}Finalizar pedido{% endblock %}
+{% block conteudo %}
+<h1 class="text-2xl font-semibold mb-1">Finalizar pedido</h1>
+<p class="text-slate-500 text-sm mb-8">Confira os itens e informe os dados do pedido.</p>
+
+<form method="post" class="grid gap-6 lg:grid-cols-3">
+  {% csrf_token %}
+  <div class="lg:col-span-2 space-y-6">
+    <div class="bg-white rounded-3xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2">
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1.5">Destino (almoxarifado)</label>
+        {{ form.almoxarifado_destino }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1.5">Motivo</label>
+        {{ form.motivo }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1.5">Centro de custo</label>
+        {{ form.centro_custo }}
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-600 mb-1.5">Subcentro (opcional)</label>
+        {{ form.subcentro }}
+      </div>
+      <div class="sm:col-span-2">
+        <label class="block text-sm font-medium text-slate-600 mb-1.5">Observação</label>
+        {{ form.observacao }}
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-3xl border border-slate-200 p-6 h-fit">
+    <h2 class="font-medium mb-4">Itens ({{ itens|length }})</h2>
+    <ul class="space-y-3 text-sm mb-6">
+      {% for item in itens %}
+      <li class="flex justify-between gap-2">
+        <span class="text-slate-600">{{ item.produto.nome }}</span>
+        <span class="text-slate-400 shrink-0">× {{ item.quantidade|floatformat:'-3' }}</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <button class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 transition">Enviar pedido</button>
+    <a href="{% url 'carrinho_ver' %}" class="block text-center text-sm text-slate-400 hover:text-slate-600 mt-3">voltar ao carrinho</a>
+  </div>
+</form>
+{% endblock %}

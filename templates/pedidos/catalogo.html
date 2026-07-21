@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block titulo %}Catálogo{% endblock %}
+{% block conteudo %}
+<div class="mb-6">
+  <h1 class="text-2xl font-semibold">Catálogo de produtos</h1>
+  <p class="text-slate-500 text-sm mt-1">Escolha os itens e adicione ao carrinho. No fim, você informa o destino e o motivo.</p>
+</div>
+
+<form method="get" class="bg-white rounded-3xl border border-slate-200 p-4 mb-8 grid gap-3 sm:grid-cols-[1fr_260px]">
+  <div>
+    <label class="block text-xs font-medium text-slate-500 mb-1">Nome</label>
+    <input name="q" value="{{ busca }}" placeholder="Pesquisar produto…"
+           class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+  </div>
+  <div>
+    <label class="block text-xs font-medium text-slate-500 mb-1">Categoria</label>
+    <select name="categoria" onchange="this.form.submit()"
+            class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+      <option value="">Todas</option>
+      {% for c in categorias %}
+      <option value="{{ c.pk }}" {% if categoria_id == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+  {% for p in produtos %}
+  <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition">
+    <div class="aspect-square bg-slate-50 flex items-center justify-center">
+      {% if p.imagem %}
+        <img src="{{ p.imagem.url }}" alt="{{ p.nome }}" class="w-full h-full object-cover">
+      {% else %}
+        <div class="text-slate-300 flex flex-col items-center gap-1">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" class="w-12 h-12"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 9h.008M6 21h12a2.25 2.25 0 0 0 2.25-2.25V5.25A2.25 2.25 0 0 0 18 3H6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6 21Z"/></svg>
+          <span class="text-xs">sem foto</span>
+        </div>
+      {% endif %}
+    </div>
+    <div class="p-4 flex flex-col flex-1">
+      <p class="font-medium text-slate-800 leading-snug">{{ p.nome }}</p>
+      {% if p.especificacao %}<p class="text-sm text-slate-500 mt-0.5">{{ p.especificacao }}</p>{% endif %}
+      <p class="text-xs mt-2 {% if p.saldo_central > 0 %}text-emerald-600{% else %}text-slate-400{% endif %}">
+        Estoque: {{ p.saldo_central|floatformat:"-3" }}
+      </p>
+      <form method="post" action="{% url 'carrinho_adicionar' %}" class="mt-4 flex gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="codigo" value="{{ p.codigo }}">
+        <input type="hidden" name="voltar" value="{{ request.get_full_path }}">
+        <input name="quantidade" value="1" inputmode="decimal"
+               class="w-16 rounded-xl border-slate-200 px-3 py-2 text-sm text-center focus:border-blue-400 focus:ring-blue-400">
+        <button class="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 transition">Adicionar</button>
+      </form>
+    </div>
+  </div>
+  {% empty %}
+  <p class="col-span-full text-center text-slate-400 text-sm py-12">Nenhum produto encontrado com esse filtro.</p>
+  {% endfor %}
+</div>
+
+{% if produtos|length == 60 %}
+<p class="text-center text-xs text-slate-400 mt-8">Mostrando os primeiros 60 resultados — refine a busca para ver mais.</p>
+{% endif %}
+{% endblock %}

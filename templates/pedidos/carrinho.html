@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block titulo %}Meu carrinho{% endblock %}
+{% block conteudo %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold">Meu carrinho</h1>
+  <a href="{% url 'catalogo' %}" class="text-sm text-blue-700 hover:text-blue-900 font-medium">← continuar escolhendo</a>
+</div>
+
+{% if itens %}
+<div class="bg-white rounded-3xl border border-slate-200 divide-y divide-slate-100">
+  {% for item in itens %}
+  <div class="flex items-center gap-4 px-5 py-4">
+    <div class="h-16 w-16 rounded-2xl bg-slate-50 flex items-center justify-center shrink-0 overflow-hidden">
+      {% if item.produto.imagem %}
+        <img src="{{ item.produto.imagem.url }}" alt="{{ item.produto.nome }}" class="w-full h-full object-cover">
+      {% else %}
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" class="w-7 h-7 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 9h.008M6 21h12a2.25 2.25 0 0 0 2.25-2.25V5.25A2.25 2.25 0 0 0 18 3H6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6 21Z"/></svg>
+      {% endif %}
+    </div>
+    <div class="flex-1">
+      <p class="font-medium">{{ item.produto.nome }}</p>
+      {% if item.produto.especificacao %}<p class="text-sm text-slate-500">{{ item.produto.especificacao }}</p>{% endif %}
+    </div>
+    <form method="post" class="flex items-center gap-2">
+      {% csrf_token %}
+      <input type="hidden" name="codigo" value="{{ item.produto.codigo }}">
+      <input type="hidden" name="acao" value="atualizar">
+      <input name="quantidade" value="{{ item.quantidade|floatformat:'-3' }}" inputmode="decimal"
+             class="w-20 rounded-xl border-slate-200 px-3 py-2 text-sm text-center focus:border-blue-400 focus:ring-blue-400">
+      <button class="text-xs text-slate-500 hover:text-blue-700 px-2">salvar</button>
+    </form>
+    <form method="post">
+      {% csrf_token %}
+      <input type="hidden" name="codigo" value="{{ item.produto.codigo }}">
+      <button name="acao" value="remover" class="text-slate-300 hover:text-red-500 text-xl leading-none px-1" aria-label="Remover">×</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="flex items-center justify-between mt-6">
+  <form method="post">{% csrf_token %}
+    <button name="acao" value="limpar" class="text-sm text-slate-400 hover:text-red-500">Esvaziar carrinho</button>
+  </form>
+  <a href="{% url 'checkout' %}" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium px-6 py-3 transition">
+    Finalizar pedido ({{ itens|length }} {{ itens|length|pluralize:"item,itens" }})
+  </a>
+</div>
+
+{% else %}
+<div class="bg-white rounded-3xl border border-slate-200 py-16 text-center">
+  <p class="text-slate-400 mb-4">Seu carrinho está vazio.</p>
+  <a href="{% url 'catalogo' %}" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 transition">Ir ao catálogo</a>
+</div>
+{% endif %}
+{% endblock %}

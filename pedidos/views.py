@@ -1,15 +1,16 @@
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
-from cadastros.models import Produto
+from cadastros.models import Categoria, Produto
 from contas.models import Papel, VinculoAprovacao
 from contas.permissoes import requer_papel
 from estoque.models import SaldoEstoque
 
+from . import cart
 from .forms import PedidoForm
 from .models import ItemPedido, Pedido, StatusPedido
 from .services import (
@@ -44,64 +45,89 @@ def painel(request):
 
 
 @login_required
-def pedido_novo(request):
-    form = PedidoForm(request.POST or None)
-    erros_itens = []
-    if request.method == "POST" and form.is_valid():
-        codigos = request.POST.getlist("item_codigo")
-        quantidades = request.POST.getlist("item_quantidade")
-        itens = []
-        for n, (codigo, qtd) in enumerate(zip(codigos, quantidades), start=1):
-            codigo = codigo.strip().split(" — ")[0]
-            if not codigo and not qtd.strip():
-                continue
-            produto = Produto.objects.filter(codigo=codigo, ativo=True).first()
-            if produto is None:
-                erros_itens.append(f"Linha {n}: produto '{codigo}' não encontrado.")
-                continue
-            try:
-                quantidade = Decimal(qtd.replace(",", "."))
-                if quantidade <= 0:
-                    raise InvalidOperation
-            except InvalidOperation:
-                erros_itens.append(f"Linha {n}: quantidade inválida para {produto.nome}.")
-                continue
-            itens.append((produto, quantidade))
-        if not itens and not erros_itens:
-            erros_itens.append("Adicione ao menos um item ao pedido.")
-        if not erros_itens:
-            with transaction.atomic():
-                pedido = form.save(commit=False)
-                pedido.requisitante = request.user
-                pedido.save()
-                for produto, quantidade in itens:
-                    ItemPedido.objects.create(
-                        pedido=pedido, produto=produto, quantidade=quantidade
-                    )
-                try:
-                    transicionar(pedido, StatusPedido.ENVIADO, request.user)
-                except (TransicaoInvalida, SemPermissao) as e:
-                    transaction.set_rollback(True)
-                    messages.error(request, str(e))
-                    return redirect("pedido_novo")
-            messages.success(request, f"Pedido #{pedido.pk} enviado para aprovação.")
-            return redirect("pedido_detalhe", pk=pedido.pk)
+def catalogo(request):
+    busca = request.GET.get("q", "").strip()
+    categoria_id = request.GET.get("categoria", "")
+    produtos = Produto.objects.filter(ativo=True).select_related("categoria")
+    if busca:
+        produtos = produtos.filter(nome__icontains=busca)
+    if categoria_id:
+        produtos = produtos.filter(categoria_id=categoria_id)
 
-    produtos = list(
-        Produto.objects.filter(ativo=True).values_list("codigo", "nome", "especificacao")
-    )
     saldos = dict(
         SaldoEstoque.objects.filter(almoxarifado__central=True)
         .values_list("produto__codigo", "quantidade")
     )
-    catalogo = [
-        {"codigo": c, "rotulo": f"{c} — {n}" + (f" ({e})" if e else ""), "saldo": str(saldos.get(c, 0))}
-        for c, n, e in produtos
-    ]
+    produtos = produtos.order_by("nome")[:60]
+    for p in produtos:
+        p.saldo_central = saldos.get(p.codigo, 0)
+
     return render(
-        request, "pedidos/novo.html",
-        {"form": form, "catalogo": catalogo, "erros_itens": erros_itens},
+        request, "pedidos/catalogo.html",
+        {
+            "produtos": produtos,
+            "categorias": Categoria.objects.filter(ativo=True),
+            "busca": busca,
+            "categoria_id": categoria_id,
+        },
     )
+
+
+@login_required
+def carrinho_adicionar(request):
+    if request.method == "POST":
+        codigo = request.POST.get("codigo", "")
+        quantidade = request.POST.get("quantidade", "1")
+        if cart.adicionar(request.session, codigo, quantidade):
+            messages.success(request, "Item adicionado ao carrinho.")
+        else:
+            messages.error(request, "Quantidade inválida.")
+    return redirect(request.POST.get("voltar") or "catalogo")
+
+
+@login_required
+def carrinho_ver(request):
+    if request.method == "POST":
+        acao = request.POST.get("acao")
+        codigo = request.POST.get("codigo", "")
+        if acao == "remover":
+            cart.remover(request.session, codigo)
+        elif acao == "atualizar":
+            cart.definir(request.session, codigo, request.POST.get("quantidade", "0"))
+        elif acao == "limpar":
+            cart.limpar(request.session)
+        return redirect("carrinho_ver")
+    return render(request, "pedidos/carrinho.html", {"itens": cart.itens(request.session)})
+
+
+@login_required
+def checkout(request):
+    itens_carrinho = cart.itens(request.session)
+    if not itens_carrinho:
+        messages.error(request, "Seu carrinho está vazio.")
+        return redirect("catalogo")
+
+    form = PedidoForm(request.POST or None)
+    if request.method == "POST" and form.is_valid():
+        with transaction.atomic():
+            pedido = form.save(commit=False)
+            pedido.requisitante = request.user
+            pedido.save()
+            for item in itens_carrinho:
+                ItemPedido.objects.create(
+                    pedido=pedido, produto=item["produto"], quantidade=item["quantidade"]
+                )
+            try:
+                transicionar(pedido, StatusPedido.ENVIADO, request.user)
+            except (TransicaoInvalida, SemPermissao) as e:
+                transaction.set_rollback(True)
+                messages.error(request, str(e))
+                return redirect("carrinho_ver")
+        cart.limpar(request.session)
+        messages.success(request, f"Pedido #{pedido.pk} enviado para aprovação.")
+        return redirect("pedido_detalhe", pk=pedido.pk)
+
+    return render(request, "pedidos/checkout.html", {"form": form, "itens": itens_carrinho})
 
 
 @login_required
