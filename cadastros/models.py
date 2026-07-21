@@ -126,6 +126,10 @@ class UnidadeMedida(models.TextChoices):
 
 
 class Produto(models.Model):
+    codigo = models.CharField(
+        max_length=30, unique=True, null=True, blank=True,
+        help_text="Código interno importado (chave de reimportação)",
+    )
     nome = models.CharField(max_length=200)
     especificacao = models.CharField(
         max_length=300, help_text="Cor, gramatura, tamanho, marca de referência etc."
