@@ -16,5 +16,5 @@
 - **Entrada por planilha com prévia em sessão**: upload → prévia validada → confirmação; cada confirmação gera Movimentações com `arquivo_origem` preenchido.
 - **Design system**: fundo slate-100, cards rounded-3xl brancos, azul-600 como cor primária, badges por status (pedidos/templatetags/ui.py).
 - **Solicitação no modelo vitrine + carrinho (Fase 4.5)**: substitui o formulário atual da tela `novo.html`. Fluxo: catálogo com fotos → carrinho (sessão) → checkout com destino/centro de custo/motivo. Herda o conceito de "mercado livre" do sistema anterior do grupo. Reduz o erro de "não saber pedir".
-- **`Produto.imagem` (ImageField, Pillow)**: foto por produto, upload em `media/produtos/`. Importação em massa das fotos a definir. GESTIO_PRODUTO.xlsx não trouxe imagens.
+- **`Produto.imagem` (ImageField, Pillow)**: foto por produto, upload em `media/produtos/`. GESTIO_PRODUTO.xlsx não trouxe imagens; **as fotos serão exportadas do Glide antigo** (que já tinha o catálogo com imagens) e importadas em massa, casadas pelo código do produto.
 - **Refino visual aguarda pasta de referência** (GESTIO + sistema anterior). O visual atual da Fase 3 é funcional/provisório; o design definitivo será calibrado pelas referências antes de construir.
