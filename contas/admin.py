@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import PapelUsuario, Usuario
+from .models import Alcada, PapelUsuario, Usuario, VinculoAprovacao
 
 
 class PapelUsuarioInline(admin.TabularInline):
@@ -26,3 +26,20 @@ class UsuarioAdmin(UserAdmin):
 class PapelUsuarioAdmin(admin.ModelAdmin):
     list_display = ["usuario", "papel", "modulo"]
     list_filter = ["papel", "modulo"]
+
+
+@admin.register(VinculoAprovacao)
+class VinculoAprovacaoAdmin(admin.ModelAdmin):
+    list_display = ["requisitante", "aprovador", "ordem", "ativo"]
+    list_filter = ["ativo"]
+    search_fields = ["requisitante__username", "aprovador__username"]
+
+
+@admin.register(Alcada)
+class AlcadaAdmin(admin.ModelAdmin):
+    list_display = ["valor_min", "valor_max", "papel_aprovador", "ativo", "atualizado_em"]
+    list_filter = ["ativo"]
+
+    def save_model(self, request, obj, form, change):
+        obj.atualizado_por = request.user
+        super().save_model(request, obj, form, change)
