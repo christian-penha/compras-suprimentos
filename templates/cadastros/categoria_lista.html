@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Categorias de produto{% endblock %}
+{% block conteudo %}
+<h1>Categorias de produto</h1>
+<div class="acoes">
+  <a href="{% url 'cadastros:categoria_criar' %}" class="btn">+ Nova categoria</a>
+</div>
+<table>
+  <thead>
+    <tr><th>Nome</th><th>Categoria pai</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for categoria in categorias %}
+    <tr>
+      <td>{{ categoria.nome }}</td>
+      <td>{{ categoria.categoria_pai|default:"—" }}</td>
+      <td><a href="{% url 'cadastros:categoria_editar' categoria.pk %}">Editar</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="3">Nenhuma categoria cadastrada ainda.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if is_paginated %}
+<p>
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+  Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Próxima</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}

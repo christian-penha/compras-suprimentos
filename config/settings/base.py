@@ -97,6 +97,9 @@ TIME_ZONE = "America/Sao_Paulo"
 USE_I18N = True
 USE_TZ = True
 
+LOGIN_URL = "login"
+LOGIN_REDIRECT_URL = "cadastros:produto_lista"
+
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 

@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block title %}{% if form.instance.pk %}Editar kit{% else %}Novo kit{% endif %}{% endblock %}
+{% block conteudo %}
+<h1>{% if form.instance.pk %}Editar kit de requisição{% else %}Novo kit de requisição{% endif %}</h1>
+<form method="post">
+  {% csrf_token %}
+  {% for field in form %}
+  <div class="campo">
+    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+    {{ field }}
+    {% if field.errors %}<p class="erro">{{ field.errors|join:", " }}</p>{% endif %}
+  </div>
+  {% endfor %}
+
+  <h2>Itens sugeridos</h2>
+  {{ formset.management_form }}
+  {% if formset.non_form_errors %}<p class="erro">{{ formset.non_form_errors|join:", " }}</p>{% endif %}
+  <table>
+    <thead>
+      <tr><th>Produto</th><th>Quantidade sugerida</th><th>Remover</th></tr>
+    </thead>
+    <tbody>
+      {% for item_form in formset %}
+      <tr>
+        {% for hidden in item_form.hidden_fields %}{{ hidden }}{% endfor %}
+        <td>{{ item_form.produto }}
+          {% if item_form.produto.errors %}<p class="erro">{{ item_form.produto.errors|join:", " }}</p>{% endif %}
+        </td>
+        <td>{{ item_form.quantidade_sugerida }}
+          {% if item_form.quantidade_sugerida.errors %}<p class="erro">{{ item_form.quantidade_sugerida.errors|join:", " }}</p>{% endif %}
+        </td>
+        <td>{% if item_form.instance.pk %}{{ item_form.DELETE }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <button type="submit" class="btn">Salvar</button>
+  <a href="{% url 'cadastros:kit_lista' %}" class="btn secundario">Cancelar</a>
+</form>
+{% endblock %}

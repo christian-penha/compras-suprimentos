@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Compras &amp; Suprimentos{% endblock %}</title>
+  <style>
+    :root {
+      --cor-primaria: #1f6f43;
+      --cor-borda: #d8ddd6;
+      --cor-fundo: #f7f8f6;
+      --cor-texto: #1c1f1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background: var(--cor-fundo);
+      color: var(--cor-texto);
+    }
+    header.topo {
+      background: var(--cor-primaria);
+      color: #fff;
+      padding: 0.75rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+    header.topo a { color: #fff; text-decoration: none; }
+    header.topo nav { display: flex; gap: 1rem; flex-wrap: wrap; }
+    main { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
+    table { width: 100%; border-collapse: collapse; background: #fff; }
+    th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--cor-borda); }
+    th { background: #eef1ee; }
+    .btn {
+      display: inline-block;
+      padding: 0.45rem 0.9rem;
+      background: var(--cor-primaria);
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      text-decoration: none;
+      cursor: pointer;
+      font-size: 0.95rem;
+    }
+    .btn.secundario { background: #6b6f6b; }
+    form.filtro { margin-bottom: 1rem; display: flex; gap: 0.5rem; }
+    input[type=text], input[type=password], input[type=number], select, textarea {
+      padding: 0.4rem;
+      border: 1px solid var(--cor-borda);
+      border-radius: 4px;
+      width: 100%;
+    }
+    .campo { margin-bottom: 0.9rem; }
+    .campo label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
+    .erro { color: #b3261e; font-size: 0.85rem; }
+    .mensagens { list-style: none; padding: 0; margin: 0 0 1rem; }
+    .mensagens li { padding: 0.6rem 0.8rem; border-radius: 4px; margin-bottom: 0.4rem; }
+    .mensagens li.success { background: #e3f3e6; color: #1f6f43; }
+    .mensagens li.error { background: #fbe4e2; color: #b3261e; }
+    .acoes { margin: 1rem 0; }
+    .inativo { color: #999; }
+  </style>
+</head>
+<body>
+  <header class="topo">
+    <a href="{% url 'cadastros:produto_lista' %}"><strong>Compras &amp; Suprimentos</strong></a>
+    {% if user.is_authenticated %}
+    <nav>
+      <a href="{% url 'cadastros:categoria_lista' %}">Categorias</a>
+      <a href="{% url 'cadastros:produto_lista' %}">Produtos</a>
+      <a href="{% url 'cadastros:kit_lista' %}">Kits de requisição</a>
+      <form action="{% url 'logout' %}" method="post" style="display:inline">
+        {% csrf_token %}
+        <button type="submit" class="btn secundario">Sair ({{ user.username }})</button>
+      </form>
+    </nav>
+    {% endif %}
+  </header>
+  <main>
+    {% if messages %}
+    <ul class="mensagens">
+      {% for message in messages %}
+      <li class="{{ message.tags }}">{{ message }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% block conteudo %}{% endblock %}
+  </main>
+</body>
+</html>

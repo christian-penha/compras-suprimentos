@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Kits de requisição{% endblock %}
+{% block conteudo %}
+<h1>Kits de requisição</h1>
+<div class="acoes">
+  <a href="{% url 'cadastros:kit_criar' %}" class="btn">+ Novo kit</a>
+</div>
+<table>
+  <thead>
+    <tr><th>Nome</th><th>Itens</th><th>Status</th><th></th></tr>
+  </thead>
+  <tbody>
+    {% for kit in kits %}
+    <tr class="{% if not kit.ativo %}inativo{% endif %}">
+      <td>{{ kit.nome }}</td>
+      <td>{{ kit.itens.count }}</td>
+      <td>{% if kit.ativo %}Ativo{% else %}Inativo{% endif %}</td>
+      <td><a href="{% url 'cadastros:kit_editar' kit.pk %}">Editar</a></td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="4">Nenhum kit cadastrado ainda.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% if is_paginated %}
+<p>
+  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}">Anterior</a>{% endif %}
+  Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}">Próxima</a>{% endif %}
+</p>
+{% endif %}
+{% endblock %}

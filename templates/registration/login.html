@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}Entrar — Compras &amp; Suprimentos{% endblock %}
+{% block conteudo %}
+<h1>Entrar</h1>
+{% if form.errors %}
+<p class="erro">Usuário ou senha inválidos.</p>
+{% endif %}
+<form method="post">
+  {% csrf_token %}
+  <div class="campo">
+    <label for="id_username">Usuário</label>
+    {{ form.username }}
+  </div>
+  <div class="campo">
+    <label for="id_password">Senha</label>
+    {{ form.password }}
+  </div>
+  <button type="submit" class="btn">Entrar</button>
+  <input type="hidden" name="next" value="{{ next }}">
+</form>
+{% endblock %}
