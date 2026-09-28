@@ -102,6 +102,7 @@ LOGIN_REDIRECT_URL = "cadastros:produto_lista"
 
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+STATICFILES_DIRS = [BASE_DIR / "static"]
 
 # Anexos e XMLs de nota fiscal: fora do webroot, servidos por view autenticada
 # e escopada (ver apps/compras). MEDIA_ROOT aqui é o destino em disco; a

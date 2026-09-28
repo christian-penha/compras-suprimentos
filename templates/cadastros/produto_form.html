@@ -1,18 +1,30 @@
 {% extends "base.html" %}
 {% block title %}{% if object %}Editar produto{% else %}Novo produto{% endif %}{% endblock %}
 {% block conteudo %}
-<h1>{% if object %}Editar produto{% else %}Novo produto{% endif %}</h1>
-<form method="post">
-  {% csrf_token %}
-  {% for field in form %}
-  <div class="campo">
-    <label for="{{ field.id_for_label }}">{{ field.label }}</label>
-    {{ field }}
-    {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
-    {% if field.errors %}<p class="erro">{{ field.errors|join:", " }}</p>{% endif %}
+<div class="cartao" style="max-width: 760px;">
+  <div class="cartao-cabecalho">
+    <h1>{% if object %}Editar produto{% else %}Novo produto{% endif %}</h1>
   </div>
-  {% endfor %}
-  <button type="submit" class="btn">Salvar</button>
-  <a href="{% url 'cadastros:produto_lista' %}" class="btn secundario">Cancelar</a>
-</form>
+  <form method="post">
+    {% csrf_token %}
+    <div class="grade-formulario">
+      {% for field in form %}
+      <div class="campo {% if field.name == 'especificacao' %}campo-largo{% endif %}">
+        {% if field.field.widget.input_type == 'checkbox' %}
+          <div class="linha-checkbox">{{ field }}<label for="{{ field.id_for_label }}">{{ field.label }}</label></div>
+        {% else %}
+          <label for="{{ field.id_for_label }}">{{ field.label }}</label>
+          {{ field }}
+        {% endif %}
+        {% if field.help_text %}<small>{{ field.help_text }}</small>{% endif %}
+        {% if field.errors %}<p class="erro">{{ field.errors|join:", " }}</p>{% endif %}
+      </div>
+      {% endfor %}
+    </div>
+    <div style="margin-top: 0.5rem;">
+      <button type="submit" class="btn">Salvar</button>
+      <a href="{% url 'cadastros:produto_lista' %}" class="btn secundario">Cancelar</a>
+    </div>
+  </form>
+</div>
 {% endblock %}

@@ -1,38 +1,43 @@
 {% extends "base.html" %}
 {% block title %}Produtos{% endblock %}
 {% block conteudo %}
-<h1>Produtos</h1>
-<div class="acoes">
-  <a href="{% url 'cadastros:produto_criar' %}" class="btn">+ Novo produto</a>
+<div class="cartao">
+  <div class="cartao-cabecalho">
+    <h1>Produtos</h1>
+    <a href="{% url 'cadastros:produto_criar' %}" class="btn">+ Novo produto</a>
+  </div>
+  <form class="filtro" method="get">
+    <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nome...">
+  </form>
+  <table>
+    <thead>
+      <tr><th>Código</th><th>Nome</th><th>Categoria</th><th>Unidade</th><th>Status</th><th></th></tr>
+    </thead>
+    <tbody>
+      {% for produto in produtos %}
+      <tr class="{% if not produto.ativo %}inativo{% endif %}">
+        <td>{{ produto.codigo_interno }}</td>
+        <td>{{ produto.nome }}</td>
+        <td>{{ produto.categoria }}</td>
+        <td>{{ produto.unidade_base }}</td>
+        <td>
+          <span class="status {% if produto.ativo %}ativo{% else %}inativo{% endif %}">
+            <span class="ponto"></span>{% if produto.ativo %}Ativo{% else %}Inativo{% endif %}
+          </span>
+        </td>
+        <td><a href="{% url 'cadastros:produto_editar' produto.pk %}">Editar</a></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="vazio">Nenhum produto encontrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if is_paginated %}
+  <div class="paginacao">
+    {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&q={{ q }}">← Anterior</a>{% endif %}
+    <span>Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&q={{ q }}">Próxima →</a>{% endif %}
+  </div>
+  {% endif %}
 </div>
-<form class="filtro" method="get">
-  <input type="text" name="q" value="{{ q }}" placeholder="Buscar por nome...">
-  <button type="submit" class="btn secundario">Buscar</button>
-</form>
-<table>
-  <thead>
-    <tr><th>Código</th><th>Nome</th><th>Categoria</th><th>Unidade</th><th>Status</th><th></th></tr>
-  </thead>
-  <tbody>
-    {% for produto in produtos %}
-    <tr class="{% if not produto.ativo %}inativo{% endif %}">
-      <td>{{ produto.codigo_interno }}</td>
-      <td>{{ produto.nome }}</td>
-      <td>{{ produto.categoria }}</td>
-      <td>{{ produto.unidade_base }}</td>
-      <td>{% if produto.ativo %}Ativo{% else %}Inativo{% endif %}</td>
-      <td><a href="{% url 'cadastros:produto_editar' produto.pk %}">Editar</a></td>
-    </tr>
-    {% empty %}
-    <tr><td colspan="6">Nenhum produto encontrado.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% if is_paginated %}
-<p>
-  {% if page_obj.has_previous %}<a href="?page={{ page_obj.previous_page_number }}&q={{ q }}">Anterior</a>{% endif %}
-  Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-  {% if page_obj.has_next %}<a href="?page={{ page_obj.next_page_number }}&q={{ q }}">Próxima</a>{% endif %}
-</p>
-{% endif %}
 {% endblock %}

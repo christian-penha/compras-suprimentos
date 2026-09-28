@@ -1,21 +1,80 @@
-{% extends "base.html" %}
-{% block title %}Entrar — Compras &amp; Suprimentos{% endblock %}
-{% block conteudo %}
-<h1>Entrar</h1>
-{% if form.errors %}
-<p class="erro">Usuário ou senha inválidos.</p>
-{% endif %}
-<form method="post">
-  {% csrf_token %}
-  <div class="campo">
-    <label for="id_username">Usuário</label>
-    {{ form.username }}
+{% load static %}
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar — Sistema de Pedidos</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #141414;
+      font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+    }
+    .cartao {
+      width: 100%;
+      max-width: 360px;
+      background: #0a0a0a;
+      border: 1px solid #232323;
+      border-radius: 14px;
+      padding: 2.25rem 2rem;
+      text-align: center;
+    }
+    .cartao img { height: 56px; margin-bottom: 1.25rem; }
+    .cartao h1 { color: #fff; font-size: 1.4rem; margin: 0 0 1.5rem; }
+    .campo { text-align: left; margin-bottom: 1rem; }
+    .campo label { display: block; color: #b3b3b3; font-size: 0.85rem; margin-bottom: 0.35rem; font-weight: 600; }
+    input[type=text], input[type=password] {
+      width: 100%;
+      padding: 0.65rem 0.85rem;
+      border-radius: 8px;
+      border: 1px solid #2c2c2c;
+      background: #1c1c1c;
+      color: #fff;
+      font-size: 0.95rem;
+    }
+    input:focus { outline: 2px solid #fff; outline-offset: 1px; }
+    .btn-entrar {
+      width: 100%;
+      margin-top: 0.5rem;
+      padding: 0.7rem;
+      border-radius: 8px;
+      border: none;
+      background: #fff;
+      color: #0a0a0a;
+      font-weight: 700;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .btn-entrar:hover { background: #e5e5e5; }
+    .erro { color: #f87171; font-size: 0.85rem; margin-bottom: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="cartao">
+    <img src="{% static 'img/logo-perfil.png' %}" alt="Grupo Perfil de Educação">
+    <h1>Sistema de Pedidos</h1>
+    {% if form.errors %}
+    <p class="erro">Usuário ou senha inválidos.</p>
+    {% endif %}
+    <form method="post">
+      {% csrf_token %}
+      <div class="campo">
+        <label for="id_username">Usuário</label>
+        {{ form.username }}
+      </div>
+      <div class="campo">
+        <label for="id_password">Senha</label>
+        {{ form.password }}
+      </div>
+      <button type="submit" class="btn-entrar">Entrar</button>
+      <input type="hidden" name="next" value="{{ next }}">
+    </form>
   </div>
-  <div class="campo">
-    <label for="id_password">Senha</label>
-    {{ form.password }}
-  </div>
-  <button type="submit" class="btn">Entrar</button>
-  <input type="hidden" name="next" value="{{ next }}">
-</form>
-{% endblock %}
+</body>
+</html>

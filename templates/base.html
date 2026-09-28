@@ -1,72 +1,148 @@
 <!doctype html>
+{% load static %}
 <html lang="pt-br">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Compras &amp; Suprimentos{% endblock %}</title>
+  <title>{% block title %}Sistema de Pedidos{% endblock %}</title>
   <style>
     :root {
-      --cor-primaria: #1f6f43;
-      --cor-borda: #d8ddd6;
-      --cor-fundo: #f7f8f6;
-      --cor-texto: #1c1f1c;
+      --preto: #0a0a0a;
+      --preto-suave: #141414;
+      --cinza-900: #1c1c1c;
+      --cinza-borda: #e6e6e6;
+      --cinza-input: #f0f0f0;
+      --fundo: #f5f5f5;
+      --texto: #1a1a1a;
+      --texto-suave: #6b6b6b;
+      --verde: #22c55e;
+      --amarelo: #eab308;
+      --vermelho: #ef4444;
+      --raio: 10px;
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-      background: var(--cor-fundo);
-      color: var(--cor-texto);
+      font-family: -apple-system, "Segoe UI", Roboto, system-ui, sans-serif;
+      background: var(--fundo);
+      color: var(--texto);
     }
     header.topo {
-      background: var(--cor-primaria);
+      background: var(--preto);
       color: #fff;
-      padding: 0.75rem 1.5rem;
+      padding: 0 1.5rem;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      flex-wrap: wrap;
+    }
+    header.topo .marca {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    header.topo .marca img { height: 34px; display: block; }
+    header.topo a { color: #fff; text-decoration: none; }
+    header.topo nav {
+      display: flex;
+      align-items: center;
+      gap: 1.5rem;
+      flex-wrap: wrap;
+      font-size: 0.92rem;
+    }
+    header.topo nav a { color: #d4d4d4; }
+    header.topo nav a:hover { color: #fff; }
+    main { max-width: 1080px; margin: 1.75rem auto; padding: 0 1.25rem; }
+
+    .cartao {
+      background: #fff;
+      border-radius: var(--raio);
+      border: 1px solid var(--cinza-borda);
+      padding: 1.5rem;
+    }
+    .cartao-cabecalho {
       display: flex;
       align-items: center;
       justify-content: space-between;
       flex-wrap: wrap;
-      gap: 0.5rem;
+      gap: 0.75rem;
+      margin-bottom: 1.25rem;
     }
-    header.topo a { color: #fff; text-decoration: none; }
-    header.topo nav { display: flex; gap: 1rem; flex-wrap: wrap; }
-    main { max-width: 960px; margin: 1.5rem auto; padding: 0 1rem; }
-    table { width: 100%; border-collapse: collapse; background: #fff; }
-    th, td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--cor-borda); }
-    th { background: #eef1ee; }
+    .cartao-cabecalho h1 { margin: 0; font-size: 1.35rem; }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 0.7rem 0.6rem; border-bottom: 1px solid var(--cinza-borda); font-size: 0.92rem; }
+    th { color: var(--texto-suave); font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.03em; }
+    tbody tr:hover { background: #fafafa; }
+
     .btn {
-      display: inline-block;
-      padding: 0.45rem 0.9rem;
-      background: var(--cor-primaria);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.55rem 1.1rem;
+      background: var(--preto);
       color: #fff;
       border: none;
-      border-radius: 4px;
+      border-radius: 8px;
       text-decoration: none;
       cursor: pointer;
-      font-size: 0.95rem;
+      font-size: 0.9rem;
+      font-weight: 600;
     }
-    .btn.secundario { background: #6b6f6b; }
-    form.filtro { margin-bottom: 1rem; display: flex; gap: 0.5rem; }
+    .btn:hover { background: var(--preto-suave); }
+    .btn.secundario { background: transparent; color: var(--texto); border: 1px solid var(--cinza-borda); }
+    .btn.secundario:hover { background: var(--cinza-input); }
+
+    form.filtro { margin-bottom: 1.25rem; display: flex; gap: 0.6rem; }
     input[type=text], input[type=password], input[type=number], select, textarea {
-      padding: 0.4rem;
-      border: 1px solid var(--cor-borda);
-      border-radius: 4px;
+      padding: 0.55rem 0.8rem;
+      border: 1px solid var(--cinza-borda);
+      background: var(--cinza-input);
+      border-radius: 8px;
       width: 100%;
+      font-size: 0.92rem;
     }
-    .campo { margin-bottom: 0.9rem; }
-    .campo label { display: block; font-weight: 600; margin-bottom: 0.25rem; }
-    .erro { color: #b3261e; font-size: 0.85rem; }
-    .mensagens { list-style: none; padding: 0; margin: 0 0 1rem; }
-    .mensagens li { padding: 0.6rem 0.8rem; border-radius: 4px; margin-bottom: 0.4rem; }
-    .mensagens li.success { background: #e3f3e6; color: #1f6f43; }
-    .mensagens li.error { background: #fbe4e2; color: #b3261e; }
-    .acoes { margin: 1rem 0; }
-    .inativo { color: #999; }
+    input:focus, select:focus, textarea:focus { outline: 2px solid var(--preto); outline-offset: 1px; }
+    input[type=checkbox] { width: auto; accent-color: var(--preto); margin-right: 0.4rem; }
+
+    .campo { margin-bottom: 1.1rem; }
+    .campo label { display: block; font-weight: 600; margin-bottom: 0.3rem; font-size: 0.88rem; }
+    .linha-checkbox { display: flex; align-items: center; gap: 0.4rem; }
+    .linha-checkbox label { margin: 0; font-weight: 600; font-size: 0.88rem; }
+    .campo small { color: var(--texto-suave); display: block; margin-top: 0.25rem; font-size: 0.8rem; }
+    .erro { color: var(--vermelho); font-size: 0.82rem; margin: 0.2rem 0 0; }
+
+    .grade-formulario { display: grid; grid-template-columns: 1fr 1fr; gap: 0 1.5rem; }
+    .grade-formulario .campo-largo { grid-column: 1 / -1; }
+    @media (max-width: 640px) {
+      .grade-formulario { grid-template-columns: 1fr; }
+    }
+
+    .mensagens { list-style: none; padding: 0; margin: 0 0 1.25rem; }
+    .mensagens li { padding: 0.65rem 0.9rem; border-radius: 8px; margin-bottom: 0.5rem; font-size: 0.9rem; }
+    .mensagens li.success { background: #e6f9ed; color: #15803d; }
+    .mensagens li.error { background: #fdeceb; color: #b91c1c; }
+
+    .status { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; }
+    .status .ponto { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+    .status.ativo .ponto { background: var(--verde); }
+    .status.inativo .ponto { background: var(--vermelho); }
+    tr.inativo td { color: var(--texto-suave); }
+
+    .acoes-topo { margin-bottom: 1.25rem; display: flex; justify-content: flex-end; }
+    .vazio { padding: 2rem 0; text-align: center; color: var(--texto-suave); }
+    .paginacao { margin-top: 1.25rem; display: flex; gap: 1rem; align-items: center; font-size: 0.88rem; color: var(--texto-suave); }
+    .paginacao a { color: var(--texto); font-weight: 600; }
   </style>
 </head>
 <body>
   <header class="topo">
-    <a href="{% url 'cadastros:produto_lista' %}"><strong>Compras &amp; Suprimentos</strong></a>
+    <a class="marca" href="{% url 'cadastros:produto_lista' %}">
+      <img src="{% static 'img/logo-perfil.png' %}" alt="Grupo Perfil de Educação">
+      <span style="font-weight:600;">Sistema de Pedidos</span>
+    </a>
     {% if user.is_authenticated %}
     <nav>
       <a href="{% url 'cadastros:categoria_lista' %}">Categorias</a>
@@ -74,7 +150,7 @@
       <a href="{% url 'cadastros:kit_lista' %}">Kits de requisição</a>
       <form action="{% url 'logout' %}" method="post" style="display:inline">
         {% csrf_token %}
-        <button type="submit" class="btn secundario">Sair ({{ user.username }})</button>
+        <button type="submit" class="btn secundario" style="color:#fff;border-color:#3a3a3a;">Sair ({{ user.username }})</button>
       </form>
     </nav>
     {% endif %}
