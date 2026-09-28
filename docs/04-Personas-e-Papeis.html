@@ -1,0 +1,164 @@
+<!doctype html><html><head><meta charset='utf-8'>
+<style>
+  @page { margin: 16mm 15mm; }
+  html { color-scheme: light; }
+  body {
+    font-family: "Georgia", "Source Serif 4", serif;
+    color: #16191c; font-size: 10.3pt; line-height: 1.5;
+    max-width: 100%; margin: 0;
+  }
+  h1 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 19pt;
+    color: #0f3d47; border-bottom: 2px solid #0f3d47; padding-bottom: 6px;
+    margin: 0 0 4px 0; break-after: avoid;
+  }
+  h1 + p em { display:block; color:#555; font-size: 9.5pt; margin: 0 0 18px 0; font-style: normal; }
+  h2 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 13pt;
+    color: #0f3d47; margin: 22px 0 8px 0; padding-top: 6px;
+    border-top: 1px solid #ccc; break-after: avoid;
+  }
+  h1 ~ h2:first-of-type { border-top: none; }
+  h3 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 11pt;
+    color: #16191c; margin: 14px 0 4px 0; break-after: avoid;
+  }
+  p { margin: 6px 0; break-inside: avoid-page; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  li > p { margin: 0; display:inline; }
+  strong { font-weight: 700; color: #000; }
+  em { color: #444; }
+  code {
+    font-family: "Consolas", monospace; font-size: 9pt;
+    background: #f0f0f0; padding: 1px 4px; border: 1px solid #ddd;
+  }
+  pre {
+    font-family: "Consolas", monospace; font-size: 8.5pt;
+    background: #f6f6f6; border: 1px solid #ccc; padding: 8px 10px;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  table {
+    border-collapse: collapse; width: 100%; margin: 10px 0 14px 0;
+    font-size: 9.3pt; break-inside: avoid;
+  }
+  th, td { border: 1px solid #b8b8b8; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef3f4; font-family: Arial, sans-serif; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+  a { color: #0f3d47; }
+  blockquote {
+    margin: 8px 0; padding: 4px 14px; border-left: 3px solid #0f3d47;
+    color: #444; background: #f7f8f8;
+  }
+</style>
+</head><body><h1>Personas e Papéis — Compras e Suprimentos</h1>
+<p>Grupo Perfil de Educação · v1.0 · 30/09/2026</p>
+<p>Um usuário pode acumular mais de um papel (ex.: a mesma pessoa administra Estoque e Compras — risco aceito, ver RN-20 e o relatório de auditoria).</p>
+<hr />
+<h2>Superadmin</h2>
+<p><strong>Quem é hoje:</strong> T.I. (Cristian).</p>
+<p><strong>O que pode fazer:</strong> poder total — gestão de usuários e papéis, parametrização global (faixas de alçada, empresas, filiais, módulos), auditoria completa, revogação de permissões, configuração de multi-tenant.</p>
+<p><strong>O que não pode:</strong> alterar registros de auditoria (bloqueio de banco, não só de aplicação).</p>
+<hr />
+<h2>Administrador de Módulo</h2>
+<p><strong>Quem é hoje:</strong> Osvaldo/Stela (Estoque), Stela/Davisson (Compras), Ademilson (Financeiro).</p>
+<p><strong>O que pode fazer:</strong> configurar e operar o próprio módulo — cadastros, parâmetros (ex. estoque mínimo, entrada automática por almoxarifado), relatórios do módulo. Realiza ajuste de inventário com motivo obrigatório.</p>
+<p><strong>O que não pode:</strong> configurar módulo de outro administrador — Estoque não configura Compras, e vice-versa.</p>
+<hr />
+<h2>Coordenação (dá Ciência)</h2>
+<p><strong>Quem é hoje:</strong> coordenadores/gestores de setor, aos quais os requisitantes estão vinculados.</p>
+<p><strong>O que pode fazer:</strong> dar ciência (aprovação de mérito) das requisições da própria equipe, em lote, pelo celular. Recusar com motivo obrigatório. Delegar a um substituto por período.</p>
+<p><strong>O que não pode:</strong> dar ciência do próprio pedido; aprovar alçada de valor (isso é papel do Aprovador de Alçada, abaixo — podem ser a mesma pessoa fisicamente, mas são estados diferentes do fluxo).</p>
+<hr />
+<h2>Aprovador de Alçada</h2>
+<p><strong>Quem é hoje:</strong> diretorias acadêmicas e funcionais, CFO, CEO — conforme a faixa de valor.</p>
+<p><strong>O que pode fazer:</strong> aprovar ou recusar compra dentro da própria faixa de alçada, com motivo obrigatório na recusa. Recebe notificação com link para aprovar autenticado no app.</p>
+<p><strong>O que não pode:</strong> aprovar fora da própria faixa (sobe automaticamente para o nível seguinte); aprovar compra que ele mesmo requisitou.</p>
+<hr />
+<h2>Comprador</h2>
+<p><strong>Quem é hoje:</strong> setor de compras (ex. Stela para mercado/farmácia/eventos/armarinho, Davisson para limpeza/manutenção/online).</p>
+<p><strong>O que pode fazer:</strong> cotar item sem saldo, gerar ordem de compra, registrar nota fiscal (XML ou manual), substituir marca/especificação de item com histórico, registrar pedido de urgência depois do fato, cancelar item de OC não entregue com motivo.</p>
+<p><strong>O que não pode:</strong> confirmar a entrada de estoque sozinho — depende da conferência do Responsável de Estoque (separação de funções, risco aceito de acumulação só quando a equipe obrigar).</p>
+<hr />
+<h2>Responsável de Estoque</h2>
+<p><strong>Quem é hoje:</strong> equipe de suprimentos no almoxarifado central e nos almoxarifados de unidade.</p>
+<p><strong>O que pode fazer:</strong> conferir fisicamente o recebimento contra o XML/nota pré-preenchida e confirmar ou corrigir a quantidade (o que dispara a entrada no estoque); separar itens de requisições com saldo; escolher a origem do material na baixa (comprado × recebido sem custo), com sugestão automática.</p>
+<p><strong>O que não pode:</strong> confirmar recebimento que ele mesmo comprou, salvo exceção registrada e alertada em auditoria.</p>
+<hr />
+<h2>Requisitante</h2>
+<p><strong>Quem é hoje:</strong> ~15 pessoas por unidade/CSC.</p>
+<p><strong>O que pode fazer:</strong> montar o carrinho de requisição (produtos do catálogo, kits, ou item fora do catálogo com especificação), ver saldo disponível antes de confirmar, acompanhar status por item, confirmar recebimento no app ou abrir observação dentro do prazo.</p>
+<p><strong>O que não pode:</strong> pedir sem passar pela ciência do vínculo configurado; confirmar recebimento de pedido que não é seu.</p>
+<hr />
+<h2>Tabela-resumo</h2>
+<table>
+<thead>
+<tr>
+<th>Papel</th>
+<th style="text-align: center;">Ciência</th>
+<th style="text-align: center;">Aprova alçada</th>
+<th style="text-align: center;">Compra</th>
+<th style="text-align: center;">Confere recebimento</th>
+<th style="text-align: center;">Configura módulo</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Superadmin</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">Tudo</td>
+</tr>
+<tr>
+<td>Admin de módulo</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">Próprio módulo</td>
+</tr>
+<tr>
+<td>Coordenação</td>
+<td style="text-align: center;">✔</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Aprovador de Alçada</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✔</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Comprador</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✔</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Responsável de Estoque</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">✔</td>
+<td style="text-align: center;">—</td>
+</tr>
+<tr>
+<td>Requisitante</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+<td style="text-align: center;">—</td>
+</tr>
+</tbody>
+</table>
+<p>Ver o fluxo completo por persona em <a href="./05-fluxos-user-stories.md">05-fluxos-user-stories.md</a>.</p></body></html>

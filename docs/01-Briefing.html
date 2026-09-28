@@ -1,0 +1,159 @@
+<!doctype html><html><head><meta charset='utf-8'>
+<style>
+  @page { margin: 16mm 15mm; }
+  html { color-scheme: light; }
+  body {
+    font-family: "Georgia", "Source Serif 4", serif;
+    color: #16191c; font-size: 10.3pt; line-height: 1.5;
+    max-width: 100%; margin: 0;
+  }
+  h1 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 19pt;
+    color: #0f3d47; border-bottom: 2px solid #0f3d47; padding-bottom: 6px;
+    margin: 0 0 4px 0; break-after: avoid;
+  }
+  h1 + p em { display:block; color:#555; font-size: 9.5pt; margin: 0 0 18px 0; font-style: normal; }
+  h2 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 13pt;
+    color: #0f3d47; margin: 22px 0 8px 0; padding-top: 6px;
+    border-top: 1px solid #ccc; break-after: avoid;
+  }
+  h1 ~ h2:first-of-type { border-top: none; }
+  h3 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 11pt;
+    color: #16191c; margin: 14px 0 4px 0; break-after: avoid;
+  }
+  p { margin: 6px 0; break-inside: avoid-page; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  li > p { margin: 0; display:inline; }
+  strong { font-weight: 700; color: #000; }
+  em { color: #444; }
+  code {
+    font-family: "Consolas", monospace; font-size: 9pt;
+    background: #f0f0f0; padding: 1px 4px; border: 1px solid #ddd;
+  }
+  pre {
+    font-family: "Consolas", monospace; font-size: 8.5pt;
+    background: #f6f6f6; border: 1px solid #ccc; padding: 8px 10px;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  table {
+    border-collapse: collapse; width: 100%; margin: 10px 0 14px 0;
+    font-size: 9.3pt; break-inside: avoid;
+  }
+  th, td { border: 1px solid #b8b8b8; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef3f4; font-family: Arial, sans-serif; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+  a { color: #0f3d47; }
+  blockquote {
+    margin: 8px 0; padding: 4px 14px; border-left: 3px solid #0f3d47;
+    color: #444; background: #f7f8f8;
+  }
+</style>
+</head><body><h1>Briefing — Compras e Suprimentos</h1>
+<p>Grupo Perfil de Educação · v1.0 · 30/09/2026</p>
+<hr />
+<h2>O que é</h2>
+<p>Sistema web próprio para gerir estoque e compras das 5 unidades do Grupo Perfil de Educação, substituindo o <strong>Gestio</strong>. Cobre o ciclo completo: da requisição de material até a entrega, e — quando não há saldo — da cotação até a nota fiscal recebida.</p>
+<h2>Por que existe</h2>
+<p>O grupo já usou dois sistemas para este processo. Um app feito em <strong>Glide</strong> funcionava bem operacionalmente, mas concentrava aprovações demais na diretoria. Foi substituído pelo <strong>Gestio</strong>, que resolveu a governança mas não aplica <strong>aprovação por alçada de valor ao estoque</strong> — só à compra. Isso deixa uma lacuna: um requisitante pode esvaziar o estoque em pedidos "gratuitos" sem nenhum controle de valor, e o ERP (<strong>Prodados</strong>) também não cobre esse fluxo.</p>
+<p>Este projeto nasce para fechar essa lacuna, sem repetir o erro do Glide.</p>
+<h2>Objetivo</h2>
+<p>Permitir que um requisitante peça material, que o pedido passe por <strong>ciência</strong> de quem responde por ele e, quando envolver compra, por <strong>aprovação financeira por alçada de valor</strong>, com o estoque sempre rastreável do pedido à baixa — cobrindo as 5 unidades de ponta a ponta.</p>
+<p><strong>Critério de sucesso:</strong> um ciclo mensal completo — requisição, ciência, atendimento ou compra, entrega, baixa — rodando 100% no sistema novo, sem pedido "por fora" (WhatsApp, verbal).</p>
+<h2>Escopo em uma frase por módulo</h2>
+<ul>
+<li><strong>Estoque</strong>: requisição em carrinho, ciência da coordenação, separação, entrega, confirmação pelo solicitante.</li>
+<li><strong>Compras</strong>: cotação, alçada por valor, ordem de compra, recebimento com conferência física, nota por XML.</li>
+<li><strong>Relatórios</strong>: dois eixos que não se somam — quanto saiu do caixa (desembolso) e quanto cada unidade consumiu (consumo valorizado).</li>
+</ul>
+<p>O detalhe de cada requisito está em <a href="./02-requisitos-funcionais.md">02-requisitos-funcionais.md</a>; as regras que não podem ser quebradas em <a href="./03-regras-de-negocio.md">03-regras-de-negocio.md</a>.</p>
+<h2>Quem participa</h2>
+<p>Ver <a href="./04-personas-e-papeis.md">04-personas-e-papeis.md</a> para o detalhe de cada papel. Em resumo: requisitante, coordenação (dá ciência), aprovador de alçada (diretoria/CFO/CEO), comprador, responsável de estoque (confere recebimento e faz separação), administrador por módulo, superadmin.</p>
+<h2>O que fica fora desta primeira versão</h2>
+<p>Devolução de sobras, compra direta (permissão de comprar sem passar pelo estoque), serviços terceirizados, integração automática com o Prodados, conciliação contábil formal, captura automática de NF-e via Sefaz, controle orçamentário e controle patrimonial. Lista completa e justificativa em <a href="./06-glossario-e-fora-de-escopo.md">06-glossario-e-fora-de-escopo.md</a>.</p>
+<h2>Números do projeto</h2>
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Unidades</td>
+<td>5 (4 numa mesma empresa/CNPJ, 1 em empresa separada)</td>
+</tr>
+<tr>
+<td>Produtos hoje</td>
+<td>~1.500</td>
+</tr>
+<tr>
+<td>Usuários</td>
+<td>~30</td>
+</tr>
+<tr>
+<td>Almoxarifados</td>
+<td>~20</td>
+</tr>
+<tr>
+<td>Equipe de desenvolvimento</td>
+<td>1 pessoa</td>
+</tr>
+<tr>
+<td>Stack</td>
+<td>Django + PostgreSQL</td>
+</tr>
+<tr>
+<td>Hospedagem</td>
+<td>Servidor interno, após conclusão</td>
+</tr>
+</tbody>
+</table>
+<h2>Prazos de atendimento acordados</h2>
+<ul>
+<li><strong>3 dias úteis</strong> para pedido atendido pelo estoque.</li>
+<li><strong>7 dias úteis</strong> para pedido que precisa de compra.</li>
+<li>Ambos contados a partir da <strong>ciência</strong>, não do envio do pedido — o tempo de ciência é medido à parte, para não esconder um aprovador lento no indicador de suprimentos.</li>
+</ul>
+<h2>Faixas de alçada (parametrizáveis, valores iniciais)</h2>
+<table>
+<thead>
+<tr>
+<th>Faixa</th>
+<th>Aprovador</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Até R$ 300</td>
+<td>Automática</td>
+</tr>
+<tr>
+<td>R$ 301 – 15.000</td>
+<td>Diretoria de unidade</td>
+</tr>
+<tr>
+<td>R$ 15.001 – 45.000</td>
+<td>CFO</td>
+</tr>
+<tr>
+<td>Acima de R$ 45.000</td>
+<td>CEO</td>
+</tr>
+</tbody>
+</table>
+<p>Calculada sobre o valor total da cotação, incluindo frete, para impedir fracionamento de pedido.</p>
+<h2>Documentos deste kit</h2>
+<ol>
+<li><a href="./01-briefing.md">Briefing</a> — este documento</li>
+<li><a href="./02-requisitos-funcionais.md">Requisitos Funcionais</a></li>
+<li><a href="./03-regras-de-negocio.md">Regras de Negócio</a></li>
+<li><a href="./04-personas-e-papeis.md">Personas e Papéis</a></li>
+<li><a href="./05-fluxos-user-stories.md">Fluxos e User Stories</a></li>
+<li><a href="./06-glossario-e-fora-de-escopo.md">Glossário e Fora de Escopo</a></li>
+<li><a href="./modelo-de-dados.md">Modelo de Dados</a> — já entregue, models Django</li>
+<li><a href="./prompt-inicial-projeto.md">Prompt Inicial do Projeto</a> — já entregue, ordem de implementação</li>
+</ol></body></html>

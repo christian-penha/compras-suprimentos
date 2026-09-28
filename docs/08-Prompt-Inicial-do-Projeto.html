@@ -1,0 +1,137 @@
+<!doctype html><html><head><meta charset='utf-8'>
+<style>
+  @page { margin: 16mm 15mm; }
+  html { color-scheme: light; }
+  body {
+    font-family: "Georgia", "Source Serif 4", serif;
+    color: #16191c; font-size: 10.3pt; line-height: 1.5;
+    max-width: 100%; margin: 0;
+  }
+  h1 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 19pt;
+    color: #0f3d47; border-bottom: 2px solid #0f3d47; padding-bottom: 6px;
+    margin: 0 0 4px 0; break-after: avoid;
+  }
+  h1 + p em { display:block; color:#555; font-size: 9.5pt; margin: 0 0 18px 0; font-style: normal; }
+  h2 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 13pt;
+    color: #0f3d47; margin: 22px 0 8px 0; padding-top: 6px;
+    border-top: 1px solid #ccc; break-after: avoid;
+  }
+  h1 ~ h2:first-of-type { border-top: none; }
+  h3 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 11pt;
+    color: #16191c; margin: 14px 0 4px 0; break-after: avoid;
+  }
+  p { margin: 6px 0; break-inside: avoid-page; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  li > p { margin: 0; display:inline; }
+  strong { font-weight: 700; color: #000; }
+  em { color: #444; }
+  code {
+    font-family: "Consolas", monospace; font-size: 9pt;
+    background: #f0f0f0; padding: 1px 4px; border: 1px solid #ddd;
+  }
+  pre {
+    font-family: "Consolas", monospace; font-size: 8.5pt;
+    background: #f6f6f6; border: 1px solid #ccc; padding: 8px 10px;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  table {
+    border-collapse: collapse; width: 100%; margin: 10px 0 14px 0;
+    font-size: 9.3pt; break-inside: avoid;
+  }
+  th, td { border: 1px solid #b8b8b8; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef3f4; font-family: Arial, sans-serif; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+  a { color: #0f3d47; }
+  blockquote {
+    margin: 8px 0; padding: 4px 14px; border-left: 3px solid #0f3d47;
+    color: #444; background: #f7f8f8;
+  }
+</style>
+</head><body><h1>Prompt Inicial do Projeto — Compras e Suprimentos</h1>
+<p>Grupo Perfil de Educação · v1.0 · 30/09/2026</p>
+<p>Use este documento como prompt para iniciar o repositório com um agente de código (Claude Code ou similar), ou como guia próprio de implementação. Ele pressupõe que <a href="./modelo-de-dados.md">modelo-de-dados.md</a> já foi lido.</p>
+<hr />
+<h2>Contexto</h2>
+<p>Sistema de Compras e Suprimentos para o Grupo Perfil de Educação, substituindo o Gestio. Cobre dois módulos — Estoque e Compras — com o diferencial de aplicar aprovação por alçada de valor também ao estoque, o que nenhum sistema anterior do grupo fazia.</p>
+<p>Desenvolvedor único, com apoio externo só para levantamento de informações. Escala real pequena (~1.500 produtos, ~30 usuários, 5 unidades, ~20 almoxarifados), mas modelado como multi-tenant desde o início por intenção declarada de comercializar como SaaS no futuro — sem construir features de SaaS agora (billing, onboarding self-service, painel de tenants).</p>
+<p>Stack: <strong>Django + PostgreSQL</strong>, hospedagem em servidor interno após conclusão.</p>
+<p>Histórico relevante: um app de compras feito em <strong>Glide funcionava bem</strong> operacionalmente, mas caía num gargalo de aprovações concentradas na diretoria. Foi substituído pelo <strong>Gestio</strong>, que resolveu a governança mas não implementa alçada por valor no estoque — daí este projeto. <strong>O app do Glide é a melhor referência de tela e fluxo já validada pelos usuários</strong>, e vale revisitar antes de desenhar o layout.</p>
+<hr />
+<h2>Princípios de projeto (aplicar em toda decisão de implementação)</h2>
+<ol>
+<li><strong>Ledger é fonte da verdade, saldo é cache.</strong> Nunca editar ou deletar uma movimentação — sempre contra-movimento. Isso vale para estoque e para o ledger de consumo.</li>
+<li><strong>Onde há discricionariedade necessária, não restringir — registrar e expor.</strong> Substituição de item, escolha de origem na baixa, compra do mesmo fornecedor que cadastrou: todos ficam permitidos, mas visíveis em relatório de exceções.</li>
+<li><strong>Nada de pedido vago.</strong> Todo produto tem especificação obrigatória. Item fora do catálogo entra como <code>ItemLivreRequisicao</code>, nunca movimenta estoque direto — vira produto por decisão explícita de suprimentos.</li>
+<li><strong>Congelar o que afeta histórico.</strong> Valor unitário em movimentação, cadeia de aprovação e faixa de alçada aplicada num pedido: tudo snapshot no momento do fato, nunca recalculado depois.</li>
+<li><strong>Separação de funções por padrão, exceção com registro.</strong> Quem compra não é (via de regra) quem confere o recebimento. Onde a equipe pequena obrigar a acumular papéis, isso vira uma linha no relatório de auditoria, não um bloqueio absoluto.</li>
+<li><strong>Um produto, uma unidade base.</strong> Nunca duplicar produto por unidade de compra (caixa vs. resma). Fator de conversão fica no modelo mesmo quando não usado na interface ainda.</li>
+</ol>
+<hr />
+<h2>Segurança — não negociável, implementar desde a primeira versão</h2>
+<ul>
+<li><strong>Escopo de tenant em toda query.</strong> Nenhuma view usa <code>Model.all_objects</code> ou faz <code>get_object_or_404(Model, pk=pk)</code> sem passar por um queryset já filtrado por tenant e por escopo do usuário (unidade, papel). Escrever um teste automatizado que varre as views e falha se encontrar consulta não escopada — isso é mais importante que qualquer feature nova.</li>
+<li><strong>IDs públicos como UUID</strong>, não sequenciais, para reduzir enumeração.</li>
+<li><strong>XML de NF-e</strong>: parse com <code>defusedxml</code> (proteção contra XXE), nunca <code>xml.etree</code> puro. Validar <code>cnpj_destinatario</code> contra Empresa do tenant e <code>chave_acesso</code> como unique antes de processar.</li>
+<li><strong>Anexos e XMLs</strong>: fora do webroot, servidos por view autenticada e escopada, nome de arquivo aleatório, <code>Content-Disposition: attachment</code>, <code>X-Content-Type-Options: nosniff</code>. Nunca link direto de filesystem.</li>
+<li><strong>Auditoria append-only de verdade</strong>: revogar UPDATE/DELETE na tabela de auditoria a nível de banco (<code>REVOKE</code> de permissão do usuário de aplicação), não só a nível de model do Django.</li>
+<li><strong>Segredos fora do settings.py</strong>: variáveis de ambiente desde o dia 1, mesmo em servidor interno.</li>
+<li><strong>MFA</strong>: não é requisito agora (decisão 28/09), mas deixar o modelo de usuário pronto para ligar depois sem migração de dados (ex.: usar <code>django-otp</code> desde já, só sem exigir).</li>
+<li><strong>Aprovação por link de e-mail</strong>: o link leva à tela de login/app; a ação de aprovar é sempre autenticada dentro do sistema, nunca um GET que aprova direto.</li>
+</ul>
+<hr />
+<h2>Estrutura de apps sugerida</h2>
+<pre><code>apps/
+  tenancy/       # Tenant, Empresa, Filial, Almoxarifado, CentroCusto, MotivoRequisicao
+  cadastros/     # Produto, CategoriaProduto, KitRequisicao
+  aprovacao/     # GrupoAprovacao, VinculoRequisitanteAprovador, FaixaAlcada,
+                 # DelegacaoAprovador, RegistroAlteracaoAlcada, PermissaoCompraDireta
+  requisicoes/   # Requisicao, ItemRequisicao, ItemLivreRequisicao, ConfirmacaoEntrega
+  estoque/       # MovimentacaoEstoque, SaldoEstoque, DebitoAlmoxarifado
+  compras/       # Fornecedor, Cotacao, OrdemCompra, NotaFiscal, Recebimento,
+                 # CorrespondenciaProdutoFornecedor
+  relatorios/    # LancamentoConsumo, views de relatório
+  auditoria/     # RegistroAuditoria, middleware de captura
+  core/          # TenantModel, TenantAwareManager, middleware de tenant, calendário de dias úteis
+</code></pre>
+<hr />
+<h2>Ordem de implementação recomendada</h2>
+<p>Segue as fases já esboçadas na especificação original, com o que aprendemos nas discussões:</p>
+<p><strong>Fase 0 — Fundação</strong>
+1. <code>core</code>: <code>TenantModel</code>, <code>TenantAwareManager</code>, middleware de resolução de tenant, o teste automatizado que varre queries não escopadas.
+2. <code>tenancy</code> e <code>cadastros</code> completos. Importar produtos e saldos do <strong>Gestio</strong> (fonte confirmada — não é mais o Glide).
+3. Calendário de dias úteis (feriados, recesso) — usado em todo cálculo de SLA e alçada.</p>
+<p><strong>Fase 1 — Fluxo de estoque, piloto em 1-2 categorias</strong>
+4. <code>requisicoes</code> (Carrinho) e <code>estoque</code> (movimentação e saldo), sem compra ainda.
+5. <code>aprovacao</code>: Ciência (aprovação de mérito) funcionando com <code>GrupoAprovacao</code> e <code>VinculoRequisitanteAprovador</code>. Ainda sem alçada de valor.
+6. <code>ConfirmacaoEntrega</code> com o status "Aguardando Aprovação".
+7. Piloto com categorias de escritório e limpeza, todas as unidades, medindo o SLA de 3 dias úteis a partir da Ciência.</p>
+<p><strong>Fase 2 — Fluxo de compra</strong>
+8. <code>compras</code>: Cotação, OrdemCompra, Recebimento, NotaFiscal com upload de XML.
+9. <code>FaixaAlcada</code> e a avaliação de alçada sobre o total da cotação.
+10. Fluxo de urgência (registro pelo comprador, regularização em prazo).
+11. Um ciclo real de compra de quinta-feira rodando pelo sistema.</p>
+<p><strong>Fase 3 — Relatórios e rollout</strong>
+12. <code>relatorios</code>: <code>LancamentoConsumo</code> e os dois eixos (desembolso × consumo). Job de reconciliação diário.
+13. Relatórios mínimos: consumo por filial × centro de custo, pedidos por status com prazos estourados, posição de estoque, débitos entre almoxarifados.
+14. Um mês completo sem uso do Gestio → desligamento.</p>
+<p><strong>Deliberadamente depois do MVP</strong> (não adiantar): compra direta, devolução, serviços terceirizados, integração com o Prodados, regra de aprovação por % de centro de custo, controle orçamentário e patrimonial.</p>
+<hr />
+<h2>Decisões que ainda são parâmetros, não bloqueiam começar</h2>
+<p>Definir durante o desenvolvimento, com valor default documentado no código (não hardcoded sem comentário):
+- Teto e prazo de regularização do pedido de urgência (sugestão: 2 dias úteis).
+- Tolerância de preço para reaprovação na substituição de item e na nota acima da cotação (sugestão: 10-15%).
+- Janela do acumulado por requisitante contra fracionamento de alçada (sugestão: 30 dias).
+- Prazo de Ciência e regra de escalonamento por decurso (sugestão: 48h, com auto-aprovação abaixo de um valor nas requisições de estoque).
+- Prazo de confirmação de entrega pelo solicitante: <strong>2 dias úteis, já decidido</strong>.</p>
+<hr />
+<h2>Definição de pronto para a Fase 0</h2>
+<p>Antes de considerar a fundação concluída:
+- [ ] Todo model de negócio herda de <code>TenantModel</code>.
+- [ ] Teste automatizado de escopo de tenant está verde e roda no CI.
+- [ ] Produtos e saldos do Gestio importados e conferidos (categorias do piloto contadas fisicamente — decisão sobre confiabilidade do saldo).
+- [ ] Calendário de dias úteis carregado com feriados nacionais e o calendário próprio do grupo (recesso escolar).
+- [ ] Auditoria append-only com permissão de banco revogada, testada manualmente (tentar um UPDATE direto no banco e confirmar que falha).</p></body></html>

@@ -1,0 +1,109 @@
+<!doctype html><html><head><meta charset='utf-8'>
+<style>
+  @page { margin: 16mm 15mm; }
+  html { color-scheme: light; }
+  body {
+    font-family: "Georgia", "Source Serif 4", serif;
+    color: #16191c; font-size: 10.3pt; line-height: 1.5;
+    max-width: 100%; margin: 0;
+  }
+  h1 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 19pt;
+    color: #0f3d47; border-bottom: 2px solid #0f3d47; padding-bottom: 6px;
+    margin: 0 0 4px 0; break-after: avoid;
+  }
+  h1 + p em { display:block; color:#555; font-size: 9.5pt; margin: 0 0 18px 0; font-style: normal; }
+  h2 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 13pt;
+    color: #0f3d47; margin: 22px 0 8px 0; padding-top: 6px;
+    border-top: 1px solid #ccc; break-after: avoid;
+  }
+  h1 ~ h2:first-of-type { border-top: none; }
+  h3 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 11pt;
+    color: #16191c; margin: 14px 0 4px 0; break-after: avoid;
+  }
+  p { margin: 6px 0; break-inside: avoid-page; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  li > p { margin: 0; display:inline; }
+  strong { font-weight: 700; color: #000; }
+  em { color: #444; }
+  code {
+    font-family: "Consolas", monospace; font-size: 9pt;
+    background: #f0f0f0; padding: 1px 4px; border: 1px solid #ddd;
+  }
+  pre {
+    font-family: "Consolas", monospace; font-size: 8.5pt;
+    background: #f6f6f6; border: 1px solid #ccc; padding: 8px 10px;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  table {
+    border-collapse: collapse; width: 100%; margin: 10px 0 14px 0;
+    font-size: 9.3pt; break-inside: avoid;
+  }
+  th, td { border: 1px solid #b8b8b8; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef3f4; font-family: Arial, sans-serif; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+  a { color: #0f3d47; }
+  blockquote {
+    margin: 8px 0; padding: 4px 14px; border-left: 3px solid #0f3d47;
+    color: #444; background: #f7f8f8;
+  }
+</style>
+</head><body><h1>Fluxos e User Stories — Compras e Suprimentos</h1>
+<p>Grupo Perfil de Educação · v1.0 · 30/09/2026</p>
+<p>Organizado por épico. Numeração <code>US-XX</code>. Critérios de aceite listados só nas histórias mais sensíveis — as demais seguem os requisitos funcionais correspondentes (entre colchetes).</p>
+<hr />
+<h2>Épico 1 — Requisição de estoque</h2>
+<pre><code>Carrinho (Requisitante) → Ciência (Coordenação) → Separação (Suprimentos)
+ → Entrega → Aguardando Aprovação (Requisitante) → Concluído
+                                         ↘ Ciência Recusada (fim)
+</code></pre>
+<p><strong>US-01</strong> Como requisitante, quero montar um carrinho com os produtos que preciso, vendo o saldo disponível de cada um, para saber se meu pedido será atendido rapidamente. <code>[RF-08, RF-09]</code></p>
+<p><strong>US-02</strong> Como requisitante, quero escolher um kit pronto (ex. "Kit Professor") e ajustar as quantidades, para não montar o mesmo pedido item a item toda vez. <code>[RF-10]</code></p>
+<p><strong>US-03</strong> Como requisitante, quero pedir um item que não está no catálogo, descrevendo o que preciso, para não ficar bloqueado quando o produto ainda não foi cadastrado.
+<em>Critério de aceite:</em> o item exige descrição e especificação antes de ser enviado; ele não aparece em nenhum saldo de estoque até ser resolvido por suprimentos. <code>[RF-11, RN-08]</code></p>
+<p><strong>US-04</strong> Como coordenador, quero ver todas as requisições pendentes da minha equipe numa lista só, e dar ciência em lote, para não perder tempo abrindo pedido por pedido.
+<em>Critério de aceite:</em> a tela funciona bem no celular; dar ciência em 10 pedidos leva menos de um minuto. <code>[RF-17]</code></p>
+<p><strong>US-05</strong> Como coordenador, quero recusar um pedido com um motivo obrigatório, para que o requisitante saiba o que ajustar. <code>[RF-18]</code></p>
+<p><strong>US-06</strong> Como responsável de estoque, quero ver os pedidos com ciência dada, separados entre "tem saldo" e "precisa comprar", para separar e entregar o que já pode sair hoje. <code>[RF-21]</code></p>
+<p><strong>US-07</strong> Como responsável de estoque, quero escolher se um item sai do saldo comprado ou do recebido sem custo, com uma sugestão pré-marcada, para não errar o custo médio do estoque. <code>[RF-23, RN-04]</code></p>
+<p><strong>US-08</strong> Como requisitante, quero confirmar no app que recebi meu pedido, ou avisar que faltou algo, dentro de 2 dias úteis, para fechar o ciclo do meu pedido.
+<em>Critério de aceite:</em> o relógio do prazo de suprimentos já parou quando o pedido chega a este status; só o prazo de confirmação do requisitante continua correndo. <code>[RF-15, RN-11]</code></p>
+<hr />
+<h2>Épico 2 — Fluxo de compra</h2>
+<pre><code>Carrinho → Ciência → Cotação → Consulta à alçada → Aprovação (se necessária)
+ → Ordem de Compra → Recebimento (conferência) → Entrada no estoque → Separação
+                                          ↘ Alçada Recusada (volta ao requisitante)
+</code></pre>
+<p><strong>US-09</strong> Como comprador, quero cotar os itens sem saldo com um fornecedor, agrupando por fornecedor padrão quando possível, para acelerar a compra da semana. <code>[RF-28]</code></p>
+<p><strong>US-10</strong> Como sistema, quero calcular automaticamente a faixa de alçada sobre o valor total da cotação (com frete) e rotear para o aprovador certo, ou aprovar sozinho se estiver abaixo do teto, para que ninguém precise decidir manualmente quem aprova o quê.
+<em>Critério de aceite:</em> o cálculo nunca considera valor por item isoladamente, mesmo que a cotação tenha vários itens. <code>[RF-29, RN-14]</code></p>
+<p><strong>US-11</strong> Como aprovador de alçada, quero receber uma notificação com link para o app, aprovar ou recusar autenticado, para decidir rápido sem abrir mão de segurança. <code>[RF-30, RF-46]</code></p>
+<p><strong>US-12</strong> Como comprador, quero trocar a marca de um item cotado sem precisar voltar ao requisitante, desde que a variação de preço seja pequena, para não travar a compra por uma diferença de marca.
+<em>Critério de aceite:</em> acima da tolerância configurada, o sistema exige nova aprovação antes de seguir; abaixo, a troca é registrada com histórico e segue direto. <code>[RF-32, RN-07]</code></p>
+<p><strong>US-13</strong> Como comprador, quero subir o XML da nota fiscal e ver o recebimento pré-preenchido, para não digitar tudo de novo.
+<em>Critério de aceite:</em> nota com chave de acesso já lançada é rejeitada; CNPJ do destinatário tem que ser de uma empresa do grupo. <code>[RF-33, RF-34]</code></p>
+<p><strong>US-14</strong> Como responsável de estoque, quero conferir fisicamente o que chegou contra o que está na nota, corrigindo a quantidade se for diferente, para o saldo do sistema nunca divergir da prateleira.
+<em>Critério de aceite:</em> a entrada no estoque só acontece depois da minha confirmação, nunca antes. <code>[RF-35, RN-13]</code></p>
+<p><strong>US-15</strong> Como comprador, quero finalizar uma ordem de compra mesmo com itens que não chegaram, marcando a pendência, para não travar o resto do pedido. <code>[RF-36, RN-15]</code></p>
+<p><strong>US-16</strong> Como comprador, quero registrar um pedido de urgência depois de já ter resolvido a emergência, nomeando quem realmente precisou do material, para regularizar uma manutenção corretiva sem passar por fora do sistema.
+<em>Critério de aceite:</em> o pedido fica visível como urgência em todo relatório; a aprovação pela alçada normal acontece depois, dentro do prazo de regularização. <code>[RF-37, RN-16]</code></p>
+<hr />
+<h2>Épico 3 — Estoque e movimentação</h2>
+<p><strong>US-17</strong> Como administrador de estoque, quero que o sistema me avise quando um produto cair abaixo do mínimo e já sugira um pedido de compra, para não depender de alguém notar a falta. <code>[RF-24]</code></p>
+<p><strong>US-18</strong> Como administrador de estoque, quero registrar um ajuste de inventário com motivo, vinculado a uma contagem física, para corrigir divergências sem apagar o histórico. <code>[RF-27]</code></p>
+<p><strong>US-19</strong> Como gestor, quero ver um relatório de quem deve o quê a quem entre almoxarifados, para cobrar reposição quando uma unidade usa material de outra. <code>[RF-42, RN-10]</code></p>
+<p><strong>US-20</strong> Como gestor, quero ver as movimentações que cruzam a fronteira entre a empresa separada e as demais unidades, para decidir se algo precisa de tratamento fiscal. <code>[RF-43, RN-09]</code></p>
+<hr />
+<h2>Épico 4 — Relatórios de gestão</h2>
+<p><strong>US-21</strong> Como diretoria, quero ver quanto cada unidade consumiu por centro de custo no período, mesmo quando o material foi comprado meses antes, para entender onde o recurso realmente foi usado. <code>[RF-39, RN-17]</code></p>
+<p><strong>US-22</strong> Como financeiro, quero ver quanto saiu do caixa por fornecedor e categoria, separado do relatório de consumo, para não confundir os dois números. <code>[RF-38, RN-17]</code></p>
+<p><strong>US-23</strong> Como gestor, quero ver os pedidos com prazo estourado, separando o tempo de ciência do tempo de atendimento, para saber onde está o gargalo real. <code>[RF-40]</code></p>
+<p><strong>US-24</strong> Como administrador, quero um relatório de exceções — desvios de sugestão de origem, substituições de item, urgências, fornecedor recém-cadastrado sendo comprado — para revisar decisões discricionárias sem bloquear ninguém no dia a dia. <code>[RF-44, RN-20]</code></p>
+<hr />
+<h2>Épico 5 — Administração e segurança</h2>
+<p><strong>US-25</strong> Como superadmin, quero configurar grupos de aprovação (não pessoas, não cargos) e vincular requisitantes a eles, para que trocar de pessoa não exija reconfigurar regra nenhuma. <code>[RF-16]</code></p>
+<p><strong>US-26</strong> Como superadmin, quero que toda alteração de alçada fique registrada com valor antes e depois, quem e quando, para auditar mudanças de política sem depender de memória de ninguém. <code>[RF-50]</code></p>
+<p><strong>US-27</strong> Como auditor (interno ou futuro), quero ter certeza de que nenhum registro de auditoria pode ser editado ou apagado, nem pelo superadmin, para que a trilha seja confiável de verdade. <code>[RF-50, RN-03]</code></p></body></html>

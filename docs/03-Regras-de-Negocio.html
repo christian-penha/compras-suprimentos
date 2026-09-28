@@ -1,0 +1,97 @@
+<!doctype html><html><head><meta charset='utf-8'>
+<style>
+  @page { margin: 16mm 15mm; }
+  html { color-scheme: light; }
+  body {
+    font-family: "Georgia", "Source Serif 4", serif;
+    color: #16191c; font-size: 10.3pt; line-height: 1.5;
+    max-width: 100%; margin: 0;
+  }
+  h1 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 19pt;
+    color: #0f3d47; border-bottom: 2px solid #0f3d47; padding-bottom: 6px;
+    margin: 0 0 4px 0; break-after: avoid;
+  }
+  h1 + p em { display:block; color:#555; font-size: 9.5pt; margin: 0 0 18px 0; font-style: normal; }
+  h2 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 13pt;
+    color: #0f3d47; margin: 22px 0 8px 0; padding-top: 6px;
+    border-top: 1px solid #ccc; break-after: avoid;
+  }
+  h1 ~ h2:first-of-type { border-top: none; }
+  h3 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 11pt;
+    color: #16191c; margin: 14px 0 4px 0; break-after: avoid;
+  }
+  p { margin: 6px 0; break-inside: avoid-page; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  li > p { margin: 0; display:inline; }
+  strong { font-weight: 700; color: #000; }
+  em { color: #444; }
+  code {
+    font-family: "Consolas", monospace; font-size: 9pt;
+    background: #f0f0f0; padding: 1px 4px; border: 1px solid #ddd;
+  }
+  pre {
+    font-family: "Consolas", monospace; font-size: 8.5pt;
+    background: #f6f6f6; border: 1px solid #ccc; padding: 8px 10px;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  table {
+    border-collapse: collapse; width: 100%; margin: 10px 0 14px 0;
+    font-size: 9.3pt; break-inside: avoid;
+  }
+  th, td { border: 1px solid #b8b8b8; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef3f4; font-family: Arial, sans-serif; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+  a { color: #0f3d47; }
+  blockquote {
+    margin: 8px 0; padding: 4px 14px; border-left: 3px solid #0f3d47;
+    color: #444; background: #f7f8f8;
+  }
+</style>
+</head><body><h1>Regras de Negócio — Compras e Suprimentos</h1>
+<p>Grupo Perfil de Educação · v1.0 · 30/09/2026</p>
+<p>Numeração <code>RN-XX</code>. Cada regra registra a data em que foi decidida e por quê — para não ser reaberta sem motivo novo.</p>
+<hr />
+<p><strong>RN-01 — Ciência é aprovação de mérito e bloqueia.</strong>
+A requisição não avança para separação (estoque) nem para cotação (compra) sem a ciência de quem está vinculado ao requisitante. É estado próprio, independente de valor. Existe porque a coordenação precisa saber o que a equipe pede. <em>(28/09/2026)</em></p>
+<p><strong>RN-02 — Aprovador nunca aprova o próprio pedido; substituto nunca é o requisitante em avaliação.</strong>
+Quando o aprovador titular está ausente, um substituto por ele delegado assume por período determinado. Um administrador pode nomear substituto quando não houver delegação (afastamento, desligamento). <em>(09–11/09/2026)</em></p>
+<p><strong>RN-03 — Movimentação de estoque nunca é editada nem excluída.</strong>
+Toda correção é um contra-lançamento vinculado ao original. Isso vale também para o ledger de alocação de gasto (eixo consumo). <em>(09/09/2026)</em></p>
+<p><strong>RN-04 — O saldo distingue material comprado de material recebido sem custo.</strong>
+Impede que material recebido a R$0 (doação, lista de material) dilua o custo médio do material comprado. Suprimentos escolhe a origem na baixa, com sugestão automática (consumir primeiro o sem custo, lote mais antigo); desvio da sugestão é permitido, mas fica registrado no relatório de exceções. <em>(09/09/2026)</em></p>
+<p><strong>RN-05 — "Data que precisa" é informativa, nunca contratual.</strong>
+O campo serve para suprimentos priorizar e para medir antecedência do pedido. Não altera o prazo de atendimento acordado (3 ou 7 dias úteis). <em>(28/09/2026)</em></p>
+<p><strong>RN-06 — Pedido pode se dividir entre estoque e compra; status vive no item, não só no pedido.</strong>
+Parte com saldo segue para separação e entrega; parte sem saldo segue para compra. O requisitante acompanha cada item separadamente. Entrega acontece em duas etapas quando necessário. <em>(16/09/2026)</em></p>
+<p><strong>RN-07 — Substituição de item pelo comprador não exige reaprovação, mas exige histórico.</strong>
+O comprador pode trocar marca/especificação para viabilizar a compra, sem devolver o pedido ao requisitante — evita travar o fluxo por variações menores. Toda substituição grava produto anterior, produto novo, quem e quando. Reaprovação só é exigida quando a variação de preço ultrapassa uma tolerância configurável (sugestão inicial: 10–15%). <em>(16/09/2026)</em></p>
+<p><strong>RN-08 — Item fora do catálogo nunca movimenta estoque diretamente.</strong>
+Entra como pendência com especificação obrigatória. Quando cotado, suprimentos resolve como produto novo (aprovação) ou como produto já existente (realocação — "isso já existe, é o mesmo que X"). Só depois disso o item se torna um item de requisição normal. Regra existe para não reabrir o problema do "pedido vago" que a especificação original do MVP queria eliminar. <em>(30/09/2026)</em></p>
+<p><strong>RN-09 — Transferência entre almoxarifados de empresas diferentes é só registrada, sem efeito fiscal ou financeiro no MVP.</strong>
+Uma das cinco filiais pertence a uma empresa (CNPJ) diferente das outras quatro. A circulação de material consumível entre elas é de frequência baixa e majoritariamente material de escritório — por isso o sistema apenas marca a movimentação e expõe em relatório próprio, sem nota fiscal, reembolso ou conta corrente entre empresas. <em>(09–28/09/2026)</em></p>
+<p><strong>RN-10 — Débito entre almoxarifados é controlado em produto e quantidade, nunca em valor.</strong>
+Quando uma unidade consome material de outra, o sistema registra a dívida em quantidade do produto. Quitação por transferência inversa do mesmo produto, ou baixa manual de administrador com motivo obrigatório — não há fluxo de devolução no MVP (RN-19). <em>(09–16/09/2026)</em></p>
+<p><strong>RN-11 — Confirmação de entrega é do solicitante, com prazo que não penaliza suprimentos.</strong>
+Após a entrega física, o pedido entra em status "Aguardando Aprovação" por até 2 dias úteis (configurável), período em que o solicitante confirma ou abre uma observação (item faltante etc.). Esse tempo é excluído do cálculo do indicador de suprimentos — senão, um solicitante lento penalizaria uma equipe que já entregou no prazo. <em>(30/09/2026)</em></p>
+<p><strong>RN-12 — Nota fiscal entra preferencialmente por XML; compra presencial continua manual.</strong>
+Mercado, farmácia e outras compras presenciais (a lista de compras de quinta-feira) emitem NFC-e ou cupom, não NF-e — o lançamento manual da nota continua existindo ao lado do XML. <em>(11–30/09/2026)</em></p>
+<p><strong>RN-13 — Entrada no estoque acontece na confirmação da conferência física, nunca automaticamente pela nota.</strong>
+O XML pré-preenche o recebimento; o responsável de estoque confirma ou corrige a quantidade. Divergência entre nota e conferência vira pendência para o comprador tratar com o fornecedor, sem travar a entrada. Entrada automática (sem conferência) é permitida apenas como parâmetro de administrador por almoxarifado/categoria — nunca escolha livre do comprador em cada nota, para preservar a separação entre quem compra e quem confere. <em>(11–15/09/2026)</em></p>
+<p><strong>RN-14 — Alçada é calculada sobre o valor total da cotação, incluindo frete, nunca por item.</strong>
+Impede fracionamento de pedido para escapar da faixa de aprovação. Frete e impostos entram no custo do produto (rateio por item do XML quando disponível, senão proporcional ao valor dos itens). <em>(09–11/09/2026)</em></p>
+<p><strong>RN-15 — Ordem de compra pode ser finalizada com pendência.</strong>
+Itens não entregues ficam pendentes tanto no recebimento quanto na requisição de origem. Comprador cancela item pendente com motivo se o fornecedor não entregar. <em>(11/09/2026)</em></p>
+<p><strong>RN-16 — Pedido de urgência é resolvido antes de ser registrado, mas nunca sem aprovação.</strong>
+Casos como manutenção corretiva podem exigir que o material saia do almoxarifado antes do registro formal. O comprador registra depois, nomeando o requisitante real (mesmo digitando pelo comprador). Regulariza em prazo configurável (sugestão: 2 dias úteis), com nota anexada obrigatória e aprovação posterior pela alçada normal do valor. Disponível só para setores habilitados, com relatório de urgências por setor — se um setor vive de urgência, o problema é de planejamento, não de sistema. <em>(11–28/09/2026)</em></p>
+<p><strong>RN-17 — Consumo valorizado e desembolso são eixos distintos e não se somam.</strong>
+Desembolso é o que saiu do caixa, pela nota. Consumo valorizado é quem usou o recurso, pela baixa de estoque a custo médio (ou pela compra direta, quando existir). Centro de custo é alocado no consumo, nunca na compra — uma compra por reposição de estoque mínimo nasce sem centro de custo. Valor aplicado é congelado no lançamento: um relatório histórico nunca recalcula. <em>(09–11/09/2026)</em></p>
+<p><strong>RN-18 — Toda consulta ao sistema é escopada por tenant e por papel do usuário.</strong>
+Nenhuma tela ou API retorna dado fora do tenant e do escopo (unidade, papel) do usuário autenticado, independentemente de o identificador do registro ser conhecido. <em>(princípio de segurança adotado desde o início)</em></p>
+<p><strong>RN-19 — Devolução de sobras está fora do MVP.</strong>
+A regra de que "pedido com item reutilizável só conclui após devolução" não se aplica nesta versão — a flag de item reutilizável é apenas informativa. <em>(16/09/2026)</em></p>
+<p><strong>RN-20 — Onde há discricionariedade necessária, o sistema não restringe — registra e expõe.</strong>
+Princípio geral aplicado a toda regra que envolve julgamento humano (escolha de origem na baixa, substituição de item, cadastro e aprovação de compra do mesmo fornecedor): a ação é permitida, mas sempre visível em relatório de auditoria ou de exceções, nunca silenciosa. <em>(princípio adotado ao longo de todas as discussões)</em></p></body></html>

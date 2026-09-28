@@ -1,0 +1,132 @@
+<!doctype html><html><head><meta charset='utf-8'>
+<style>
+  @page { margin: 16mm 15mm; }
+  html { color-scheme: light; }
+  body {
+    font-family: "Georgia", "Source Serif 4", serif;
+    color: #16191c; font-size: 10.3pt; line-height: 1.5;
+    max-width: 100%; margin: 0;
+  }
+  h1 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 19pt;
+    color: #0f3d47; border-bottom: 2px solid #0f3d47; padding-bottom: 6px;
+    margin: 0 0 4px 0; break-after: avoid;
+  }
+  h1 + p em { display:block; color:#555; font-size: 9.5pt; margin: 0 0 18px 0; font-style: normal; }
+  h2 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 13pt;
+    color: #0f3d47; margin: 22px 0 8px 0; padding-top: 6px;
+    border-top: 1px solid #ccc; break-after: avoid;
+  }
+  h1 ~ h2:first-of-type { border-top: none; }
+  h3 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 11pt;
+    color: #16191c; margin: 14px 0 4px 0; break-after: avoid;
+  }
+  p { margin: 6px 0; break-inside: avoid-page; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  li > p { margin: 0; display:inline; }
+  strong { font-weight: 700; color: #000; }
+  em { color: #444; }
+  code {
+    font-family: "Consolas", monospace; font-size: 9pt;
+    background: #f0f0f0; padding: 1px 4px; border: 1px solid #ddd;
+  }
+  pre {
+    font-family: "Consolas", monospace; font-size: 8.5pt;
+    background: #f6f6f6; border: 1px solid #ccc; padding: 8px 10px;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  table {
+    border-collapse: collapse; width: 100%; margin: 10px 0 14px 0;
+    font-size: 9.3pt; break-inside: avoid;
+  }
+  th, td { border: 1px solid #b8b8b8; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef3f4; font-family: Arial, sans-serif; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+  a { color: #0f3d47; }
+  blockquote {
+    margin: 8px 0; padding: 4px 14px; border-left: 3px solid #0f3d47;
+    color: #444; background: #f7f8f8;
+  }
+</style>
+</head><body><h1>Requisitos Funcionais — Compras e Suprimentos</h1>
+<p>Grupo Perfil de Educação · v1.0 · 30/09/2026</p>
+<p>Numeração <code>RF-XX</code>, agrupada por módulo. Cada requisito referencia a regra de negócio correspondente em <a href="./03-regras-de-negocio.md">03-regras-de-negocio.md</a> quando aplicável.</p>
+<hr />
+<h2>1. Cadastros</h2>
+<ul>
+<li><strong>RF-01</strong> Cadastrar Empresa (CNPJ), Filial e Almoxarifado, na hierarquia Tenant → Empresa → Filial → Almoxarifado.</li>
+<li><strong>RF-02</strong> Cadastrar Centro de Custo por filial, com um nível de subcentro opcional.</li>
+<li><strong>RF-03</strong> Cadastrar Produto com: nome, categoria (Grupo → Categoria → Tipo), especificação obrigatória, unidade de medida, estoque mínimo, ponto de reposição, fornecedor padrão (opcional).</li>
+<li><strong>RF-04</strong> Cadastrar Kit de requisição: lista de produtos com quantidade sugerida, para acelerar pedidos recorrentes (ex. "Kit Professor").</li>
+<li><strong>RF-05</strong> Cadastrar Fornecedor: razão social, CNPJ (quando houver), condições de pagamento.</li>
+<li><strong>RF-06</strong> Cadastrar Motivo de Requisição (Reposição, Projeto/Ação Pedagógica, Eventos, Investimento, Conservação e Limpeza).</li>
+<li><strong>RF-07</strong> Guardar o código do Prodados em Centro de Custo, Fornecedor e Produto, para conciliação manual futura (RN-14).</li>
+</ul>
+<h2>2. Requisição ("Carrinho")</h2>
+<ul>
+<li><strong>RF-08</strong> Requisitante monta um carrinho com um ou mais produtos do catálogo, quantidade e observação por item.</li>
+<li><strong>RF-09</strong> Requisitante vê o saldo disponível de cada item no momento do pedido, antes de confirmar.</li>
+<li><strong>RF-10</strong> Requisitante pode escolher um Kit de requisição, que pré-preenche o carrinho com os itens sugeridos, editáveis antes de enviar.</li>
+<li><strong>RF-11</strong> Requisitante pode pedir item fora do catálogo (não cadastrado), com descrição e especificação obrigatórias — entra como pendência para suprimentos (RN-08).</li>
+<li><strong>RF-12</strong> Requisitante informa opcionalmente a "data que precisa" — campo desejável, não altera o SLA contratado (RN-05).</li>
+<li><strong>RF-13</strong> Requisição vai para <strong>Ciência</strong> de um ou mais aprovadores vinculados ao requisitante, conforme regra cadastrada (RN-01).</li>
+<li><strong>RF-14</strong> Requisitante acompanha o status do pedido, item a item quando o pedido se divide entre estoque e compra (RN-06).</li>
+<li><strong>RF-15</strong> Requisitante confirma o recebimento no app, ou registra observação (item faltante etc.), dentro do prazo configurável (RN-11).</li>
+</ul>
+<h2>3. Ciência e Aprovação de Mérito</h2>
+<ul>
+<li><strong>RF-16</strong> Administrador configura Grupos de Aprovação (nunca pessoa nem cargo diretamente) e vincula requisitantes a um ou mais grupos, com ordem quando for sequencial.</li>
+<li><strong>RF-17</strong> Aprovador dá ciência em lote, numa tela única de pendências, otimizada para celular.</li>
+<li><strong>RF-18</strong> Aprovador recusa com motivo obrigatório; a requisição encerra e o requisitante é notificado.</li>
+<li><strong>RF-19</strong> Aprovador nunca dá ciência do próprio pedido — o sistema impede e escala para o próximo nível.</li>
+<li><strong>RF-20</strong> Aprovador delega um substituto por período determinado; Administrador pode nomear substituto quando não houver delegação (RN-02).</li>
+</ul>
+<h2>4. Estoque</h2>
+<ul>
+<li><strong>RF-21</strong> Após ciência, suprimentos separa os itens com saldo e identifica os sem saldo, que seguem para compra (pedido pode se dividir).</li>
+<li><strong>RF-22</strong> Toda movimentação (entrada, saída, transferência, ajuste) é registrada em ledger, nunca editada — correção é sempre um contra-lançamento (RN-03).</li>
+<li><strong>RF-23</strong> O saldo distingue material comprado de material recebido sem custo (doação, lista de material); suprimentos escolhe a origem na baixa, com sugestão automática (RN-04).</li>
+<li><strong>RF-24</strong> Estoque abaixo do mínimo gera sugestão automática de pedido de compra, sem depender de requisitante.</li>
+<li><strong>RF-25</strong> Transferência entre almoxarifados de empresas diferentes é marcada automaticamente e aparece em relatório próprio (RN-09).</li>
+<li><strong>RF-26</strong> Débito entre almoxarifados (quando uma unidade usa material de outra) é controlado em produto e quantidade, quitável por transferência inversa ou baixa manual de administrador com motivo (RN-10).</li>
+<li><strong>RF-27</strong> Administrador realiza ajuste de inventário, sempre com motivo obrigatório e vínculo a uma contagem física.</li>
+</ul>
+<h2>5. Compras</h2>
+<ul>
+<li><strong>RF-28</strong> Suprimentos cota o(s) item(ns) sem saldo com um fornecedor, registrando valor total e frete estimado.</li>
+<li><strong>RF-29</strong> Sistema calcula a faixa de alçada aplicável sobre o valor total da cotação (incluindo frete) e roteia para aprovação, ou aprova automaticamente se abaixo do teto.</li>
+<li><strong>RF-30</strong> Aprovador de alçada aprova ou recusa com motivo obrigatório.</li>
+<li><strong>RF-31</strong> Comprador gera Ordem de Compra a partir da cotação aprovada.</li>
+<li><strong>RF-32</strong> Comprador pode substituir marca/especificação de um item sem nova aprovação, com histórico obrigatório da troca; acima de uma tolerância de preço, exige reaprovação (RN-07).</li>
+<li><strong>RF-33</strong> Comprador registra Nota Fiscal por upload de XML (NF-e) ou lançamento manual (NFC-e, cupom, compra presencial) (RN-12).</li>
+<li><strong>RF-34</strong> Sistema aprende a correspondência entre o código de produto do fornecedor e o produto do catálogo, a partir da primeira nota lançada.</li>
+<li><strong>RF-35</strong> Responsável de estoque confere fisicamente o recebimento contra o XML/nota pré-preenchida, confirma ou corrige a quantidade; a entrada no estoque acontece na confirmação (RN-13).</li>
+<li><strong>RF-36</strong> Ordem de Compra pode ser finalizada com pendência de itens não entregues; comprador cancela item pendente com motivo se o fornecedor não entregar (RN-15).</li>
+<li><strong>RF-37</strong> Comprador registra pedido de <strong>urgência</strong> depois do fato (ex. manutenção corretiva), nomeando o requisitante real; regulariza em prazo configurável, com aprovação posterior pela alçada normal (RN-16).</li>
+</ul>
+<h2>6. Relatórios</h2>
+<ul>
+<li><strong>RF-38</strong> Relatório de gastos por unidade × categoria × centro de custo × período (eixo desembolso, pela nota).</li>
+<li><strong>RF-39</strong> Relatório de consumo valorizado por filial × centro de custo × período (eixo consumo, pela baixa a custo médio) — não somável ao anterior (RN-17).</li>
+<li><strong>RF-40</strong> Relatório de pedidos por status, com destaque para prazos estourados.</li>
+<li><strong>RF-41</strong> Relatório de posição de estoque por almoxarifado (saldo e custo médio), incluindo saldos por origem.</li>
+<li><strong>RF-42</strong> Relatório de débitos entre almoxarifados: quem deve o quê a quem.</li>
+<li><strong>RF-43</strong> Relatório de movimentações entre empresas (fronteira jurídica).</li>
+<li><strong>RF-44</strong> Relatório de exceções: desvios da sugestão de origem, substituições de item, urgências registradas, compras de fornecedor recém-cadastrado.</li>
+<li><strong>RF-45</strong> Relatório de itens mais solicitados por unidade.</li>
+</ul>
+<h2>7. Notificações</h2>
+<ul>
+<li><strong>RF-46</strong> Notificar aprovador quando houver pendência de ciência ou de alçada, com link que leva à tela de login/app (nunca aprovação direta pelo link).</li>
+<li><strong>RF-47</strong> Notificar requisitante em toda mudança de status do pedido, e quando a entrega aguardar sua confirmação.</li>
+</ul>
+<h2>8. Administração e Segurança</h2>
+<ul>
+<li><strong>RF-48</strong> Superadmin gerencia usuários, papéis, parametrização global (alçadas, filiais, módulos) e auditoria.</li>
+<li><strong>RF-49</strong> Administrador por módulo (Estoque, Compras, Financeiro) configura e opera seu módulo, sem acesso de configuração aos demais.</li>
+<li><strong>RF-50</strong> Toda ação sensível (alteração de alçada, cadastro de fornecedor, ajuste de inventário, baixa manual de débito) é registrada em auditoria append-only, com usuário, timestamp, IP e valores antes/depois.</li>
+<li><strong>RF-51</strong> Toda consulta ao sistema é automaticamente restrita ao tenant e ao escopo do usuário autenticado (RN-18).</li>
+</ul></body></html>

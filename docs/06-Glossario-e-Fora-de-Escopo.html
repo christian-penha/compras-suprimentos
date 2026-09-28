@@ -1,0 +1,144 @@
+<!doctype html><html><head><meta charset='utf-8'>
+<style>
+  @page { margin: 16mm 15mm; }
+  html { color-scheme: light; }
+  body {
+    font-family: "Georgia", "Source Serif 4", serif;
+    color: #16191c; font-size: 10.3pt; line-height: 1.5;
+    max-width: 100%; margin: 0;
+  }
+  h1 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 19pt;
+    color: #0f3d47; border-bottom: 2px solid #0f3d47; padding-bottom: 6px;
+    margin: 0 0 4px 0; break-after: avoid;
+  }
+  h1 + p em { display:block; color:#555; font-size: 9.5pt; margin: 0 0 18px 0; font-style: normal; }
+  h2 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 13pt;
+    color: #0f3d47; margin: 22px 0 8px 0; padding-top: 6px;
+    border-top: 1px solid #ccc; break-after: avoid;
+  }
+  h1 ~ h2:first-of-type { border-top: none; }
+  h3 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 11pt;
+    color: #16191c; margin: 14px 0 4px 0; break-after: avoid;
+  }
+  p { margin: 6px 0; break-inside: avoid-page; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  li > p { margin: 0; display:inline; }
+  strong { font-weight: 700; color: #000; }
+  em { color: #444; }
+  code {
+    font-family: "Consolas", monospace; font-size: 9pt;
+    background: #f0f0f0; padding: 1px 4px; border: 1px solid #ddd;
+  }
+  pre {
+    font-family: "Consolas", monospace; font-size: 8.5pt;
+    background: #f6f6f6; border: 1px solid #ccc; padding: 8px 10px;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  table {
+    border-collapse: collapse; width: 100%; margin: 10px 0 14px 0;
+    font-size: 9.3pt; break-inside: avoid;
+  }
+  th, td { border: 1px solid #b8b8b8; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef3f4; font-family: Arial, sans-serif; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+  a { color: #0f3d47; }
+  blockquote {
+    margin: 8px 0; padding: 4px 14px; border-left: 3px solid #0f3d47;
+    color: #444; background: #f7f8f8;
+  }
+</style>
+</head><body><h1>Glossário e Fora de Escopo — Compras e Suprimentos</h1>
+<p>Grupo Perfil de Educação · v1.0 · 30/09/2026</p>
+<hr />
+<h2>Glossário</h2>
+<p><strong>Tenant</strong> — o grupo econômico (Grupo Perfil de Educação). Nível mais alto da hierarquia; tudo pertence a um tenant.</p>
+<p><strong>Empresa</strong> — uma pessoa jurídica (CNPJ) dentro do tenant. Quem compra: fornecedor, ordem de compra e nota fiscal sempre se referem a uma Empresa. Hoje: quatro filiais numa Empresa, uma em Empresa separada.</p>
+<p><strong>Filial</strong> — um estabelecimento/unidade de negócio (Colégio Perfil, Villa Criar, Evolua, Poliana, AICE-BA). Dimensão gerencial: quem consome, não necessariamente quem compra.</p>
+<p><strong>Almoxarifado</strong> — saldo lógico de estoque de uma filial ou segmento dentro dela (ex. CP-Ed.Infantil, CSC/Matriz).</p>
+<p><strong>Carrinho</strong> — nome de interface para a Requisição: a lista de itens que um requisitante monta e envia.</p>
+<p><strong>Ciência</strong> — a aprovação de mérito. Estado que bloqueia o fluxo até que o grupo de aprovação vinculado ao requisitante confirme que está de acordo com o pedido. Não depende de valor nem de cotação.</p>
+<p><strong>Alçada</strong> — a faixa de aprovação financeira por valor, aplicada à compra (e só à compra). Calculada sobre o total da cotação, nunca por item.</p>
+<p><strong>Grupo de Aprovação</strong> — conjunto nomeado de pessoas que respondem por ciência ou alçada num escopo (filiais/centros de custo). Regras nunca apontam para uma pessoa ou cargo diretamente, sempre para o grupo.</p>
+<p><strong>Origem do saldo</strong> — dimensão que separa material <strong>comprado</strong> de material <strong>recebido sem custo</strong> (doação, lista de material), com custo médio calculado separadamente para cada um.</p>
+<p><strong>Custo médio</strong> — valor médio de um produto no estoque, recalculado a cada entrada, usado para valorar saídas. Calculado por origem.</p>
+<p><strong>Preço de referência</strong> — o último custo de compra conhecido de um produto, exibido com a data. Serve só para análise gerencial; nunca entra no custo médio, na alçada ou no valor do estoque.</p>
+<p><strong>Desembolso</strong> — o eixo de relatório que mostra quanto saiu do caixa, com base na nota fiscal.</p>
+<p><strong>Consumo valorizado</strong> — o eixo de relatório que mostra quem usou o recurso, com base na baixa de estoque a custo médio (ou na compra direta, quando existir). Não se soma ao desembolso.</p>
+<p><strong>Débito entre almoxarifados</strong> — registro de quanto um almoxarifado deve a outro, em produto e quantidade, quando uma unidade consome material que pertencia a outra.</p>
+<p><strong>Kit de requisição</strong> — uma lista salva de produtos e quantidades sugeridas (ex. "Kit Professor"), usada para acelerar o carrinho. Não é um produto físico com saldo próprio.</p>
+<p><strong>Item livre</strong> — um item pedido fora do catálogo, com descrição e especificação, que ainda não é um Produto. Resolvido por suprimentos como produto novo ou como realocação para um produto já existente.</p>
+<p><strong>Urgência</strong> — pedido em que o material saiu antes do registro formal (ex. manutenção corretiva), regularizado depois pelo comprador dentro de um prazo, com aprovação posterior.</p>
+<p><strong>Compra direta</strong> — permissão, ainda não implementada, para um colaborador comprar sem passar pelo estoque. Escopada por filial, categoria, centro de custo e teto de valor — nunca um booleano simples no usuário.</p>
+<p><strong>Gestio</strong> — sistema de compras atual, que este projeto substitui.</p>
+<p><strong>Glide</strong> — app de compras anterior ao Gestio, feito internamente; funcionava bem operacionalmente, mas concentrava aprovações na diretoria.</p>
+<p><strong>Prodados</strong> — o ERP do grupo. Alvo de integração futura; fora do MVP.</p>
+<hr />
+<h2>Fora de escopo desta versão</h2>
+<p>Cada item abaixo tem uma razão registrada — não é esquecimento, é decisão.</p>
+<table>
+<thead>
+<tr>
+<th>Fora de escopo</th>
+<th>Por quê</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Devolução de sobras</strong></td>
+<td>Reduz complexidade do módulo de estoque no primeiro ciclo. O tipo de movimentação já existe no modelo, sem interface, para ser ligado depois sem migração.</td>
+</tr>
+<tr>
+<td><strong>Compra direta</strong></td>
+<td>Antes de construir a matriz genérica (filial × categoria × centro de custo × teto), é preciso ver os casos reais do primeiro ciclo. Implementar na fase 4.</td>
+</tr>
+<tr>
+<td><strong>Serviços terceirizados</strong></td>
+<td>Módulo com contratação, medição e gasto de serviço — hoje a manutenção é majoritariamente material, e continua no fluxo normal de requisição.</td>
+</tr>
+<tr>
+<td><strong>Empréstimo de material retornável</strong></td>
+<td>Cobertura parcial via flag "reutilizável" + devolução manual; o módulo formal com prazo e cobrança automática fica para depois.</td>
+</tr>
+<tr>
+<td><strong>Integração automática com o Prodados</strong></td>
+<td>Ponto futuro importante, mas fora de foco agora. O sistema guarda o código do Prodados nos cadastros para não fechar a porta.</td>
+</tr>
+<tr>
+<td><strong>Conciliação contábil formal</strong></td>
+<td>O financeiro não está preocupado com isso agora. Os dois eixos de relatório (desembolso/consumo) atendem à necessidade gerencial imediata.</td>
+</tr>
+<tr>
+<td><strong>Captura automática de NF-e via Sefaz</strong></td>
+<td>O MVP cobre o upload manual do XML, que já resolve a maior parte do ganho operacional.</td>
+</tr>
+<tr>
+<td><strong>Controle orçamentário por centro de custo</strong></td>
+<td>A regra de alçada por percentual de centro de custo excedido existe no modelo, desligada, esperando a existência de um orçamento cadastrado.</td>
+</tr>
+<tr>
+<td><strong>Controle patrimonial</strong></td>
+<td>Bens de investimento (notebook, mobiliário) são apenas marcados como categoria, sem ficha de patrimônio.</td>
+</tr>
+<tr>
+<td><strong>Comparativo de múltiplos fornecedores na cotação</strong></td>
+<td>MVP registra um fornecedor e um valor por cotação.</td>
+</tr>
+<tr>
+<td><strong>Termo de responsabilidade digital para kits de professores</strong></td>
+<td>Continua controle manual nesta fase.</td>
+</tr>
+<tr>
+<td><strong>Segundo fator de autenticação (MFA)</strong></td>
+<td>Não é requisito agora; o modelo de usuário fica pronto para ligar depois sem migração de dados.</td>
+</tr>
+<tr>
+<td><strong>Schema-per-tenant</strong></td>
+<td>Multi-tenancy linha a linha adotada pelo custo operacional menor para um desenvolvedor só — ver <a href="./prompt-inicial-projeto.md">prompt-inicial-projeto.md</a>, seção 0.</td>
+</tr>
+</tbody>
+</table>
+<p>Documentos relacionados: <a href="./modelo-de-dados.md">Modelo de Dados</a> tem a seção completa "O que fica de fora do MVP" com o detalhe técnico de cada item acima.</p></body></html>

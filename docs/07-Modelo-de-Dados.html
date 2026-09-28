@@ -1,0 +1,802 @@
+<!doctype html><html><head><meta charset='utf-8'>
+<style>
+  @page { margin: 16mm 15mm; }
+  html { color-scheme: light; }
+  body {
+    font-family: "Georgia", "Source Serif 4", serif;
+    color: #16191c; font-size: 10.3pt; line-height: 1.5;
+    max-width: 100%; margin: 0;
+  }
+  h1 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 19pt;
+    color: #0f3d47; border-bottom: 2px solid #0f3d47; padding-bottom: 6px;
+    margin: 0 0 4px 0; break-after: avoid;
+  }
+  h1 + p em { display:block; color:#555; font-size: 9.5pt; margin: 0 0 18px 0; font-style: normal; }
+  h2 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 13pt;
+    color: #0f3d47; margin: 22px 0 8px 0; padding-top: 6px;
+    border-top: 1px solid #ccc; break-after: avoid;
+  }
+  h1 ~ h2:first-of-type { border-top: none; }
+  h3 {
+    font-family: Arial, sans-serif; font-weight: 700; font-size: 11pt;
+    color: #16191c; margin: 14px 0 4px 0; break-after: avoid;
+  }
+  p { margin: 6px 0; break-inside: avoid-page; }
+  ul, ol { margin: 6px 0; padding-left: 20px; }
+  li { margin-bottom: 3px; }
+  li > p { margin: 0; display:inline; }
+  strong { font-weight: 700; color: #000; }
+  em { color: #444; }
+  code {
+    font-family: "Consolas", monospace; font-size: 9pt;
+    background: #f0f0f0; padding: 1px 4px; border: 1px solid #ddd;
+  }
+  pre {
+    font-family: "Consolas", monospace; font-size: 8.5pt;
+    background: #f6f6f6; border: 1px solid #ccc; padding: 8px 10px;
+    white-space: pre-wrap; break-inside: avoid;
+  }
+  table {
+    border-collapse: collapse; width: 100%; margin: 10px 0 14px 0;
+    font-size: 9.3pt; break-inside: avoid;
+  }
+  th, td { border: 1px solid #b8b8b8; padding: 5px 8px; text-align: left; vertical-align: top; }
+  th { background: #eef3f4; font-family: Arial, sans-serif; font-weight: 700; }
+  hr { border: none; border-top: 1px solid #ccc; margin: 16px 0; }
+  a { color: #0f3d47; }
+  blockquote {
+    margin: 8px 0; padding: 4px 14px; border-left: 3px solid #0f3d47;
+    color: #444; background: #f7f8f8;
+  }
+</style>
+</head><body><h1>Modelo de Dados Definitivo — Compras e Suprimentos</h1>
+<p>Grupo Perfil de Educação · v1.0 · 30/09/2026</p>
+<p>Este documento consolida todas as decisões tomadas entre 09 e 30/09/2026 num modelo de dados pronto para virar código Django. Os models abaixo são esqueletos deliberados — campos, chaves, <code>unique_together</code>, e principalmente <strong>comentários explicando o motivo de cada decisão não óbvia</strong>. Não é código para copiar e rodar sem revisão; é a estrutura que evita o retrabalho que discutimos.</p>
+<p>Convenção: todo model de negócio herda de <code>TenantModel</code> (abaixo) e <code>AuditModel</code> implicitamente, salvo indicação contrária.</p>
+<hr />
+<h2>0. Decisão de arquitetura que fica registrada aqui, por ainda não ter sido fechada com você</h2>
+<p><strong>Estratégia de multi-tenancy: linha a linha (row-level), não schema-per-tenant.</strong></p>
+<p>Schema-per-tenant (<code>django-tenants</code>) dá isolamento estrutural mais forte — um bug de query não vaza dado entre tenants, porque o banco nem enxerga o schema do outro. É o que eu recomendaria para um SaaS já em operação com múltiplos clientes.</p>
+<p>Mas você está sozinho, com um tenant real (o Grupo Perfil) por um bom tempo, e schema-per-tenant adiciona complexidade operacional real: migração por schema, criação de schema por tenant, conexão de banco mais delicada. Para um desenvolvedor só, isso é custo hoje por um benefício que só aparece quando houver o segundo cliente.</p>
+<p><strong>Adoto row-level</strong>: todo model relevante tem <code>tenant = ForeignKey(Tenant)</code>, um manager padrão que filtra automaticamente pelo tenant corrente (via <code>contextvars</code>, setado no middleware a partir do usuário autenticado), e a regra não-negociável de que <strong>nenhuma view usa o manager <code>objects</code> bruto de um model tenant-aware sem passar pelo escopo</strong>. Eu formalizo isso com um teste automatizado que varre todas as views e falha se encontrar uma consulta não escopada — trago isso no prompt inicial.</p>
+<p>Se e quando houver um segundo cliente de verdade, a migração para schema-per-tenant é um projeto isolado, não uma reescrita do domínio — os models não mudam, muda a camada de roteamento de conexão.</p>
+<hr />
+<h2>1. Tenancy e estrutura organizacional</h2>
+<pre><code class="language-python"># apps/tenancy/models.py
+
+class Tenant(models.Model):
+    &quot;&quot;&quot;O grupo econômico. Uma linha só hoje (Grupo Perfil), preparado para mais.&quot;&quot;&quot;
+    nome = models.CharField(max_length=200)
+    slug = models.SlugField(unique=True)
+    ativo = models.BooleanField(default=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+
+class TenantModel(models.Model):
+    &quot;&quot;&quot;Mixin abstrato: todo model de negócio herda daqui.&quot;&quot;&quot;
+    tenant = models.ForeignKey(Tenant, on_delete=models.PROTECT)
+    objects = TenantAwareManager()   # filtra automaticamente pelo tenant corrente
+    all_objects = models.Manager()   # escape hatch explícito, uso só em management commands/admin
+
+    class Meta:
+        abstract = True
+
+
+class Empresa(TenantModel):
+    &quot;&quot;&quot;
+    Pessoa jurídica (CNPJ). Quem compra: fornecedor, OC e nota fiscal
+    referenciam Empresa, nunca Filial diretamente.
+
+    Hoje: 4 filiais numa Empresa, 1 filial em Empresa separada.
+    &quot;&quot;&quot;
+    razao_social = models.CharField(max_length=200)
+    nome_fantasia = models.CharField(max_length=200)
+    cnpj = models.CharField(max_length=14)  # só dígitos, validar com validate_docbr ou similar
+    codigo_prodados = models.CharField(max_length=50, blank=True)  # ponte com o ERP, sem integração ainda
+
+    class Meta:
+        unique_together = [(&quot;tenant&quot;, &quot;cnpj&quot;)]
+
+
+class Filial(TenantModel):
+    &quot;&quot;&quot;
+    Estabelecimento / unidade de negócio (Colégio Perfil, Villa Criar, Evolua,
+    Poliana, AICE-BA). Dimensão GERENCIAL — quem consome, não quem compra.
+    &quot;&quot;&quot;
+    empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT, related_name=&quot;filiais&quot;)
+    nome = models.CharField(max_length=120)
+    codigo_prodados = models.CharField(max_length=50, blank=True)
+    ativo = models.BooleanField(default=True)
+
+
+class Almoxarifado(TenantModel):
+    &quot;&quot;&quot;
+    Saldo lógico por filial/segmento (CP-Ed.Infantil, VC-Geral, ..., CSC).
+    Pertence a uma Empresa (via Filial) — é isso que permite ao sistema
+    detectar quando uma transferência cruza fronteira jurídica (ver
+    MovimentacaoEstoque.cruza_empresa).
+    &quot;&quot;&quot;
+    filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name=&quot;almoxarifados&quot;)
+    nome = models.CharField(max_length=120)
+    eh_central = models.BooleanField(default=False)  # true só para o CSC/Matriz
+    ativo = models.BooleanField(default=True)
+
+    @property
+    def empresa(self):
+        return self.filial.empresa
+
+
+class CentroCusto(TenantModel):
+    &quot;&quot;&quot;Definido por filial. Suporta um nível de subcentro (self-FK).&quot;&quot;&quot;
+    filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name=&quot;centros_custo&quot;)
+    nome = models.CharField(max_length=120)
+    centro_pai = models.ForeignKey(&quot;self&quot;, null=True, blank=True, on_delete=models.PROTECT,
+                                     related_name=&quot;subcentros&quot;)
+    codigo_prodados = models.CharField(max_length=50, blank=True)
+    ativo = models.BooleanField(default=True)
+
+
+class MotivoRequisicao(TenantModel):
+    &quot;&quot;&quot;Reposição, Projeto/Ação Pedagógica, Eventos, Investimento, Conservação e Limpeza.&quot;&quot;&quot;
+    nome = models.CharField(max_length=80)
+    ativo = models.BooleanField(default=True)
+</code></pre>
+<hr />
+<h2>2. Cadastros mestres</h2>
+<pre><code class="language-python"># apps/cadastros/models.py
+
+class CategoriaProduto(TenantModel):
+    &quot;&quot;&quot;Grupo → Categoria → Tipo, self-FK de 3 níveis (ou achatar em 3 campos, ver nota).&quot;&quot;&quot;
+    nome = models.CharField(max_length=80)
+    categoria_pai = models.ForeignKey(&quot;self&quot;, null=True, blank=True, on_delete=models.PROTECT)
+
+
+class Produto(TenantModel):
+    &quot;&quot;&quot;
+    UM produto por item real de consumo — nunca duplicar por unidade de compra
+    (ver decisão de 15-16/09: caixa e resma são o MESMO produto).
+
+    unidade_base = menor unidade de consumo (a que aparece no saldo e no custo
+    médio). fator_embalagem_compra = quantas unidades_base cabem na embalagem
+    usada para comprar (ex.: caixa de papel A4 = 10 resmas). Valor 1 quando não
+    há distinção (decisão de 28/09: trabalhar só com unidade por ora, mas o
+    campo fica no modelo pronto — não expor a conversão na tela até haver caso real).
+    &quot;&quot;&quot;
+    codigo_interno = models.CharField(max_length=30, unique=True)
+    nome = models.CharField(max_length=200)
+    especificacao = models.TextField(
+        help_text=&quot;Obrigatório. Cor, gramatura etc. — elimina o 'pedido vago'. &quot;
+                   &quot;O requisitante escolhe o item já especificado, nunca digita livre &quot;
+                   &quot;no pedido (exceto via ItemLivreRequisicao, ver seção 4).&quot;
+    )
+    categoria = models.ForeignKey(CategoriaProduto, on_delete=models.PROTECT)
+    unidade_base = models.CharField(max_length=10)  # UN, RESMA, LT, KG...
+    fator_embalagem_compra = models.PositiveIntegerField(default=1)
+    unidade_embalagem_compra = models.CharField(max_length=10, blank=True)  # &quot;CX&quot;, &quot;FD&quot;...
+    reutilizavel = models.BooleanField(
+        default=False,
+        help_text=&quot;Flag informativa apenas. Controle de devolução está fora do MVP &quot;
+                   &quot;(decisão O11, 16/09) — não bloqueia conclusão de pedido.&quot;
+    )
+    fornecedor_padrao = models.ForeignKey(&quot;compras.Fornecedor&quot;, null=True, blank=True,
+                                            on_delete=models.SET_NULL)
+    categoria_investimento = models.BooleanField(
+        default=False,
+        help_text=&quot;Bens duráveis (notebook, mobiliário). Separa relatório de consumo &quot;
+                   &quot;de gasto operacional. Sem controle patrimonial no MVP (F12).&quot;
+    )
+    estoque_minimo = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    ponto_reposicao = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    ativo = models.BooleanField(default=True)
+
+    aprovado_por_suprimentos = models.BooleanField(
+        default=True,
+        help_text=&quot;False apenas para produtos criados a partir de ItemLivreRequisicao &quot;
+                   &quot;ainda não confirmados por suprimentos (ver seção 4). Produto assim &quot;
+                   &quot;não pode ser movimentado em estoque nem comprado.&quot;
+    )
+
+
+class KitRequisicao(TenantModel):
+    &quot;&quot;&quot;
+    Modelo de requisição, NÃO produto físico (decisão 16/09: kit como lista
+    salva que explode em itens, não produto montado com saldo próprio —
+    evita saldo duplicado e movimentação de montagem que ninguém pediu).
+    &quot;&quot;&quot;
+    nome = models.CharField(max_length=120)  # &quot;Kit Professor&quot;, &quot;Kit Gráfica&quot;
+    ativo = models.BooleanField(default=True)
+
+
+class ItemKitRequisicao(models.Model):
+    kit = models.ForeignKey(KitRequisicao, on_delete=models.CASCADE, related_name=&quot;itens&quot;)
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    quantidade_sugerida = models.DecimalField(max_digits=12, decimal_places=3)
+</code></pre>
+<hr />
+<h2>3. Usuários, papéis e aprovação</h2>
+<p>Esta é a parte que mais mudou ao longo das conversas — o desenho final vem das respostas de 28–30/09.</p>
+<pre><code class="language-python"># apps/aprovacao/models.py
+
+class GrupoAprovacao(TenantModel):
+    &quot;&quot;&quot;
+    A regra de aprovação NUNCA aponta para uma pessoa nem para um cargo —
+    aponta para um grupo nomeado (decisão 15/09). Pessoas entram e saem do
+    grupo sem tocar em regra nenhuma.
+
+    Escopo: filiais e/ou centros de custo pelos quais o grupo responde.
+    Ex.: &quot;Aprovador Nível 2 — Perfil&quot;, &quot;Ciência — Coordenação Pedagógica CP&quot;.
+    &quot;&quot;&quot;
+    nome = models.CharField(max_length=120)
+    filiais = models.ManyToManyField(Filial, blank=True)
+    centros_custo = models.ManyToManyField(CentroCusto, blank=True)
+    membros = models.ManyToManyField(settings.AUTH_USER_MODEL, related_name=&quot;grupos_aprovacao&quot;)
+    ativo = models.BooleanField(default=True)
+
+
+class VinculoRequisitanteAprovador(TenantModel):
+    &quot;&quot;&quot;
+    Roteamento de CIÊNCIA (aprovação de mérito). Cada requisitante tem um ou
+    mais grupos designados, com ordem se for sequencial.
+
+    Decisão 28/09: CIÊNCIA BLOQUEIA — é a aprovação de mérito com o nome que
+    a operação usa (equivale ao APROVADO_UNIDADE da especificação original).
+    Existe porque a coordenação precisa saber o que a equipe pede antes de
+    entrar no fluxo. O gargalo do Glide não se resolve removendo a etapa —
+    se resolve pelo nível (coordenação, não diretoria) e pela usabilidade
+    (aprovação em lote). MVP: um grupo por requisitante. Campo `ordem` já
+    existe para permitir sequência de 2+ níveis sem migração futura.
+    &quot;&quot;&quot;
+    requisitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                       related_name=&quot;vinculos_ciencia&quot;)
+    grupo_aprovacao = models.ForeignKey(GrupoAprovacao, on_delete=models.PROTECT)
+    ordem = models.PositiveSmallIntegerField(default=1)
+
+
+class FaixaAlcada(TenantModel):
+    &quot;&quot;&quot;
+    Tabela de alçada, parametrizável, versionada (nunca editar em lugar —
+    ver RegistroAlteracaoAlcada). Calculada sobre o TOTAL da cotação
+    (incluindo frete, decisão F8) — nunca por item, para impedir fracionamento.
+    &quot;&quot;&quot;
+    valor_min = models.DecimalField(max_digits=14, decimal_places=2)
+    valor_max = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)  # null = sem teto
+    grupo_aprovacao = models.ForeignKey(GrupoAprovacao, null=True, blank=True, on_delete=models.PROTECT)
+    aprovacao_automatica = models.BooleanField(default=False)  # true só na faixa &quot;até R$300&quot;
+    vigente_desde = models.DateTimeField(auto_now_add=True)
+    vigente_ate = models.DateTimeField(null=True, blank=True)  # null = vigente
+
+
+class RegraAprovacaoCentroCusto(TenantModel):
+    &quot;&quot;&quot;
+    Regra adicional por % de centro de custo excedido (decisão 28/09).
+    FORA DO MVP até existir orçamento cadastrado por centro de custo —
+    model existe, sem tela, sem avaliação em produção (decisão 30/09).
+    &quot;&quot;&quot;
+    centro_custo = models.ForeignKey(CentroCusto, on_delete=models.CASCADE)
+    percentual_gatilho = models.DecimalField(max_digits=5, decimal_places=2)
+    grupo_aprovacao = models.ForeignKey(GrupoAprovacao, on_delete=models.PROTECT)
+    ativo = models.BooleanField(default=False)  # desligado por padrão
+
+
+class DelegacaoAprovador(TenantModel):
+    &quot;&quot;&quot;
+    Aprovador substituto por período (O8). Nunca pode ser o próprio
+    requisitante do pedido em avaliação — checagem em tempo de aprovação,
+    não aqui. Admin pode criar quando o titular não delegou a tempo
+    (afastamento, desligamento).
+    &quot;&quot;&quot;
+    titular = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                  related_name=&quot;delegacoes_feitas&quot;)
+    substituto = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+                                     related_name=&quot;delegacoes_recebidas&quot;)
+    inicio = models.DateField()
+    fim = models.DateField()
+    criado_por_admin = models.BooleanField(default=False)
+    motivo = models.TextField(blank=True)
+
+
+class RegistroAlteracaoAlcada(TenantModel):
+    &quot;&quot;&quot;Snapshot append-only de toda mudança na tabela de alçada. Nunca editar FaixaAlcada em lugar.&quot;&quot;&quot;
+    faixa = models.ForeignKey(FaixaAlcada, on_delete=models.PROTECT)
+    valor_anterior_json = models.JSONField()
+    valor_novo_json = models.JSONField()
+    alterado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    alterado_em = models.DateTimeField(auto_now_add=True)
+
+
+class PermissaoCompraDireta(TenantModel):
+    &quot;&quot;&quot;
+    FORA DO MVP (fase 4, só após o primeiro ciclo real — decisão 09/09).
+    Model existe desde já porque é barato; NÃO implementar avaliação nem
+    tela antes da fase 4. Nunca booleano no usuário — sempre escopado
+    e datado, e o teto SEMPRE abaixo da 1ª faixa de aprovação automática
+    (checagem obrigatória na validação do model).
+    &quot;&quot;&quot;
+    escopo_usuario = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                         on_delete=models.CASCADE)
+    escopo_grupo = models.ForeignKey(GrupoAprovacao, null=True, blank=True, on_delete=models.CASCADE)
+    filiais = models.ManyToManyField(Filial)
+    categorias = models.ManyToManyField(CategoriaProduto)
+    centros_custo = models.ManyToManyField(CentroCusto)
+    valor_maximo_por_requisicao = models.DecimalField(max_digits=14, decimal_places=2)
+    vigencia_inicio = models.DateField()
+    vigencia_fim = models.DateField(null=True, blank=True)
+    motivo_concessao = models.TextField()
+    ativo = models.BooleanField(default=True)
+</code></pre>
+<hr />
+<h2>4. Requisição ("Carrinho") e máquina de estados</h2>
+<p>O termo "Carrinho" (decisão 28/09) é UX — o model interno chama-se <code>Requisicao</code>.</p>
+<pre><code class="language-python"># apps/requisicoes/models.py
+
+class Requisicao(TenantModel):
+    &quot;&quot;&quot;
+    O &quot;Carrinho&quot;. Fluxo confirmado (28-30/09):
+
+    Estoque:  RASCUNHO → ENVIADA → CIENCIA → SEPARACAO → ENTREGUE
+              → AGUARDANDO_APROVACAO_ENTREGA → CONCLUIDA
+                        ↘ CIENCIA_RECUSADA (motivo obrigatório; fim)
+
+    Compra (quando falta item ou item não cadastrado):
+      CIENCIA → AGUARDANDO_COMPRA → EM_COTACAO → AGUARDANDO_ALCADA
+      → COMPRA_APROVADA → COMPRADO → RECEBIDO → SEPARACAO → ... (junta no fluxo acima)
+                                 ↘ COMPRA_RECUSADA (motivo; volta ao requisitante)
+
+    Notas de implementação importantes:
+    - Pedido pode DIVIDIR entre estoque e compra: status vive no ITEM
+      (StatusItemRequisicao), não só na requisição (decisão O10, 16/09).
+      Entrega em duas etapas.
+    - AGUARDANDO_APROVACAO_ENTREGA: novo status (decisão 30/09) entre a
+      entrega física e a conclusão. Solicitante tem 2 dias úteis (config)
+      para confirmar no app ou abrir observação. ESSE TEMPO NÃO CONTA NO
+      SLA de suprimentos — ver campo `entregue_em` vs `concluida_em` e o
+      cálculo de SLA em Requisicao.sla_atendimento().
+    - Prazos contam da CIÊNCIA, não do envio (decisão 11/09).
+    &quot;&quot;&quot;
+    STATUS_CHOICES = [...]  # ver enum completo no código
+
+    requisitante = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                       related_name=&quot;requisicoes&quot;)
+    filial = models.ForeignKey(Filial, on_delete=models.PROTECT)
+    almoxarifado_destino = models.ForeignKey(Almoxarifado, on_delete=models.PROTECT)
+    motivo = models.ForeignKey(MotivoRequisicao, on_delete=models.PROTECT)
+    centro_custo = models.ForeignKey(CentroCusto, on_delete=models.PROTECT)
+
+    data_necessidade = models.DateField(
+        null=True, blank=True,
+        help_text=&quot;'Preciso até' — DESEJÁVEL, informativo, não altera o SLA &quot;
+                   &quot;contratado (decisão 28/09). Serve para priorização.&quot;
+    )
+
+    eh_urgencia = models.BooleanField(
+        default=False,
+        help_text=&quot;Pedido de urgência (O9): material saiu ANTES do registro &quot;
+                   &quot;formal (ex.: manutenção corretiva). Só para setores &quot;
+                   &quot;habilitados (ver Filial/CentroCusto.permite_urgencia, &quot;
+                   &quot;campo a acrescentar). Regulariza em prazo configurável, &quot;
+                   &quot;com nota anexa obrigatória.&quot;
+    )
+    urgencia_registrada_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                                  on_delete=models.SET_NULL,
+                                                  related_name=&quot;urgencias_registradas&quot;,
+                                                  help_text=&quot;Comprador, quando ele lança depois do fato. &quot;
+                                                            &quot;requisitante continua sendo a pessoa real.&quot;)
+
+    # Snapshot da cadeia de aprovação no momento do envio — NUNCA recalcular
+    # depois. Mudança de estrutura ou de faixa de alçada não pode alterar
+    # pedido em curso nem o histórico (decisão 09/09).
+    cadeia_aprovacao_snapshot = models.JSONField(null=True, blank=True)
+    faixa_alcada_aplicada = models.ForeignKey(FaixaAlcada, null=True, blank=True,
+                                                on_delete=models.PROTECT)
+
+    status = models.CharField(max_length=40, choices=STATUS_CHOICES, default=&quot;RASCUNHO&quot;)
+    enviada_em = models.DateTimeField(null=True, blank=True)
+    ciencia_em = models.DateTimeField(null=True, blank=True)
+    entregue_em = models.DateTimeField(null=True, blank=True)
+    concluida_em = models.DateTimeField(null=True, blank=True)
+
+    def sla_atendimento(self):
+        &quot;&quot;&quot;3 dias úteis estoque / 7 dias úteis compra, calculado a partir de
+        ciencia_em sobre calendário de dias úteis (feriados/recesso). Tempo
+        de espera pela confirmação do solicitante (AGUARDANDO_APROVACAO_ENTREGA)
+        é excluído do cálculo do indicador de suprimentos.&quot;&quot;&quot;
+        ...
+
+
+class ItemRequisicao(models.Model):
+    &quot;&quot;&quot;
+    Item de um produto JÁ CADASTRADO. Para item fora do catálogo, ver
+    ItemLivreRequisicao abaixo — são tipos diferentes de propósito.
+    &quot;&quot;&quot;
+    requisicao = models.ForeignKey(Requisicao, on_delete=models.CASCADE, related_name=&quot;itens&quot;)
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    quantidade = models.DecimalField(max_digits=12, decimal_places=3)
+    observacao = models.CharField(max_length=300, blank=True)  # ex. &quot;entregar em embalagem fechada&quot;
+
+    status = models.CharField(max_length=30, choices=[...])  # status POR ITEM (O10)
+
+    # Substituição de item pelo comprador (O6): sem reaprovação, MAS com
+    # histórico obrigatório. Reaprovação só acima da tolerância de preço
+    # (parâmetro configurável, sugestão 10-15%).
+    produto_substituido_de = models.ForeignKey(Produto, null=True, blank=True,
+                                                 on_delete=models.SET_NULL,
+                                                 related_name=&quot;+&quot;)
+    substituido_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                          on_delete=models.SET_NULL, related_name=&quot;+&quot;)
+    substituido_em = models.DateTimeField(null=True, blank=True)
+
+    # Origem escolhida na baixa (decisão O5) — ver seção 5.
+    origem_estoque_escolhida = models.CharField(
+        max_length=20, choices=[(&quot;COMPRADO&quot;, &quot;Comprado&quot;), (&quot;SEM_CUSTO&quot;, &quot;Recebido sem custo&quot;)],
+        null=True, blank=True
+    )
+    origem_seguiu_sugestao = models.BooleanField(
+        null=True,
+        help_text=&quot;False = suprimentos desviou da sugestão automática. &quot;
+                   &quot;Aparece no relatório de exceções (princípio geral: não &quot;
+                   &quot;restringir discricionariedade necessária, registrar e expor).&quot;
+    )
+
+
+class ItemLivreRequisicao(models.Model):
+    &quot;&quot;&quot;
+    Item fora do catálogo, pedido dentro do fluxo de COMPRA (decisão 30/09).
+    Especificação obrigatória para não reabrir o problema do 'pedido vago'.
+    NUNCA movimenta estoque diretamente — quando cotado, suprimentos:
+      (a) aprova como PRODUTO NOVO (cria Produto com aprovado_por_suprimentos=True), ou
+      (b) REALOCA para um Produto já existente (&quot;isso já existe, é o mesmo que X&quot;).
+    Depois da resolução, vira um ItemRequisicao normal — este registro fica
+    como histórico de como o item chegou ao catálogo.
+    &quot;&quot;&quot;
+    requisicao = models.ForeignKey(Requisicao, on_delete=models.CASCADE, related_name=&quot;itens_livres&quot;)
+    descricao = models.CharField(max_length=200)
+    especificacao = models.TextField()  # obrigatório, mesmo princípio do Produto.especificacao
+    quantidade_estimada = models.DecimalField(max_digits=12, decimal_places=3)
+
+    resolvido_como = models.CharField(
+        max_length=20, choices=[(&quot;NOVO&quot;, &quot;Produto novo&quot;), (&quot;REALOCADO&quot;, &quot;Produto existente&quot;)],
+        null=True, blank=True
+    )
+    produto_resultante = models.ForeignKey(Produto, null=True, blank=True, on_delete=models.PROTECT)
+    resolvido_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                        on_delete=models.SET_NULL)
+    resolvido_em = models.DateTimeField(null=True, blank=True)
+
+
+class ConfirmacaoEntrega(TenantModel):
+    &quot;&quot;&quot;
+    Decisão 30/09: confirmação NO APP pelo solicitante. Prazo configurável
+    (padrão 2 dias úteis) para aprovar ou abrir observação (item faltante etc).
+    Ao vencer sem resposta: recomendação é auto-aprovação por decurso
+    (parâmetro a confirmar na implementação) — nunca ficar pendente para sempre.
+    &quot;&quot;&quot;
+    requisicao = models.OneToOneField(Requisicao, on_delete=models.CASCADE,
+                                        related_name=&quot;confirmacao_entrega&quot;)
+    prazo_limite = models.DateTimeField()
+    confirmado_em = models.DateTimeField(null=True, blank=True)
+    observacao = models.TextField(blank=True)  # &quot;faltou 1 caixa de caneta&quot;
+    auto_aprovado_por_decurso = models.BooleanField(default=False)
+</code></pre>
+<hr />
+<h2>5. Estoque — o ledger e o saldo</h2>
+<pre><code class="language-python"># apps/estoque/models.py
+
+class MovimentacaoEstoque(TenantModel):
+    &quot;&quot;&quot;
+    FONTE DA VERDADE do estoque (decisão 09/09). NUNCA editar ou deletar —
+    correção sempre por contra-movimento vinculado (`estorno_de`).
+
+    tipo: ENTRADA_COMPRA, ENTRADA_SEM_CUSTO, SAIDA_CONSUMO, TRANSFERENCIA,
+          DEVOLUCAO (existe no enum, SEM interface no MVP — decisão O11),
+          AJUSTE_INVENTARIO, ESTORNO.
+
+    origem: COMPRADO | SEM_CUSTO — dimensão que impede que material a R$0
+    dilua o custo médio do material comprado (decisão 09/09). Preenchida em
+    toda ENTRADA e herdada na SAIDA (o que sai carrega a origem de onde saiu).
+
+    Valor unitário é CONGELADO aqui, nunca recalculado depois — é o que
+    garante que um relatório histórico não mude sozinho (ver modelo contábil).
+    &quot;&quot;&quot;
+    tipo = models.CharField(max_length=20, choices=[...])
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    origem = models.CharField(max_length=15, choices=[(&quot;COMPRADO&quot;, &quot;Comprado&quot;),
+                                                         (&quot;SEM_CUSTO&quot;, &quot;Recebido sem custo&quot;)])
+    almoxarifado_origem = models.ForeignKey(Almoxarifado, null=True, blank=True,
+                                              on_delete=models.PROTECT, related_name=&quot;+&quot;)
+    almoxarifado_destino = models.ForeignKey(Almoxarifado, null=True, blank=True,
+                                               on_delete=models.PROTECT, related_name=&quot;+&quot;)
+    quantidade = models.DecimalField(max_digits=12, decimal_places=3)
+    valor_unitario = models.DecimalField(max_digits=14, decimal_places=4)  # CONGELADO
+
+    requisicao = models.ForeignKey(Requisicao, null=True, blank=True, on_delete=models.PROTECT)
+    recebimento = models.ForeignKey(&quot;compras.Recebimento&quot;, null=True, blank=True,
+                                      on_delete=models.PROTECT)
+    responsavel = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    motivo_ajuste = models.TextField(blank=True)  # obrigatório se tipo == AJUSTE_INVENTARIO
+
+    estorno_de = models.ForeignKey(&quot;self&quot;, null=True, blank=True, on_delete=models.PROTECT,
+                                     related_name=&quot;estornos&quot;)
+
+    criado_em = models.DateTimeField(auto_now_add=True)  # imutável, sem updated_at de propósito
+
+    @property
+    def cruza_empresa(self):
+        &quot;&quot;&quot;True quando origem e destino pertencem a Empresas diferentes
+        (a filial separada). Marca automática para o relatório de
+        movimentações entre empresas (decisão F6, 28/09: frequência baixa,
+        só registrar e expor, sem nota fiscal nem acerto financeiro no MVP).&quot;&quot;&quot;
+        if self.almoxarifado_origem and self.almoxarifado_destino:
+            return self.almoxarifado_origem.empresa_id != self.almoxarifado_destino.empresa_id
+        return False
+
+
+class SaldoEstoque(TenantModel):
+    &quot;&quot;&quot;
+    CACHE materializado, nunca fonte de verdade. Reconstruído por job de
+    reconciliação diário a partir de MovimentacaoEstoque — se divergir,
+    o job alerta (não corrige sozinho).
+    &quot;&quot;&quot;
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    almoxarifado = models.ForeignKey(Almoxarifado, on_delete=models.PROTECT)
+    origem = models.CharField(max_length=15, choices=[(&quot;COMPRADO&quot;, &quot;Comprado&quot;),
+                                                         (&quot;SEM_CUSTO&quot;, &quot;Recebido sem custo&quot;)])
+    quantidade = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    custo_medio = models.DecimalField(max_digits=14, decimal_places=4, default=0)  # só na origem COMPRADO
+    atualizado_em = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = [(&quot;tenant&quot;, &quot;produto&quot;, &quot;almoxarifado&quot;, &quot;origem&quot;)]
+
+
+class DebitoAlmoxarifado(TenantModel):
+    &quot;&quot;&quot;
+    Controle em PRODUTO e QUANTIDADE (decisão 09/09), não em valor.
+    Quitação por transferência inversa do mesmo produto, ou baixa manual
+    de Admin com motivo (caminho que ganhou peso depois de 'devolução
+    fora do MVP' — decisão O11, 16/09).
+    &quot;&quot;&quot;
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    almoxarifado_devedor = models.ForeignKey(Almoxarifado, on_delete=models.PROTECT, related_name=&quot;+&quot;)
+    almoxarifado_credor = models.ForeignKey(Almoxarifado, on_delete=models.PROTECT, related_name=&quot;+&quot;)
+    quantidade = models.DecimalField(max_digits=12, decimal_places=3)
+    movimentacao_origem = models.ForeignKey(MovimentacaoEstoque, on_delete=models.PROTECT)
+    quitado_em = models.DateTimeField(null=True, blank=True)
+    quitado_por_movimentacao = models.ForeignKey(MovimentacaoEstoque, null=True, blank=True,
+                                                    on_delete=models.SET_NULL, related_name=&quot;+&quot;)
+    quitado_manualmente_por = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True,
+                                                   on_delete=models.SET_NULL, related_name=&quot;+&quot;)
+    motivo_quitacao_manual = models.TextField(blank=True)
+</code></pre>
+<hr />
+<h2>6. Compras — cotação, ordem, recebimento e nota</h2>
+<pre><code class="language-python"># apps/compras/models.py
+
+class Fornecedor(TenantModel):
+    razao_social = models.CharField(max_length=200)
+    cnpj = models.CharField(max_length=14, blank=True)  # pode ser pessoa física/MEI sem CNPJ
+    codigo_prodados = models.CharField(max_length=50, blank=True)
+    cadastrado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                         related_name=&quot;fornecedores_cadastrados&quot;)
+    ativo = models.BooleanField(default=True)
+    # Governança (decisão 28/09): quem cadastra PODE aprovar compra do
+    # mesmo fornecedor — risco aceito. Mitigação sugerida: relatório
+    # mensal destacando compras de fornecedores cadastrados há &lt; 30 dias.
+
+
+class CorrespondenciaProdutoFornecedor(TenantModel):
+    &quot;&quot;&quot;
+    Aprende a ligação entre o código do fornecedor no XML e o Produto do
+    catálogo. Primeira nota: comprador liga manualmente. Notas seguintes:
+    automático. Sem isso, a primeira importação de XML já erra o estoque
+    por um fator inteiro (achado do documento do Gestio, ligado à O4).
+    &quot;&quot;&quot;
+    fornecedor = models.ForeignKey(Fornecedor, on_delete=models.CASCADE)
+    codigo_produto_fornecedor = models.CharField(max_length=60)
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    fator_conversao = models.DecimalField(max_digits=10, decimal_places=4, default=1)
+
+    class Meta:
+        unique_together = [(&quot;tenant&quot;, &quot;fornecedor&quot;, &quot;codigo_produto_fornecedor&quot;)]
+
+
+class Cotacao(TenantModel):
+    &quot;&quot;&quot;
+    MVP registra 1 fornecedor e 1 valor por cotação (fora do MVP: comparativo
+    de múltiplos fornecedores). Consolida os ItemRequisicao/ItemLivreRequisicao
+    sem estoque, agrupados por fornecedor padrão quando possível (facilitador
+    herdado do Glide).
+    &quot;&quot;&quot;
+    requisicoes = models.ManyToManyField(Requisicao, related_name=&quot;cotacoes&quot;)
+    fornecedor = models.ForeignKey(Fornecedor, on_delete=models.PROTECT)
+    comprador = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    valor_total = models.DecimalField(max_digits=14, decimal_places=2)
+    valor_frete_estimado = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+
+class OrdemCompra(TenantModel):
+    &quot;&quot;&quot;
+    Um contrato com o fornecedor. Pode ter N Recebimentos e N NotaFiscal
+    (decisão 09/09) — entrada no estoque acontece no Recebimento, não aqui.
+
+    Pode ser finalizada com pendência (decisão O1, 11/09): itens não
+    entregues ficam pendentes no Recebimento E na Requisicao de origem.
+    Comprador cancela item pendente com motivo se o fornecedor não entregar.
+    &quot;&quot;&quot;
+    empresa = models.ForeignKey(Empresa, on_delete=models.PROTECT)  # quem compra, dimensão fiscal
+    cotacao = models.ForeignKey(Cotacao, on_delete=models.PROTECT)
+    fornecedor = models.ForeignKey(Fornecedor, on_delete=models.PROTECT)
+    faixa_alcada_aplicada = models.ForeignKey(FaixaAlcada, on_delete=models.PROTECT)
+    aprovado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT,
+                                       related_name=&quot;ordens_aprovadas&quot;)
+    status = models.CharField(max_length=25, choices=[
+        (&quot;ABERTA&quot;, &quot;Aberta&quot;), (&quot;PARCIALMENTE_RECEBIDA&quot;, &quot;Parcialmente recebida&quot;),
+        (&quot;FINALIZADA_COM_PENDENCIA&quot;, &quot;Finalizada com pendência&quot;),
+        (&quot;CONCLUIDA&quot;, &quot;Concluída&quot;), (&quot;CANCELADA&quot;, &quot;Cancelada&quot;),
+    ])
+    criada_em = models.DateTimeField(auto_now_add=True)
+
+
+class ItemOrdemCompra(models.Model):
+    ordem = models.ForeignKey(OrdemCompra, on_delete=models.CASCADE, related_name=&quot;itens&quot;)
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    quantidade_pedida = models.DecimalField(max_digits=12, decimal_places=3)
+    quantidade_recebida = models.DecimalField(max_digits=12, decimal_places=3, default=0)
+    valor_unitario_cotado = models.DecimalField(max_digits=14, decimal_places=4)
+    cancelado_em = models.DateTimeField(null=True, blank=True)
+    motivo_cancelamento = models.TextField(blank=True)
+
+
+class NotaFiscal(TenantModel):
+    &quot;&quot;&quot;
+    Entrada preferencial: XML de NF-e. Compra presencial (mercado, farmácia —
+    lista de quinta) gera NFC-e/cupom → lançamento manual continua existindo
+    (decisão 30/09), campos abaixo servem para os dois casos.
+
+    Segurança (obrigatório, não opcional):
+    - Parse do XML com proteção XXE (defusedxml) — vetor comum em sistemas
+      que importam nota.
+    - cnpj_destinatario DEVE corresponder a uma Empresa deste tenant.
+    - cnpj_emitente DEVE corresponder a um Fornecedor cadastrado (ou disparar
+      fluxo de cadastro).
+    - chave_acesso é UNIQUE — rejeita nota já lançada.
+    - Arquivo original guardado sem alteração, fora do webroot, servido só
+      por view autenticada e escopada (nunca link direto de filesystem).
+    &quot;&quot;&quot;
+    ordem_compra = models.ForeignKey(OrdemCompra, on_delete=models.PROTECT, related_name=&quot;notas&quot;)
+    chave_acesso = models.CharField(max_length=44, unique=True, null=True, blank=True)  # null = manual
+    numero = models.CharField(max_length=30)
+    fornecedor = models.ForeignKey(Fornecedor, on_delete=models.PROTECT)
+    data_emissao = models.DateField()
+
+    valor_produtos = models.DecimalField(max_digits=14, decimal_places=2)
+    valor_frete = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    valor_seguro = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    valor_outras_despesas = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    valor_desconto = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    valor_icms_st = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    valor_ipi = models.DecimalField(max_digits=14, decimal_places=2, default=0)
+    # custo total do item = produto + frete + seguro + outras despesas
+    #                        + IPI + ICMS-ST − desconto (decisão F7/F8,
+    #                        rateado por item do XML quando disponível,
+    #                        senão proporcional ao valor)
+
+    arquivo_xml = models.FileField(upload_to=&quot;notas_fiscais/xml/%Y/%m/&quot;, null=True, blank=True)
+    arquivo_anexo = models.FileField(upload_to=&quot;notas_fiscais/anexos/%Y/%m/&quot;, null=True, blank=True)
+
+    registrada_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    criada_em = models.DateTimeField(auto_now_add=True)
+
+
+class Recebimento(TenantModel):
+    &quot;&quot;&quot;
+    Evento de conferência física. Fluxo (decisão O2+G8, 11-16/09):
+    1. Comprador registra a NotaFiscal (XML pré-preenche quantidades).
+    2. Responsável de estoque CONFERE fisicamente e confirma ou corrige.
+    3. Entrada no estoque (MovimentacaoEstoque) acontece na CONFIRMAÇÃO,
+       pela quantidade CONFERIDA — nunca pela quantidade da nota.
+    4. Divergência vira pendência para o comprador tratar com o fornecedor,
+       sem travar a entrada.
+
+    entrada_automatica: parâmetro de ADMIN por almoxarifado/categoria
+    (decisão 15/09) — nunca escolha livre do comprador em cada nota, senão
+    a separação de funções do passo 2 deixa de valer na prática.
+    &quot;&quot;&quot;
+    nota_fiscal = models.ForeignKey(NotaFiscal, on_delete=models.PROTECT, related_name=&quot;recebimentos&quot;)
+    conferido_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
+    confirmado_em = models.DateTimeField(null=True, blank=True)
+    entrada_automatica = models.BooleanField(default=False)
+
+
+class ItemRecebimento(models.Model):
+    recebimento = models.ForeignKey(Recebimento, on_delete=models.CASCADE, related_name=&quot;itens&quot;)
+    item_ordem_compra = models.ForeignKey(ItemOrdemCompra, on_delete=models.PROTECT)
+    quantidade_nota = models.DecimalField(max_digits=12, decimal_places=3)
+    quantidade_conferida = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    divergencia_observacao = models.TextField(blank=True)
+</code></pre>
+<hr />
+<h2>7. Ledger de alocação de gasto (eixo consumo)</h2>
+<pre><code class="language-python"># apps/relatorios/models.py
+
+class LancamentoConsumo(TenantModel):
+    &quot;&quot;&quot;
+    Fonte do eixo CONSUMO (não se soma ao eixo DESEMBOLSO — ver
+    modelo contábil). Alimentado por múltiplas origens heterogêneas,
+    por isso é tabela própria e não uma UNION de outras (decisão 11/09):
+      - SAIDA_ESTOQUE: de MovimentacaoEstoque tipo SAIDA_CONSUMO, a custo médio.
+      - COMPRA_DIRETA: de recebimento de compra direta, a custo real (fase 4+).
+      - (futuro) SERVICO: quando o módulo de serviços terceirizados existir —
+        nenhum relatório precisa mudar quando essa origem for adicionada.
+
+    Valor é CONGELADO no lançamento. Preço de referência (ver Produto)
+    NUNCA entra aqui — é coluna gerencial separada, calculada sob demanda
+    a partir do último custo de compra, com data.
+    &quot;&quot;&quot;
+    origem_tipo = models.CharField(max_length=20, choices=[
+        (&quot;SAIDA_ESTOQUE&quot;, &quot;Saída de estoque&quot;), (&quot;COMPRA_DIRETA&quot;, &quot;Compra direta&quot;),
+    ])
+    movimentacao_estoque = models.ForeignKey(MovimentacaoEstoque, null=True, blank=True,
+                                               on_delete=models.PROTECT)
+    filial_consumidora = models.ForeignKey(Filial, on_delete=models.PROTECT)
+    centro_custo = models.ForeignKey(CentroCusto, on_delete=models.PROTECT)
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT)
+    quantidade = models.DecimalField(max_digits=12, decimal_places=3)
+    valor_unitario = models.DecimalField(max_digits=14, decimal_places=4)  # congelado
+    data_referencia = models.DateField()
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+
+# Job de reconciliação diário: soma de LancamentoConsumo (origem SAIDA_ESTOQUE)
+# deve bater com soma de MovimentacaoEstoque (tipo SAIDA_CONSUMO) no período.
+# Divergência gera alerta, nunca correção automática.
+</code></pre>
+<hr />
+<h2>8. Auditoria (transversal, todos os apps)</h2>
+<pre><code class="language-python"># apps/auditoria/models.py
+
+class RegistroAuditoria(models.Model):
+    &quot;&quot;&quot;
+    APPEND-ONLY de verdade: revogar permissão UPDATE/DELETE nesta tabela
+    a nível de banco (não só a nível de aplicação) — senão o SuperAdmin
+    apaga o próprio rastro e a auditoria não vale nada.
+
+    Toda ação sensível grava aqui: quem, quando, IP, user-agent, o quê
+    (before/after em JSON). Inclui: alteração de alçada (complementa
+    RegistroAlteracaoAlcada), criação/edição de fornecedor, substituição
+    de item, ajuste de inventário, urgência registrada, baixa manual de
+    débito, delegação de aprovador.
+    &quot;&quot;&quot;
+    tenant_id = models.IntegerField(db_index=True)  # não FK — sobrevive mesmo se Tenant for removido
+    usuario = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, on_delete=models.SET_NULL)
+    acao = models.CharField(max_length=60)
+    objeto_tipo = models.CharField(max_length=60)
+    objeto_id = models.CharField(max_length=40)
+    valor_anterior_json = models.JSONField(null=True)
+    valor_novo_json = models.JSONField(null=True)
+    ip = models.GenericIPAddressField(null=True)
+    user_agent = models.CharField(max_length=300, blank=True)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        indexes = [models.Index(fields=[&quot;objeto_tipo&quot;, &quot;objeto_id&quot;])]
+</code></pre>
+<hr />
+<h2>O que fica de fora do MVP, deliberadamente</h2>
+<p>Listado aqui para não ser reintroduzido por acidente durante o desenvolvimento:</p>
+<ul>
+<li>Devolução de sobras (model/enum existe, sem interface)</li>
+<li>Compra direta (model existe, avaliação/tela só na fase 4)</li>
+<li>Regra de aprovação por % de centro de custo excedido (model existe, <code>ativo=False</code>)</li>
+<li>Serviços terceirizados</li>
+<li>Integração automática com o Prodados (só o campo <code>codigo_prodados</code> nos cadastros)</li>
+<li>Conciliação contábil formal</li>
+<li>Captura automática de NF-e via Sefaz (só upload manual de XML)</li>
+<li>Controle orçamentário e controle patrimonial</li>
+<li>Termo de responsabilidade digital para kits de professores</li>
+<li>Schema-per-tenant (linha a linha por ora — ver seção 0)</li>
+</ul>
+<hr />
+<p>Próximo documento: <a href="./prompt-inicial-projeto.md">prompt-inicial-projeto.md</a> — como iniciar o repositório e a ordem de implementação recomendada.</p></body></html>
