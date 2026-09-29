@@ -1,20 +1,6 @@
 from django.db import models
 
 
-class Filial(models.Model):
-    nome = models.CharField(max_length=100, unique=True)
-    sigla = models.CharField(max_length=10, unique=True)
-    ativo = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = "filial"
-        verbose_name_plural = "filiais"
-        ordering = ["nome"]
-
-    def __str__(self):
-        return self.nome
-
-
 class Fornecedor(models.Model):
     razao_social = models.CharField(max_length=200)
     nome_fantasia = models.CharField(max_length=200, blank=True)
@@ -39,57 +25,6 @@ class Fornecedor(models.Model):
 
     def __str__(self):
         return self.nome_fantasia or self.razao_social
-
-
-class CentroCusto(models.Model):
-    filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name="centros_custo")
-    nome = models.CharField(max_length=100)
-    ativo = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = "centro de custo"
-        verbose_name_plural = "centros de custo"
-        ordering = ["filial", "nome"]
-        constraints = [
-            models.UniqueConstraint(fields=["filial", "nome"], name="centro_unico_por_filial"),
-        ]
-
-    def __str__(self):
-        return f"{self.filial.sigla} — {self.nome}"
-
-
-class Subcentro(models.Model):
-    centro_custo = models.ForeignKey(
-        CentroCusto, on_delete=models.PROTECT, related_name="subcentros"
-    )
-    nome = models.CharField(max_length=100)
-    ativo = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = "subcentro"
-        verbose_name_plural = "subcentros"
-        ordering = ["centro_custo", "nome"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["centro_custo", "nome"], name="subcentro_unico_por_centro"
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.centro_custo} / {self.nome}"
-
-
-class MotivoRequisicao(models.Model):
-    nome = models.CharField(max_length=100, unique=True)
-    ativo = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = "motivo de requisição"
-        verbose_name_plural = "motivos de requisição"
-        ordering = ["nome"]
-
-    def __str__(self):
-        return self.nome
 
 
 class Categoria(models.Model):

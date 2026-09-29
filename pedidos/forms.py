@@ -1,7 +1,6 @@
 from django import forms
 
-from cadastros.models import CentroCusto, MotivoRequisicao, Subcentro
-from estoque.models import Almoxarifado
+from tenancy.models import Almoxarifado, CentroCusto, MotivoRequisicao, Subcentro
 
 from .models import Pedido
 

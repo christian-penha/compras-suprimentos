@@ -1,32 +1,8 @@
 from django.conf import settings
 from django.db import models
 
-from cadastros.models import Filial, Produto
-
-
-class Almoxarifado(models.Model):
-    filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name="almoxarifados")
-    nome = models.CharField(max_length=100)
-    central = models.BooleanField(
-        default=False, help_text="Estoque físico central (CSC) — único no sistema"
-    )
-    ativo = models.BooleanField(default=True)
-
-    class Meta:
-        verbose_name = "almoxarifado"
-        verbose_name_plural = "almoxarifados"
-        ordering = ["filial", "nome"]
-        constraints = [
-            models.UniqueConstraint(fields=["filial", "nome"], name="almoxarifado_unico_por_filial"),
-            models.UniqueConstraint(
-                fields=["central"],
-                condition=models.Q(central=True),
-                name="apenas_um_almoxarifado_central",
-            ),
-        ]
-
-    def __str__(self):
-        return f"{self.filial.sigla} — {self.nome}"
+from cadastros.models import Produto
+from tenancy.models import Almoxarifado
 
 
 class SaldoEstoque(models.Model):

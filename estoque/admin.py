@@ -1,12 +1,6 @@
 from django.contrib import admin
 
-from .models import Almoxarifado, SaldoEstoque
-
-
-@admin.register(Almoxarifado)
-class AlmoxarifadoAdmin(admin.ModelAdmin):
-    list_display = ["nome", "filial", "central", "ativo"]
-    list_filter = ["filial", "central", "ativo"]
+from .models import SaldoEstoque
 
 
 @admin.register(SaldoEstoque)

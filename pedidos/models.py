@@ -1,8 +1,8 @@
 from django.conf import settings
 from django.db import models
 
-from cadastros.models import CentroCusto, MotivoRequisicao, Produto, Subcentro
-from estoque.models import Almoxarifado
+from cadastros.models import Produto
+from tenancy.models import Almoxarifado, CentroCusto, MotivoRequisicao, Subcentro
 
 
 class StatusPedido(models.TextChoices):

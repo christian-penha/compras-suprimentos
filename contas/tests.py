@@ -1,15 +1,18 @@
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import TestCase
+
+from tenancy.testing import TenantTestCase
 
 from .models import Modulo, Papel, PapelUsuario
 
 Usuario = get_user_model()
 
 
-class CriacaoUsuarioPorPapelTest(TestCase):
+class CriacaoUsuarioPorPapelTest(TenantTestCase):
     def criar(self, username, papel, modulo=None):
-        usuario = Usuario.objects.create_user(username=username, password="senha-forte-123")
+        usuario = Usuario.objects.create_user(
+            username=username, password="senha-forte-123", tenant=self.tenant
+        )
         PapelUsuario.objects.create(usuario=usuario, papel=papel, modulo=modulo)
         return usuario
 
@@ -37,7 +40,9 @@ class CriacaoUsuarioPorPapelTest(TestCase):
         self.assertEqual(usuario.papeis.count(), 3)
 
     def test_administrador_sem_modulo_rejeitado(self):
-        usuario = Usuario.objects.create_user(username="invalido", password="senha-forte-123")
+        usuario = Usuario.objects.create_user(
+            username="invalido", password="senha-forte-123", tenant=self.tenant
+        )
         with self.assertRaises(IntegrityError):
             PapelUsuario.objects.create(usuario=usuario, papel=Papel.ADMINISTRADOR)
 

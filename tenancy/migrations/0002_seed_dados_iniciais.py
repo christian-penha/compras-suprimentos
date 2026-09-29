@@ -1,5 +1,7 @@
 from django.db import migrations
 
+from tenancy.constants import TENANT_PADRAO_NOME, TENANT_PADRAO_SLUG
+
 FILIAIS = [
     ("Colégio Perfil", "CP"),
     ("Escola Villa Criar", "VC"),
@@ -17,11 +19,6 @@ ALMOXARIFADOS = {
     "CSC": ["Estoque Central"],
 }
 
-CATEGORIAS = [
-    "Escritório", "Eventos", "Pedagógico", "Manutenção", "Limpeza",
-    "Enfermaria", "TI", "Alimentos e bebidas", "Fardamento",
-]
-
 MOTIVOS = [
     "Reposição de material",
     "Projeto/Ação Pedagógica",
@@ -34,47 +31,42 @@ CENTROS_CUSTO = [
     "Conservação e Limpeza", "Manutenção", "Pedagógico", "Eventos", "Investimento", "Outros",
 ]
 
-ALCADAS = [
-    ("0.00", "300.00", "AUTOMATICA"),
-    ("300.01", "15000.00", "DIRETORIA_UNIDADE"),
-    ("15000.01", "45000.00", "CFO"),
-    ("45000.01", None, "CEO"),
-]
-
 
 def aplicar(apps, schema_editor):
-    Filial = apps.get_model("cadastros", "Filial")
-    Categoria = apps.get_model("cadastros", "Categoria")
-    MotivoRequisicao = apps.get_model("cadastros", "MotivoRequisicao")
-    CentroCusto = apps.get_model("cadastros", "CentroCusto")
-    Almoxarifado = apps.get_model("estoque", "Almoxarifado")
-    Alcada = apps.get_model("contas", "Alcada")
+    Tenant = apps.get_model("tenancy", "Tenant")
+    Empresa = apps.get_model("tenancy", "Empresa")
+    Filial = apps.get_model("tenancy", "Filial")
+    Almoxarifado = apps.get_model("tenancy", "Almoxarifado")
+    CentroCusto = apps.get_model("tenancy", "CentroCusto")
+    MotivoRequisicao = apps.get_model("tenancy", "MotivoRequisicao")
+
+    tenant, _ = Tenant.objects.get_or_create(
+        slug=TENANT_PADRAO_SLUG, defaults={"nome": TENANT_PADRAO_NOME}
+    )
+    empresa, _ = Empresa.objects.get_or_create(
+        tenant=tenant, cnpj="00.000.000/0001-00",
+        defaults={"razao_social": TENANT_PADRAO_NOME, "nome_fantasia": TENANT_PADRAO_NOME},
+    )
 
     filiais = {}
     for nome, sigla in FILIAIS:
-        filiais[sigla], _ = Filial.objects.get_or_create(nome=nome, defaults={"sigla": sigla})
+        filiais[sigla], _ = Filial.objects.get_or_create(
+            tenant=tenant, sigla=sigla, defaults={"nome": nome, "empresa": empresa}
+        )
 
     for sigla, nomes in ALMOXARIFADOS.items():
         for nome in nomes:
             Almoxarifado.objects.get_or_create(
-                filial=filiais[sigla], nome=nome,
+                tenant=tenant, filial=filiais[sigla], nome=nome,
                 defaults={"central": nome == "Estoque Central"},
             )
 
-    for nome in CATEGORIAS:
-        Categoria.objects.get_or_create(nome=nome)
-
     for nome in MOTIVOS:
-        MotivoRequisicao.objects.get_or_create(nome=nome)
+        MotivoRequisicao.objects.get_or_create(tenant=tenant, nome=nome)
 
     for filial in filiais.values():
         for nome in CENTROS_CUSTO:
-            CentroCusto.objects.get_or_create(filial=filial, nome=nome)
-
-    for valor_min, valor_max, papel in ALCADAS:
-        Alcada.objects.get_or_create(
-            valor_min=valor_min, valor_max=valor_max, defaults={"papel_aprovador": papel}
-        )
+            CentroCusto.objects.get_or_create(tenant=tenant, filial=filial, nome=nome)
 
 
 def reverter(apps, schema_editor):
@@ -84,9 +76,7 @@ def reverter(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("cadastros", "0001_initial"),
-        ("estoque", "0001_initial"),
-        ("contas", "0002_alcada_vinculoaprovacao"),
+        ("tenancy", "0001_initial"),
     ]
 
     operations = [

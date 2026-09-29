@@ -1,8 +1,9 @@
 from django.db import transaction
 
 from contas.models import VinculoAprovacao
-from estoque.models import Almoxarifado, SaldoEstoque
+from estoque.models import SaldoEstoque
 from estoque.services import transferir
+from tenancy.models import Almoxarifado
 from pedidos.models import EventoPedido, OrigemAtendimento, Pedido, StatusPedido
 
 

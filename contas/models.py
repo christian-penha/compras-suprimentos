@@ -16,6 +16,9 @@ class Modulo(models.TextChoices):
 
 
 class Usuario(AbstractUser):
+    tenant = models.ForeignKey(
+        "tenancy.Tenant", on_delete=models.PROTECT, related_name="usuarios"
+    )
     nome_completo = models.CharField(max_length=150, blank=True)
     telefone = models.CharField(max_length=20, blank=True)
     ativo_no_sistema = models.BooleanField(default=True)

@@ -2,17 +2,18 @@ from decimal import Decimal
 
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import TestCase
 
 from contas.models import Alcada, PapelAlcada, VinculoAprovacao
-from estoque.models import Almoxarifado, SaldoEstoque
+from estoque.models import SaldoEstoque
+from tenancy.models import Almoxarifado, Filial
+from tenancy.testing import TenantTestCase
 
-from .models import Categoria, Filial, Produto
+from .models import Categoria, Produto
 
 Usuario = get_user_model()
 
 
-class SeedDadosIniciaisTest(TestCase):
+class SeedDadosIniciaisTest(TenantTestCase):
     def test_filiais_criadas(self):
         self.assertEqual(Filial.objects.count(), 5)
         self.assertTrue(Filial.objects.filter(sigla="CSC").exists())
@@ -25,7 +26,7 @@ class SeedDadosIniciaisTest(TestCase):
         self.assertEqual(Alcada.objects.count(), 4)
 
 
-class AlcadaParaValorTest(TestCase):
+class AlcadaParaValorTest(TenantTestCase):
     def test_faixa_automatica(self):
         alcada = Alcada.para_valor(Decimal("299.99"))
         self.assertEqual(alcada.papel_aprovador, PapelAlcada.AUTOMATICA)
@@ -47,8 +48,9 @@ class AlcadaParaValorTest(TestCase):
         self.assertEqual(alcada.papel_aprovador, PapelAlcada.CEO)
 
 
-class ConstraintsTest(TestCase):
+class ConstraintsTest(TenantTestCase):
     def setUp(self):
+        super().setUp()
         self.categoria = Categoria.objects.get(nome="Escritório")
         self.produto = Produto.objects.create(
             nome="Papel A4", especificacao="75g branco — resma", categoria=self.categoria
@@ -64,7 +66,9 @@ class ConstraintsTest(TestCase):
     def test_segundo_almoxarifado_central_rejeitado(self):
         filial = Filial.objects.get(sigla="CP")
         with self.assertRaises(IntegrityError):
-            Almoxarifado.objects.create(filial=filial, nome="Outro Central", central=True)
+            Almoxarifado.objects.create(
+                tenant=self.tenant, filial=filial, nome="Outro Central", central=True
+            )
 
     def test_saldo_negativo_rejeitado(self):
         with self.assertRaises(IntegrityError):
@@ -73,14 +77,22 @@ class ConstraintsTest(TestCase):
             )
 
     def test_autoaprovacao_rejeitada(self):
-        usuario = Usuario.objects.create_user(username="karlysson", password="senha-forte-123")
+        usuario = Usuario.objects.create_user(
+            username="karlysson", password="senha-forte-123", tenant=self.tenant
+        )
         with self.assertRaises(IntegrityError):
             VinculoAprovacao.objects.create(requisitante=usuario, aprovador=usuario)
 
     def test_vinculo_com_ordem(self):
-        requisitante = Usuario.objects.create_user(username="req", password="senha-forte-123")
-        aprovador1 = Usuario.objects.create_user(username="ap1", password="senha-forte-123")
-        aprovador2 = Usuario.objects.create_user(username="ap2", password="senha-forte-123")
+        requisitante = Usuario.objects.create_user(
+            username="req", password="senha-forte-123", tenant=self.tenant
+        )
+        aprovador1 = Usuario.objects.create_user(
+            username="ap1", password="senha-forte-123", tenant=self.tenant
+        )
+        aprovador2 = Usuario.objects.create_user(
+            username="ap2", password="senha-forte-123", tenant=self.tenant
+        )
         VinculoAprovacao.objects.create(requisitante=requisitante, aprovador=aprovador1, ordem=1)
         VinculoAprovacao.objects.create(requisitante=requisitante, aprovador=aprovador2, ordem=2)
         vinculos = requisitante.vinculos_como_requisitante.order_by("ordem")

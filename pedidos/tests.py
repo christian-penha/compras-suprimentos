@@ -1,12 +1,13 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
-from django.test import TestCase
 
-from cadastros.models import Categoria, CentroCusto, Filial, MotivoRequisicao, Produto
+from cadastros.models import Categoria, Produto
 from contas.models import VinculoAprovacao
-from estoque.models import Almoxarifado, DebitoAlmoxarifado, SaldoEstoque
+from estoque.models import DebitoAlmoxarifado, SaldoEstoque
 from estoque.services import EstoqueInsuficiente, registrar_entrada, registrar_saida, transferir
+from tenancy.models import Almoxarifado, CentroCusto, MotivoRequisicao
+from tenancy.testing import TenantTestCase
 
 from .models import ItemPedido, OrigemAtendimento, Pedido, StatusPedido
 from .services import SemPermissao, TransicaoInvalida, entregar, transicionar
@@ -14,11 +15,18 @@ from .services import SemPermissao, TransicaoInvalida, entregar, transicionar
 Usuario = get_user_model()
 
 
-class BaseFluxoTest(TestCase):
+class BaseFluxoTest(TenantTestCase):
     def setUp(self):
-        self.requisitante = Usuario.objects.create_user("req", password="senha-forte-123")
-        self.aprovador = Usuario.objects.create_user("aprov", password="senha-forte-123")
-        self.suprimentos = Usuario.objects.create_user("supr", password="senha-forte-123")
+        super().setUp()
+        self.requisitante = Usuario.objects.create_user(
+            "req", password="senha-forte-123", tenant=self.tenant
+        )
+        self.aprovador = Usuario.objects.create_user(
+            "aprov", password="senha-forte-123", tenant=self.tenant
+        )
+        self.suprimentos = Usuario.objects.create_user(
+            "supr", password="senha-forte-123", tenant=self.tenant
+        )
         VinculoAprovacao.objects.create(requisitante=self.requisitante, aprovador=self.aprovador)
 
         self.central = Almoxarifado.objects.get(central=True)
@@ -84,7 +92,9 @@ class CicloCompletoTest(BaseFluxoTest):
         self.assertEqual(pedido.eventos.last().observacao, "Sem verba no mês")
 
     def test_nao_vinculado_nao_aprova(self):
-        intruso = Usuario.objects.create_user("intruso", password="senha-forte-123")
+        intruso = Usuario.objects.create_user(
+            "intruso", password="senha-forte-123", tenant=self.tenant
+        )
         pedido = self.novo_pedido()
         transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
         with self.assertRaises(SemPermissao):
