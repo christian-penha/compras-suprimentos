@@ -1,31 +1,31 @@
 {% extends "base.html" %}
+{% load static %}
 {% block titulo %}Entrar — Compras & Suprimentos{% endblock %}
 {% block conteudo %}
 <div class="min-h-[70vh] flex items-center justify-center">
-  <div class="w-full max-w-md">
-    <div class="text-center mb-8">
-      <span class="inline-flex h-14 w-14 items-center justify-center rounded-3xl bg-blue-600 text-white text-2xl mb-3">⬡</span>
-      <h1 class="text-2xl font-semibold text-slate-800">Compras & Suprimentos</h1>
-      <p class="text-slate-500 text-sm mt-1">Acesse com seu usuário do grupo</p>
+  <div class="w-full max-w-sm">
+    <div class="text-center mb-6">
+      <img src="{% static 'img/logo-perfil.png' %}" alt="Grupo Perfil de Educação" class="h-14 mx-auto mb-4">
+      <h1 class="text-xl font-semibold text-white">Sistema de Pedidos</h1>
     </div>
-    <form method="post" class="bg-white rounded-3xl shadow-sm border border-slate-200 p-8 space-y-5">
+    <form method="post" class="bg-[#0a0a0a] border border-[#232323] rounded-2xl p-8 space-y-4">
       {% csrf_token %}
       {% if form.errors %}
-        <div class="rounded-2xl bg-red-50 border border-red-100 text-red-700 text-sm px-4 py-3">
+        <div class="rounded-xl bg-red-950/60 border border-red-900 text-red-300 text-sm px-4 py-3">
           Usuário ou senha inválidos.
         </div>
       {% endif %}
       <div>
-        <label for="id_username" class="block text-sm font-medium text-slate-600 mb-1.5">Usuário</label>
+        <label for="id_username" class="block text-sm font-semibold text-[#b3b3b3] mb-1.5">Usuário</label>
         <input type="text" name="username" id="id_username" autofocus autocomplete="username"
-               class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+               class="w-full rounded-lg border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
       </div>
       <div>
-        <label for="id_password" class="block text-sm font-medium text-slate-600 mb-1.5">Senha</label>
+        <label for="id_password" class="block text-sm font-semibold text-[#b3b3b3] mb-1.5">Senha</label>
         <input type="password" name="password" id="id_password" autocomplete="current-password"
-               class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+               class="w-full rounded-lg border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
       </div>
-      <button class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium py-2.5 transition">
+      <button class="w-full rounded-lg bg-white hover:bg-slate-200 text-[#0a0a0a] font-bold py-2.5 transition">
         Entrar
       </button>
     </form>

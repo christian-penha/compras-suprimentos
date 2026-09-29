@@ -6,7 +6,7 @@
 
 <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 mb-10">
   <a href="{% url 'pedido_lista' %}" class="bg-white rounded-3xl border border-slate-200 p-6 hover:shadow-md transition dark:bg-slate-800 dark:border-slate-700">
-    <p class="text-4xl font-semibold text-blue-700 dark:text-blue-400">{{ qtd_meus_abertos }}</p>
+    <p class="text-4xl font-semibold text-slate-900 dark:text-white">{{ qtd_meus_abertos }}</p>
     <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Meus pedidos em andamento</p>
   </a>
   {% if qtd_aprovacoes is not None %}
@@ -25,7 +25,7 @@
 
 <div class="flex items-center justify-between mb-4">
   <h2 class="text-lg font-medium dark:text-slate-100">Últimos pedidos</h2>
-  <a href="{% url 'catalogo' %}" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2.5 transition">+ Novo pedido</a>
+  <a href="{% url 'catalogo' %}" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">+ Novo pedido</a>
 </div>
 <div class="bg-white rounded-3xl border border-slate-200 divide-y divide-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:divide-slate-700">
   {% for p in meus_pedidos %}
