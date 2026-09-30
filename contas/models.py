@@ -15,10 +15,23 @@ class Modulo(models.TextChoices):
     FINANCEIRO = "FINANCEIRO", "Financeiro"
 
 
+class CicloPedagogico(models.TextChoices):
+    EDUCACAO_INFANTIL = "EDUCACAO_INFANTIL", "Educação Infantil"
+    ANOS_INICIAIS = "ANOS_INICIAIS", "Anos Iniciais"
+    ANOS_FINAIS = "ANOS_FINAIS", "Anos Finais"
+    ENSINO_MEDIO = "ENSINO_MEDIO", "Ensino Médio"
+    ADMINISTRATIVO = "ADMINISTRATIVO", "Administrativo"
+
+
 class Usuario(AbstractUser):
     tenant = models.ForeignKey(
         "tenancy.Tenant", on_delete=models.PROTECT, related_name="usuarios"
     )
+    filial = models.ForeignKey(
+        "tenancy.Filial", on_delete=models.PROTECT, null=True, blank=True, related_name="usuarios"
+    )
+    cargo = models.CharField(max_length=100, blank=True, help_text="Cargo/função, ex.: Coordenadora Pedagógica")
+    ciclo = models.CharField(max_length=20, choices=CicloPedagogico.choices, blank=True)
     nome_completo = models.CharField(max_length=150, blank=True)
     telefone = models.CharField(max_length=20, blank=True)
     ativo_no_sistema = models.BooleanField(default=True)

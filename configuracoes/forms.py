@@ -24,6 +24,7 @@ class UsuarioForm(forms.ModelForm):
         model = Usuario
         fields = [
             "username", "nome_completo", "email", "telefone",
+            "filial", "cargo", "ciclo",
             "papel", "senha", "is_staff", "ativo_no_sistema",
         ]
         labels = {
@@ -31,6 +32,9 @@ class UsuarioForm(forms.ModelForm):
             "nome_completo": "Nome completo",
             "email": "E-mail",
             "telefone": "Telefone",
+            "filial": "Filial/unidade",
+            "cargo": "Cargo",
+            "ciclo": "Ciclo/segmento",
             "is_staff": "Acesso ao admin do Django",
             "ativo_no_sistema": "Ativo",
         }
@@ -39,12 +43,19 @@ class UsuarioForm(forms.ModelForm):
             "nome_completo": forms.TextInput(attrs={"class": CAMPO}),
             "email": forms.EmailInput(attrs={"class": CAMPO}),
             "telefone": forms.TextInput(attrs={"class": CAMPO}),
+            "filial": forms.Select(attrs={"class": CAMPO}),
+            "cargo": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Coordenadora Pedagógica"}),
+            "ciclo": forms.Select(attrs={"class": CAMPO}),
             "is_staff": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
             "ativo_no_sistema": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
+        self.fields["filial"].required = False
+        self.fields["filial"].empty_label = "— sem filial definida —"
+        self.fields["ciclo"].required = False
         if self.instance.pk:
             papel_atual = self.instance.papeis.first()
             if papel_atual:
@@ -96,3 +107,7 @@ class FilialForm(forms.ModelForm):
             "sigla": forms.TextInput(attrs={"class": CAMPO}),
             "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["empresa"].queryset = Empresa.objects.filter(ativo=True)

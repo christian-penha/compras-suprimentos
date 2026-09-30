@@ -12,9 +12,12 @@ class PapelUsuarioInline(admin.TabularInline):
 @admin.register(Usuario)
 class UsuarioAdmin(UserAdmin):
     inlines = [PapelUsuarioInline]
-    list_display = ["username", "nome_completo", "email", "ativo_no_sistema", "listar_papeis"]
+    list_display = ["username", "nome_completo", "filial", "cargo", "ciclo", "ativo_no_sistema", "listar_papeis"]
+    list_filter = UserAdmin.list_filter + ("filial", "ciclo")
     fieldsets = UserAdmin.fieldsets + (
-        ("Dados do sistema", {"fields": ("nome_completo", "telefone", "ativo_no_sistema")}),
+        ("Dados do sistema", {
+            "fields": ("tenant", "filial", "cargo", "ciclo", "nome_completo", "telefone", "ativo_no_sistema"),
+        }),
     )
 
     @admin.display(description="Papéis")
