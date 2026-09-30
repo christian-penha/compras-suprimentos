@@ -24,6 +24,7 @@ INSTALLED_APPS = [
     "estoque",
     "pedidos",
     "compras",
+    "configuracoes",
 ]
 
 MIDDLEWARE = [

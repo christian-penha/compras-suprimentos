@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}Empresas{% endblock %}
+{% block conteudo %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-semibold dark:text-slate-100">Empresas</h1>
+  <a href="{% url 'config_empresa_nova' %}" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">+ Nova empresa</a>
+</div>
+<div class="bg-white rounded-3xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+      <tr>
+        <th class="px-6 py-3 font-medium">Nome fantasia</th>
+        <th class="px-6 py-3 font-medium">Razão social</th>
+        <th class="px-6 py-3 font-medium">CNPJ</th>
+        <th class="px-6 py-3 font-medium text-center">Ativa</th>
+        <th class="px-6 py-3 font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+      {% for e in empresas %}
+      <tr class="dark:text-slate-100">
+        <td class="px-6 py-3">{{ e.nome_fantasia|default:e.razao_social }}</td>
+        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ e.razao_social }}</td>
+        <td class="px-6 py-3">{{ e.cnpj }}</td>
+        <td class="px-6 py-3 text-center">
+          <span class="inline-block h-2.5 w-2.5 rounded-full {% if e.ativo %}bg-emerald-500{% else %}bg-red-500{% endif %}"></span>
+        </td>
+        <td class="px-6 py-3 text-right">
+          <a href="{% url 'config_empresa_editar' e.pk %}" class="text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">editar</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="px-6 py-8 text-center text-slate-400 text-sm">Nenhuma empresa cadastrada.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

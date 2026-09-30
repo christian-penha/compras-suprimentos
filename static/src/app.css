@@ -1,3 +1,8 @@
 @import "tailwindcss";
 @source "../../templates";
 @custom-variant dark (&:where(.dark, .dark *));
+
+/* Menu lateral recolhido (modo ícone): grupos sempre expandidos, cabeçalhos ocultos */
+html.menu-recolhido .grupo-itens {
+  display: block !important;
+}

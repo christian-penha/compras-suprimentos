@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block titulo %}{% if instancia %}Editar empresa{% else %}Nova empresa{% endif %}{% endblock %}
+{% block conteudo %}
+<h1 class="text-2xl font-semibold mb-6 dark:text-slate-100">{% if instancia %}Editar empresa{% else %}Nova empresa{% endif %}</h1>
+
+<form method="post" class="max-w-2xl">
+  {% csrf_token %}
+  <div class="bg-white rounded-3xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Razão social</label>
+      {{ form.razao_social }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Nome fantasia</label>
+      {{ form.nome_fantasia }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">CNPJ</label>
+      {{ form.cnpj }}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Código Prodados</label>
+      {{ form.codigo_prodados }}
+    </div>
+    <div class="sm:col-span-2 pt-2">
+      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+        {{ form.ativo }} Ativa
+      </label>
+    </div>
+  </div>
+  <div class="flex items-center gap-3 mt-6">
+    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-medium px-5 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar</button>
+    <a href="{% url 'config_empresa_lista' %}" class="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">cancelar</a>
+  </div>
+</form>
+{% endblock %}

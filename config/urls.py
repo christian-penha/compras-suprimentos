@@ -2,7 +2,7 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth import views as auth_views
-from django.urls import path
+from django.urls import include, path
 
 from estoque import views as estoque_views
 from pedidos import views as pedidos_views
@@ -22,6 +22,7 @@ urlpatterns = [
     path("suprimentos/", pedidos_views.fila_suprimentos, name="fila_suprimentos"),
     path("estoque/entrada-planilha/", estoque_views.entrada_planilha, name="entrada_planilha"),
     path("estoque/posicao/", estoque_views.posicao_estoque, name="posicao_estoque"),
+    path("configuracoes/", include("configuracoes.urls")),
 ]
 
 if settings.DEBUG:
