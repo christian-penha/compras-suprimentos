@@ -3,7 +3,7 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
-from contas.models import Alcada, PapelAlcada, VinculoAprovacao
+from contas.models import Alcada, PapelAlcada
 from estoque.models import SaldoEstoque
 from tenancy.models import Almoxarifado, Filial
 from tenancy.testing import TenantTestCase
@@ -76,24 +76,3 @@ class ConstraintsTest(TenantTestCase):
                 produto=self.produto, almoxarifado=self.central, quantidade=Decimal("-1")
             )
 
-    def test_autoaprovacao_rejeitada(self):
-        usuario = Usuario.objects.create_user(
-            username="karlysson", password="senha-forte-123", tenant=self.tenant
-        )
-        with self.assertRaises(IntegrityError):
-            VinculoAprovacao.objects.create(requisitante=usuario, aprovador=usuario)
-
-    def test_vinculo_com_ordem(self):
-        requisitante = Usuario.objects.create_user(
-            username="req", password="senha-forte-123", tenant=self.tenant
-        )
-        aprovador1 = Usuario.objects.create_user(
-            username="ap1", password="senha-forte-123", tenant=self.tenant
-        )
-        aprovador2 = Usuario.objects.create_user(
-            username="ap2", password="senha-forte-123", tenant=self.tenant
-        )
-        VinculoAprovacao.objects.create(requisitante=requisitante, aprovador=aprovador1, ordem=1)
-        VinculoAprovacao.objects.create(requisitante=requisitante, aprovador=aprovador2, ordem=2)
-        vinculos = requisitante.vinculos_como_requisitante.order_by("ordem")
-        self.assertEqual([v.aprovador.username for v in vinculos], ["ap1", "ap2"])

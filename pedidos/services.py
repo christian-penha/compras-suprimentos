@@ -1,10 +1,16 @@
 from django.db import transaction
 
-from contas.models import VinculoAprovacao
+from contas.models import ModoAprovacaoSetor, RegraAprovacaoEmpresa
 from estoque.models import SaldoEstoque
 from estoque.services import transferir
 from tenancy.models import Almoxarifado
-from pedidos.models import EventoPedido, OrigemAtendimento, Pedido, StatusPedido
+from pedidos.models import (
+    AprovacaoLider,
+    EventoPedido,
+    OrigemAtendimento,
+    Pedido,
+    StatusPedido,
+)
 
 
 class TransicaoInvalida(Exception):
@@ -24,17 +30,42 @@ TRANSICOES = {
 }
 
 
-def aprovadores_de(usuario):
-    return VinculoAprovacao.objects.filter(requisitante=usuario, ativo=True).order_by("ordem")
+def lideres_do_setor(usuario):
+    """Líderes ativos do setor do usuário — quem pode aprovar os pedidos dele."""
+    if not usuario.setor_id:
+        return []
+    return list(usuario.setor.lideres.filter(ativo_no_sistema=True))
+
+
+def tem_lider_disponivel(requisitante):
+    return bool(lideres_do_setor(requisitante))
 
 
 def pode_aprovar(usuario, pedido):
-    return (
-        usuario != pedido.requisitante
-        and VinculoAprovacao.objects.filter(
-            requisitante=pedido.requisitante, aprovador=usuario, ativo=True
-        ).exists()
-    )
+    requisitante = pedido.requisitante
+    if usuario == requisitante or not requisitante.setor_id:
+        return False
+    return requisitante.setor.lideres.filter(pk=usuario.pk, ativo_no_sistema=True).exists()
+
+
+def modo_aprovacao_de(requisitante):
+    if not requisitante.filial_id:
+        return ModoAprovacaoSetor.QUALQUER_LIDER
+    regra = RegraAprovacaoEmpresa.objects.filter(
+        empresa_id=requisitante.filial.empresa_id
+    ).first()
+    return regra.modo_aprovacao_setor if regra else ModoAprovacaoSetor.QUALQUER_LIDER
+
+
+def aprovacao_pendente(pedido):
+    """Ainda falta aprovação de líder para o pedido avançar?"""
+    lideres = lideres_do_setor(pedido.requisitante)
+    if not lideres:
+        return True
+    if modo_aprovacao_de(pedido.requisitante) == ModoAprovacaoSetor.QUALQUER_LIDER:
+        return not pedido.aprovacoes_lider.exists()
+    ja_aprovaram = set(pedido.aprovacoes_lider.values_list("lider_id", flat=True))
+    return any(lider.pk not in ja_aprovaram for lider in lideres)
 
 
 @transaction.atomic
@@ -48,14 +79,19 @@ def transicionar(pedido, novo_status, usuario, observacao=""):
             raise SemPermissao("Apenas o requisitante envia o próprio pedido.")
         if not pedido.itens.exists():
             raise TransicaoInvalida("Pedido sem itens não pode ser enviado.")
-        if not aprovadores_de(pedido.requisitante).exists():
+        if not pedido.requisitante.setor_id:
             raise TransicaoInvalida(
-                "Requisitante sem aprovador vinculado — cadastre o vínculo de aprovação."
+                "Você não está vinculado a nenhum setor — peça ao administrador para "
+                "cadastrar o seu setor antes de enviar pedidos."
+            )
+        if not tem_lider_disponivel(pedido.requisitante):
+            raise TransicaoInvalida(
+                "O seu setor não tem líder ativo para aprovar pedidos — contate o administrador."
             )
 
     if novo_status in (StatusPedido.APROVADO_UNIDADE, StatusPedido.RECUSADO):
         if not pode_aprovar(usuario, pedido):
-            raise SemPermissao("Usuário não é aprovador vinculado deste requisitante.")
+            raise SemPermissao("Usuário não é líder do setor deste requisitante.")
         if novo_status == StatusPedido.RECUSADO and not observacao.strip():
             raise TransicaoInvalida("Recusa exige motivo.")
 
@@ -71,6 +107,27 @@ def transicionar(pedido, novo_status, usuario, observacao=""):
 
     if novo_status == StatusPedido.APROVADO_UNIDADE:
         classificar_itens(pedido)
+    return pedido
+
+
+@transaction.atomic
+def aprovar_como_lider(pedido, usuario, observacao=""):
+    """Registra o voto de um líder de setor. O pedido só avança para APROVADO_UNIDADE
+    quando a regra da empresa estiver satisfeita (um líder ou todos)."""
+    if pedido.status != StatusPedido.ENVIADO:
+        raise TransicaoInvalida("Pedido não está aguardando aprovação do setor.")
+    if not pode_aprovar(usuario, pedido):
+        raise SemPermissao("Usuário não é líder do setor deste requisitante.")
+
+    _, criado = AprovacaoLider.objects.get_or_create(pedido=pedido, lider=usuario)
+    if criado:
+        EventoPedido.objects.create(
+            pedido=pedido, de_status=pedido.status, para_status=pedido.status,
+            usuario=usuario, observacao=observacao or "Aprovação do líder de setor registrada.",
+        )
+
+    if not aprovacao_pendente(pedido):
+        return transicionar(pedido, StatusPedido.APROVADO_UNIDADE, usuario, observacao)
     return pedido
 
 

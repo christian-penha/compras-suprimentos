@@ -17,5 +17,9 @@
     <p class="text-4xl font-semibold text-slate-900 dark:text-white">{{ qtd_filiais }}</p>
     <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Filiais ativas</p>
   </a>
+  <a href="{% url 'config_setor_lista' %}" class="bg-white rounded-3xl border border-slate-200 p-6 hover:shadow-md transition dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-4xl font-semibold text-slate-900 dark:text-white">{{ qtd_setores }}</p>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Setores ativos</p>
+  </a>
 </div>
 {% endblock %}

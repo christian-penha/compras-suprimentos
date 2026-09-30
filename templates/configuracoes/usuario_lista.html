@@ -12,6 +12,7 @@
         <th class="px-6 py-3 font-medium">Usuário</th>
         <th class="px-6 py-3 font-medium">Nome</th>
         <th class="px-6 py-3 font-medium">Filial</th>
+        <th class="px-6 py-3 font-medium">Setor</th>
         <th class="px-6 py-3 font-medium">Cargo</th>
         <th class="px-6 py-3 font-medium">Ciclo</th>
         <th class="px-6 py-3 font-medium">Papel</th>
@@ -25,6 +26,7 @@
         <td class="px-6 py-3">{{ u.username }}</td>
         <td class="px-6 py-3">{{ u.nome_completo|default:"—" }}</td>
         <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ u.filial|default:"—" }}</td>
+        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ u.setor.nome|default:"—" }}</td>
         <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ u.cargo|default:"—" }}</td>
         <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ u.get_ciclo_display|default:"—" }}</td>
         <td class="px-6 py-3 text-slate-500 dark:text-slate-400">
@@ -38,7 +40,7 @@
         </td>
       </tr>
       {% empty %}
-      <tr><td colspan="8" class="px-6 py-8 text-center text-slate-400 text-sm">Nenhum usuário cadastrado.</td></tr>
+      <tr><td colspan="9" class="px-6 py-8 text-center text-slate-400 text-sm">Nenhum usuário cadastrado.</td></tr>
       {% endfor %}
     </tbody>
   </table>

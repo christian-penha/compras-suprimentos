@@ -1,5 +1,8 @@
+from django.conf import settings
 from django.contrib.auth.models import AbstractUser
 from django.db import models
+
+from tenancy.models import TenantModel
 
 
 class Papel(models.TextChoices):
@@ -23,12 +26,40 @@ class CicloPedagogico(models.TextChoices):
     ADMINISTRATIVO = "ADMINISTRATIVO", "Administrativo"
 
 
+class Setor(TenantModel):
+    """Agrupamento de colaboradores dentro de uma filial. Os líderes do setor aprovam
+    as requisições dos membros do mesmo setor."""
+
+    filial = models.ForeignKey(
+        "tenancy.Filial", on_delete=models.PROTECT, related_name="setores"
+    )
+    nome = models.CharField(max_length=100)
+    lideres = models.ManyToManyField(
+        settings.AUTH_USER_MODEL, related_name="setores_liderados", blank=True
+    )
+    ativo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "setor"
+        verbose_name_plural = "setores"
+        ordering = ["filial", "nome"]
+        constraints = [
+            models.UniqueConstraint(fields=["filial", "nome"], name="setor_unico_por_filial"),
+        ]
+
+    def __str__(self):
+        return f"{self.filial.sigla} — {self.nome}"
+
+
 class Usuario(AbstractUser):
     tenant = models.ForeignKey(
         "tenancy.Tenant", on_delete=models.PROTECT, related_name="usuarios"
     )
     filial = models.ForeignKey(
         "tenancy.Filial", on_delete=models.PROTECT, null=True, blank=True, related_name="usuarios"
+    )
+    setor = models.ForeignKey(
+        Setor, on_delete=models.PROTECT, null=True, blank=True, related_name="membros"
     )
     cargo = models.CharField(max_length=100, blank=True, help_text="Cargo/função, ex.: Coordenadora Pedagógica")
     ciclo = models.CharField(max_length=20, choices=CicloPedagogico.choices, blank=True)
@@ -83,39 +114,27 @@ class PapelUsuario(models.Model):
         return f"{self.usuario} — {self.get_papel_display()}"
 
 
-class VinculoAprovacao(models.Model):
-    requisitante = models.ForeignKey(
-        Usuario, on_delete=models.CASCADE, related_name="vinculos_como_requisitante"
+class ModoAprovacaoSetor(models.TextChoices):
+    QUALQUER_LIDER = "QUALQUER_LIDER", "Qualquer líder do setor aprova"
+    TODOS_LIDERES = "TODOS_LIDERES", "Todos os líderes do setor devem aprovar"
+
+
+class RegraAprovacaoEmpresa(models.Model):
+    empresa = models.OneToOneField(
+        "tenancy.Empresa", on_delete=models.CASCADE, related_name="regra_aprovacao"
     )
-    aprovador = models.ForeignKey(
-        Usuario, on_delete=models.CASCADE, related_name="vinculos_como_aprovador"
+    modo_aprovacao_setor = models.CharField(
+        max_length=20,
+        choices=ModoAprovacaoSetor.choices,
+        default=ModoAprovacaoSetor.QUALQUER_LIDER,
     )
-    ordem = models.PositiveSmallIntegerField(
-        default=1, help_text="Sequência quando há mais de um aprovador"
-    )
-    ativo = models.BooleanField(default=True)
 
     class Meta:
-        verbose_name = "vínculo de aprovação"
-        verbose_name_plural = "vínculos de aprovação"
-        ordering = ["requisitante", "ordem"]
-        constraints = [
-            models.UniqueConstraint(
-                fields=["requisitante", "aprovador"], name="vinculo_unico"
-            ),
-            models.UniqueConstraint(
-                fields=["requisitante", "ordem"],
-                condition=models.Q(ativo=True),
-                name="ordem_unica_por_requisitante_ativo",
-            ),
-            models.CheckConstraint(
-                condition=~models.Q(requisitante=models.F("aprovador")),
-                name="aprovador_diferente_do_requisitante",
-            ),
-        ]
+        verbose_name = "regra de aprovação"
+        verbose_name_plural = "regras de aprovação"
 
     def __str__(self):
-        return f"{self.requisitante} → {self.aprovador} (ordem {self.ordem})"
+        return f"{self.empresa} — {self.get_modo_aprovacao_setor_display()}"
 
 
 class PapelAlcada(models.TextChoices):

@@ -98,3 +98,27 @@ class EventoPedido(models.Model):
 
     def __str__(self):
         return f"#{self.pedido_id}: {self.de_status or '—'} → {self.para_status}"
+
+
+class AprovacaoLider(models.Model):
+    """Voto de aprovação de um líder de setor. No modo TODOS_LIDERES o pedido só avança
+    quando todos os líderes ativos do setor tiverem registrado o seu."""
+
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name="aprovacoes_lider")
+    lider = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="aprovacoes_como_lider"
+    )
+    aprovado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "aprovação de líder"
+        verbose_name_plural = "aprovações de líder"
+        ordering = ["aprovado_em"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["pedido", "lider"], name="aprovacao_lider_unica_por_pedido"
+            ),
+        ]
+
+    def __str__(self):
+        return f"#{self.pedido_id} aprovado por {self.lider}"

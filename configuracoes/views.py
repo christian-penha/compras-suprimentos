@@ -2,11 +2,11 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404, redirect, render
 
-from contas.models import Papel
+from contas.models import Papel, Setor
 from contas.permissoes import requer_papel
 from tenancy.models import Empresa, Filial
 
-from .forms import EmpresaForm, FilialForm, UsuarioForm
+from .forms import EmpresaForm, FilialForm, SetorForm, UsuarioForm
 
 Usuario = get_user_model()
 
@@ -19,6 +19,7 @@ def painel(request):
             "qtd_usuarios": Usuario.objects.filter(ativo_no_sistema=True).count(),
             "qtd_empresas": Empresa.objects.filter(ativo=True).count(),
             "qtd_filiais": Filial.objects.filter(ativo=True).count(),
+            "qtd_setores": Setor.objects.filter(ativo=True).count(),
         },
     )
 
@@ -51,13 +52,31 @@ def empresa_form(request, pk=None):
     instancia = get_object_or_404(Empresa, pk=pk) if pk else None
     form = EmpresaForm(request.POST or None, instance=instancia)
     if request.method == "POST" and form.is_valid():
-        empresa = form.save(commit=False)
-        if not empresa.tenant_id:
-            empresa.tenant = request.user.tenant
-        empresa.save()
+        if not form.instance.tenant_id:
+            form.instance.tenant = request.user.tenant
+        form.save()
         messages.success(request, "Empresa salva com sucesso.")
         return redirect("config_empresa_lista")
     return render(request, "configuracoes/empresa_form.html", {"form": form, "instancia": instancia})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def setor_lista(request):
+    setores = Setor.objects.select_related("filial").prefetch_related("lideres").order_by("filial", "nome")
+    return render(request, "configuracoes/setor_lista.html", {"setores": setores})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def setor_form(request, pk=None):
+    instancia = get_object_or_404(Setor, pk=pk) if pk else None
+    form = SetorForm(request.POST or None, instance=instancia)
+    if request.method == "POST" and form.is_valid():
+        if not form.instance.tenant_id:
+            form.instance.tenant = request.user.tenant
+        form.save()
+        messages.success(request, "Setor salvo com sucesso.")
+        return redirect("config_setor_lista")
+    return render(request, "configuracoes/setor_form.html", {"form": form, "instancia": instancia})
 
 
 @requer_papel(Papel.SUPERADMIN)

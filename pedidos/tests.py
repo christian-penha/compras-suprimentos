@@ -3,14 +3,20 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 
 from cadastros.models import Categoria, Produto
-from contas.models import VinculoAprovacao
+from contas.models import ModoAprovacaoSetor, RegraAprovacaoEmpresa, Setor
 from estoque.models import DebitoAlmoxarifado, SaldoEstoque
 from estoque.services import EstoqueInsuficiente, registrar_entrada, registrar_saida, transferir
-from tenancy.models import Almoxarifado, CentroCusto, MotivoRequisicao
+from tenancy.models import Almoxarifado, CentroCusto, Filial, MotivoRequisicao
 from tenancy.testing import TenantTestCase
 
 from .models import ItemPedido, OrigemAtendimento, Pedido, StatusPedido
-from .services import SemPermissao, TransicaoInvalida, entregar, transicionar
+from .services import (
+    SemPermissao,
+    TransicaoInvalida,
+    aprovar_como_lider,
+    entregar,
+    transicionar,
+)
 
 Usuario = get_user_model()
 
@@ -18,16 +24,21 @@ Usuario = get_user_model()
 class BaseFluxoTest(TenantTestCase):
     def setUp(self):
         super().setUp()
+        self.filial = Filial.objects.get(sigla="CP")
+        self.setor = Setor.objects.create(
+            tenant=self.tenant, filial=self.filial, nome="Pedagógico"
+        )
         self.requisitante = Usuario.objects.create_user(
-            "req", password="senha-forte-123", tenant=self.tenant
+            "req", password="senha-forte-123", tenant=self.tenant,
+            filial=self.filial, setor=self.setor,
         )
         self.aprovador = Usuario.objects.create_user(
-            "aprov", password="senha-forte-123", tenant=self.tenant
+            "aprov", password="senha-forte-123", tenant=self.tenant, filial=self.filial
         )
         self.suprimentos = Usuario.objects.create_user(
             "supr", password="senha-forte-123", tenant=self.tenant
         )
-        VinculoAprovacao.objects.create(requisitante=self.requisitante, aprovador=self.aprovador)
+        self.setor.lideres.add(self.aprovador)
 
         self.central = Almoxarifado.objects.get(central=True)
         self.destino = Almoxarifado.objects.get(filial__sigla="CP", nome="Ed. Infantil")
@@ -161,3 +172,61 @@ class EstoqueServicesTest(BaseFluxoTest):
         self.assertEqual(debito.devedor, cp)
         self.assertEqual(debito.credor, vc)
         self.assertEqual(debito.quantidade, Decimal("5"))
+
+
+class AprovacaoPorSetorTest(BaseFluxoTest):
+    def setUp(self):
+        super().setUp()
+        self.segundo_lider = Usuario.objects.create_user(
+            "lider2", password="senha-forte-123", tenant=self.tenant, filial=self.filial
+        )
+
+    def definir_modo(self, modo):
+        RegraAprovacaoEmpresa.objects.update_or_create(
+            empresa=self.filial.empresa, defaults={"modo_aprovacao_setor": modo}
+        )
+
+    def test_qualquer_lider_aprova_sozinho(self):
+        self.setor.lideres.add(self.segundo_lider)
+        self.definir_modo(ModoAprovacaoSetor.QUALQUER_LIDER)
+        pedido = self.novo_pedido()
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+
+        aprovar_como_lider(pedido, self.aprovador)
+        self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
+
+    def test_todos_lideres_precisam_aprovar(self):
+        self.setor.lideres.add(self.segundo_lider)
+        self.definir_modo(ModoAprovacaoSetor.TODOS_LIDERES)
+        pedido = self.novo_pedido()
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+
+        aprovar_como_lider(pedido, self.aprovador)
+        self.assertEqual(pedido.status, StatusPedido.ENVIADO, "Falta o segundo líder")
+        self.assertEqual(pedido.aprovacoes_lider.count(), 1)
+
+        aprovar_como_lider(pedido, self.segundo_lider)
+        self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
+
+    def test_envio_bloqueado_sem_setor(self):
+        self.requisitante.setor = None
+        self.requisitante.save(update_fields=["setor"])
+        pedido = self.novo_pedido()
+        with self.assertRaises(TransicaoInvalida):
+            transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+
+    def test_envio_bloqueado_sem_lider_no_setor(self):
+        self.setor.lideres.clear()
+        pedido = self.novo_pedido()
+        with self.assertRaises(TransicaoInvalida):
+            transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+
+    def test_lider_de_outro_setor_nao_aprova(self):
+        outro_setor = Setor.objects.create(
+            tenant=self.tenant, filial=self.filial, nome="Financeiro"
+        )
+        outro_setor.lideres.add(self.segundo_lider)
+        pedido = self.novo_pedido()
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        with self.assertRaises(SemPermissao):
+            aprovar_como_lider(pedido, self.segundo_lider)

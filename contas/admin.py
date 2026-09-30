@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin
 
-from .models import Alcada, PapelUsuario, Usuario, VinculoAprovacao
+from .models import Alcada, PapelUsuario, RegraAprovacaoEmpresa, Setor, Usuario
 
 
 class PapelUsuarioInline(admin.TabularInline):
@@ -31,11 +31,22 @@ class PapelUsuarioAdmin(admin.ModelAdmin):
     list_filter = ["papel", "modulo"]
 
 
-@admin.register(VinculoAprovacao)
-class VinculoAprovacaoAdmin(admin.ModelAdmin):
-    list_display = ["requisitante", "aprovador", "ordem", "ativo"]
-    list_filter = ["ativo"]
-    search_fields = ["requisitante__username", "aprovador__username"]
+@admin.register(Setor)
+class SetorAdmin(admin.ModelAdmin):
+    list_display = ["nome", "filial", "listar_lideres", "ativo"]
+    list_filter = ["filial", "ativo"]
+    search_fields = ["nome"]
+    filter_horizontal = ["lideres"]
+
+    @admin.display(description="Líderes")
+    def listar_lideres(self, obj):
+        return ", ".join(str(u) for u in obj.lideres.all()) or "—"
+
+
+@admin.register(RegraAprovacaoEmpresa)
+class RegraAprovacaoEmpresaAdmin(admin.ModelAdmin):
+    list_display = ["empresa", "modo_aprovacao_setor"]
+    list_filter = ["modo_aprovacao_setor"]
 
 
 @admin.register(Alcada)

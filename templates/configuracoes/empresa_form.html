@@ -28,6 +28,13 @@
       </label>
     </div>
   </div>
+
+  <div class="bg-white rounded-3xl border border-slate-200 p-6 mt-4 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-medium mb-4 dark:text-slate-100">Regra de aprovação</h2>
+    <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Aprovação pelos líderes de setor</label>
+    {{ form.modo_aprovacao_setor }}
+    <p class="text-xs text-slate-400 mt-1">{{ form.modo_aprovacao_setor.help_text }}</p>
+  </div>
   <div class="flex items-center gap-3 mt-6">
     <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-medium px-5 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar</button>
     <a href="{% url 'config_empresa_lista' %}" class="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">cancelar</a>

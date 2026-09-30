@@ -6,7 +6,7 @@ from django.db import transaction
 from django.shortcuts import get_object_or_404, redirect, render
 
 from cadastros.models import Categoria, Produto
-from contas.models import Papel, VinculoAprovacao
+from contas.models import Papel
 from contas.permissoes import requer_papel
 from estoque.models import SaldoEstoque
 
@@ -16,6 +16,7 @@ from .models import ItemPedido, Pedido, StatusPedido
 from .services import (
     SemPermissao,
     TransicaoInvalida,
+    aprovar_como_lider,
     entregar,
     pode_aprovar,
     transicionar,
@@ -30,13 +31,14 @@ def painel(request):
         "qtd_meus_abertos": Pedido.objects.filter(requisitante=usuario, ativo=True)
         .exclude(status__in=[StatusPedido.CONCLUIDO, StatusPedido.RECUSADO]).count(),
     }
-    if usuario.tem_papel(Papel.APROVADOR) or usuario.is_superuser:
-        requisitantes = VinculoAprovacao.objects.filter(
-            aprovador=usuario, ativo=True
-        ).values_list("requisitante_id", flat=True)
-        contexto["qtd_aprovacoes"] = Pedido.objects.filter(
-            status=StatusPedido.ENVIADO, requisitante_id__in=requisitantes, ativo=True
-        ).count()
+    setores_liderados = usuario.setores_liderados.values_list("id", flat=True)
+    if setores_liderados or usuario.is_superuser:
+        pedidos_para_aprovar = Pedido.objects.filter(status=StatusPedido.ENVIADO, ativo=True)
+        if not usuario.is_superuser:
+            pedidos_para_aprovar = pedidos_para_aprovar.filter(
+                requisitante__setor_id__in=setores_liderados
+            ).exclude(requisitante=usuario)
+        contexto["qtd_aprovacoes"] = pedidos_para_aprovar.count()
     if usuario.tem_papel(Papel.ADMINISTRADOR) or usuario.is_superuser:
         contexto["qtd_fila"] = Pedido.objects.filter(
             status__in=[StatusPedido.APROVADO_UNIDADE, StatusPedido.EM_SEPARACAO], ativo=True
@@ -155,8 +157,14 @@ def pedido_detalhe(request, pk):
         observacao = request.POST.get("observacao", "")
         try:
             if acao == "aprovar":
-                transicionar(pedido, StatusPedido.APROVADO_UNIDADE, usuario, observacao)
-                messages.success(request, f"Pedido #{pedido.pk} aprovado.")
+                aprovar_como_lider(pedido, usuario, observacao)
+                if pedido.status == StatusPedido.ENVIADO:
+                    messages.success(
+                        request,
+                        f"Aprovação registrada — pedido #{pedido.pk} aguarda os demais líderes.",
+                    )
+                else:
+                    messages.success(request, f"Pedido #{pedido.pk} aprovado.")
             elif acao == "recusar":
                 transicionar(pedido, StatusPedido.RECUSADO, usuario, observacao)
                 messages.success(request, f"Pedido #{pedido.pk} recusado.")
@@ -185,18 +193,15 @@ def pedido_detalhe(request, pk):
     )
 
 
-@requer_papel(Papel.APROVADOR)
+@login_required
 def aprovacoes(request):
-    requisitantes = VinculoAprovacao.objects.filter(
-        aprovador=request.user, ativo=True
-    ).values_list("requisitante_id", flat=True)
-    pedidos = Pedido.objects.filter(
-        status=StatusPedido.ENVIADO, ativo=True, requisitante_id__in=requisitantes
-    ).select_related("requisitante", "almoxarifado_destino__filial", "motivo")
-    if request.user.is_superuser:
-        pedidos = Pedido.objects.filter(status=StatusPedido.ENVIADO, ativo=True).select_related(
-            "requisitante", "almoxarifado_destino__filial", "motivo"
-        )
+    pedidos = Pedido.objects.filter(status=StatusPedido.ENVIADO, ativo=True).select_related(
+        "requisitante", "almoxarifado_destino__filial", "motivo"
+    )
+    if not request.user.is_superuser:
+        pedidos = pedidos.filter(
+            requisitante__setor_id__in=request.user.setores_liderados.values_list("id", flat=True)
+        ).exclude(requisitante=request.user)
     return render(request, "pedidos/aprovacoes.html", {"pedidos": pedidos})
 
 
