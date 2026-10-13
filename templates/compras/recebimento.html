@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block titulo %}Conferência — OC #{{ ordem.pk }}{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <a href="{% url 'ordem_detalhe' ordem.pk %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Ordem de compra #{{ ordem.pk }}</a>
+  <h1 class="text-2xl font-semibold mt-2">Conferência do recebimento</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">
+    {{ ordem.cotacao.fornecedor }}{% if nota %} · NF {{ nota.numero }} · R$ {{ nota.valor_total|floatformat:2 }}{% endif %}.
+    O material só entra no estoque quando você confirmar a conferência física.
+  </p>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<form method="post" class="space-y-6">
+  {% csrf_token %}
+  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+        <tr>
+          <th class="px-6 py-3 font-medium">Item da ordem</th>
+          <th class="px-4 py-3 font-medium text-right">Pendente</th>
+          {% if linhas %}<th class="px-4 py-3 font-medium">Linha da nota</th>{% endif %}
+          <th class="px-4 py-3 font-medium text-right">Na nota</th>
+          <th class="px-6 py-3 font-medium text-right">Conferido</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for l in itens %}
+        <tr class="dark:text-slate-100">
+          <td class="px-6 py-3.5">
+            <p class="font-medium">{{ l.item.item_pedido.produto }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">R$ {{ l.item.valor_unitario|floatformat:2 }} cotado · pedido #{{ l.item.item_pedido.pedido_id }}</p>
+          </td>
+          <td class="px-4 py-3.5 text-right font-medium">{{ l.item.pendente|floatformat:"-3" }}</td>
+          {% if linhas %}
+          <td class="px-4 py-3.5">
+            <select name="linha_{{ l.item.pk }}" class="w-full max-w-[260px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+              <option value="">— sem linha na nota —</option>
+              {% for linha in linhas %}
+              <option value="{{ forloop.counter0 }}" {% if l.linha_idx == forloop.counter0 %}selected{% endif %}>{{ linha.codigo }} · {{ linha.descricao|truncatechars:34 }} ({{ linha.quantidade|floatformat:"-3" }})</option>
+              {% endfor %}
+            </select>
+          </td>
+          {% endif %}
+          <td class="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400">{% if l.linha %}{{ l.linha.quantidade|floatformat:"-3" }}{% else %}—{% endif %}</td>
+          <td class="px-6 py-3.5 text-right">
+            <input name="qtd_{{ l.item.pk }}" value="{{ l.sugerida|floatformat:'-3' }}" inputmode="decimal" aria-label="Quantidade conferida de {{ l.item.item_pedido.produto.nome }}"
+                   class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="5" class="px-6 py-10 text-center text-slate-400">Todos os itens desta ordem já foram recebidos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  {% if itens %}
+  <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Observação da conferência</label>
+    <input name="observacao" maxlength="250" placeholder="Ex.: caixa avariada, faltou 1 unidade…"
+           class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+    <p class="text-xs text-slate-400 mt-2">O que for conferido entra no estoque central a custo cotado + frete rateado. Quantidade menor que a pendente deixa a ordem parcialmente recebida.</p>
+    <button class="mt-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 transition">Confirmar conferência e dar entrada no estoque</button>
+  </section>
+  {% endif %}
+</form>
+{% endblock %}

@@ -189,3 +189,30 @@ class Alcada(models.Model):
             .order_by("valor_min")
             .last()
         )
+
+
+class AprovadorAlcada(models.Model):
+    """Quem pode aprovar cotações de uma faixa. Para Diretoria de unidade, `filial` diz de
+    qual unidade é o diretor; CFO/CEO ficam sem filial."""
+
+    alcada = models.ForeignKey(Alcada, on_delete=models.CASCADE, related_name="aprovadores")
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="alcadas_que_aprova"
+    )
+    filial = models.ForeignKey(
+        "tenancy.Filial", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+
+    class Meta:
+        verbose_name = "aprovador de alçada"
+        verbose_name_plural = "aprovadores de alçada"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["alcada", "usuario", "filial"],
+                name="aprovador_unico_por_faixa_e_filial",
+                nulls_distinct=False,
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.usuario} — {self.alcada}"

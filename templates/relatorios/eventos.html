@@ -32,9 +32,9 @@
     <p class="text-3xl font-semibold text-slate-900 mt-1 dark:text-white">{{ total_pedidos }}</p>
   </div>
   <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
-    <p class="text-sm text-slate-500 dark:text-slate-400">Itens a comprar</p>
-    <p class="text-3xl font-semibold text-amber-600 mt-1 dark:text-amber-500">{{ total_a_comprar }}</p>
-    <p class="text-xs text-slate-400 mt-1">valor disponível com o módulo de Compras</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">Valor de compra (cotado)</p>
+    <p class="text-3xl font-semibold text-slate-900 mt-1 dark:text-white">R$ {{ total_compra|floatformat:2 }}</p>
+    <p class="text-xs text-slate-400 mt-1">{{ total_a_comprar }} {{ total_a_comprar|pluralize:"item,itens" }} ainda a comprar</p>
   </div>
 </div>
 
@@ -53,7 +53,7 @@
         <th class="px-6 py-3 font-medium text-right">Pedidos</th>
         <th class="px-6 py-3 font-medium text-right">Custo de estoque</th>
         <th class="px-6 py-3 font-medium text-right">Itens a comprar</th>
-        <th class="px-6 py-3 font-medium text-right">Compra</th>
+        <th class="px-6 py-3 font-medium text-right">Valor de compra</th>
       </tr>
     </thead>
     <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
@@ -67,7 +67,7 @@
           {% if l.sem_custo %}<span title="Há itens entregues sem custo no estoque" class="text-amber-600">⚠</span>{% endif %}
         </td>
         <td class="px-6 py-3.5 text-right">{{ l.a_comprar }}</td>
-        <td class="px-6 py-3.5 text-right"><span class="text-xs font-medium text-slate-400">pendente</span></td>
+        <td class="px-6 py-3.5 text-right font-semibold">R$ {{ l.valor_compra|floatformat:2 }}</td>
       </tr>
       {% empty %}
       <tr><td colspan="6" class="px-6 py-10 text-center text-slate-400">Nenhum evento cadastrado. Cadastre em Configurações → Eventos.</td></tr>

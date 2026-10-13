@@ -8,6 +8,7 @@ from contas.models import (
     RegraAprovacaoEmpresa,
     Setor,
 )
+from cadastros.models import Fornecedor
 from tenancy.models import Empresa, Evento, Filial
 
 Usuario = get_user_model()
@@ -221,3 +222,27 @@ class EventoForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
+
+
+class FornecedorForm(forms.ModelForm):
+    class Meta:
+        model = Fornecedor
+        fields = [
+            "razao_social", "nome_fantasia", "cnpj", "contato", "telefone", "email",
+            "condicoes_pagamento", "ativo",
+        ]
+        labels = {
+            "razao_social": "Razão social", "nome_fantasia": "Nome fantasia", "cnpj": "CNPJ",
+            "contato": "Contato", "telefone": "Telefone", "email": "E-mail",
+            "condicoes_pagamento": "Condições de pagamento", "ativo": "Ativo",
+        }
+        widgets = {
+            "razao_social": forms.TextInput(attrs={"class": CAMPO}),
+            "nome_fantasia": forms.TextInput(attrs={"class": CAMPO}),
+            "cnpj": forms.TextInput(attrs={"class": CAMPO, "placeholder": "00.000.000/0000-00"}),
+            "contato": forms.TextInput(attrs={"class": CAMPO}),
+            "telefone": forms.TextInput(attrs={"class": CAMPO}),
+            "email": forms.EmailInput(attrs={"class": CAMPO}),
+            "condicoes_pagamento": forms.TextInput(attrs={"class": CAMPO}),
+            "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
+        }

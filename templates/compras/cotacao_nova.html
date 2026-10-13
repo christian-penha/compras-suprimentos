@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block titulo %}Nova cotação{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <a href="{% url 'fila_compras' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Fila de compras</a>
+  <h1 class="text-2xl font-semibold mt-2">Nova cotação</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">Informe o valor unitário de cada item e o frete. A alçada é calculada sobre o total com frete.</p>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<form method="post" class="grid gap-6 lg:grid-cols-[1fr_340px] items-start">
+  {% csrf_token %}
+  {% for item in itens %}<input type="hidden" name="item" value="{{ item.pk }}">{% endfor %}
+
+  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+        <tr>
+          <th class="px-6 py-3 font-medium">Produto</th>
+          <th class="px-4 py-3 font-medium text-right">Qtd</th>
+          <th class="px-4 py-3 font-medium text-right">Valor unitário (R$)</th>
+          <th class="px-6 py-3 font-medium text-right">Subtotal</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for item in itens %}
+        <tr class="dark:text-slate-100">
+          <td class="px-6 py-3.5">
+            <p class="font-medium">{{ item.produto.nome }}</p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">Pedido #{{ item.pedido_id }} · {{ item.pedido.almoxarifado_destino.filial.sigla }}{% if item.pedido.evento %} · {{ item.pedido.evento.nome }}{% endif %}</p>
+          </td>
+          <td class="px-4 py-3.5 text-right font-medium" data-qtd="{{ item.pendente|stringformat:'f' }}">{{ item.pendente|floatformat:"-3" }}</td>
+          <td class="px-4 py-3.5 text-right">
+            <input name="preco_{{ item.pk }}" value="{% for pk, v in precos.items %}{% if pk == item.pk %}{{ v }}{% endif %}{% endfor %}" inputmode="decimal" placeholder="0,00" aria-label="Valor unitário de {{ item.produto.nome }}"
+                   class="preco w-28 rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          </td>
+          <td class="subtotal px-6 py-3.5 text-right font-semibold">R$ 0,00</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <aside class="space-y-5 lg:sticky lg:top-6">
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 dark:bg-slate-800 dark:border-slate-700">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Fornecedor <span class="text-red-500">*</span></label>
+        <select name="fornecedor" class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          <option value="">Selecione o fornecedor</option>
+          {% for f in fornecedores %}<option value="{{ f.pk }}" {% if fornecedor_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f }}</option>{% endfor %}
+        </select>
+        {% if not fornecedores %}<p class="text-xs text-amber-700 mt-1.5">Nenhum fornecedor cadastrado — cadastre em Configurações → Fornecedores.</p>{% endif %}
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Frete estimado (R$)</label>
+        <input id="frete" name="frete" value="{{ frete }}" inputmode="decimal" placeholder="0,00"
+               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-right focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Observação</label>
+        <input name="observacao" maxlength="300" placeholder="Prazo, condição de pagamento…"
+               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between"><dt class="text-slate-500 dark:text-slate-400">Itens</dt><dd id="total-itens" class="font-semibold dark:text-slate-100">R$ 0,00</dd></div>
+        <div class="flex justify-between"><dt class="text-slate-500 dark:text-slate-400">Frete</dt><dd id="total-frete" class="font-semibold dark:text-slate-100">R$ 0,00</dd></div>
+        <div class="flex justify-between border-t border-slate-100 pt-2 text-base dark:border-slate-700"><dt class="font-semibold dark:text-slate-100">Total (base da alçada)</dt><dd id="total-geral" class="font-bold dark:text-white">R$ 0,00</dd></div>
+      </dl>
+      <button name="enviar" value="1" class="mt-5 w-full rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Registrar cotação</button>
+    </section>
+  </aside>
+</form>
+
+<script>
+  (function () {
+    function num(txt) {
+      txt = String(txt || '').trim();
+      if (txt.indexOf(',') !== -1) txt = txt.replace(/\./g, '').replace(',', '.');
+      var n = parseFloat(txt);
+      return isNaN(n) ? 0 : n;
+    }
+    function brl(n) { return 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+    function recalcular() {
+      var itens = 0;
+      document.querySelectorAll('tbody tr').forEach(function (tr) {
+        var qtd = parseFloat(tr.querySelector('[data-qtd]').dataset.qtd) || 0;
+        var sub = qtd * num(tr.querySelector('.preco').value);
+        tr.querySelector('.subtotal').textContent = brl(sub);
+        itens += sub;
+      });
+      var frete = num(document.getElementById('frete').value);
+      document.getElementById('total-itens').textContent = brl(itens);
+      document.getElementById('total-frete').textContent = brl(frete);
+      document.getElementById('total-geral').textContent = brl(itens + frete);
+    }
+    document.addEventListener('input', recalcular);
+    recalcular();
+  })();
+</script>
+{% endblock %}

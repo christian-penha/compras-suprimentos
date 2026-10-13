@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block titulo %}Aprovadores — {{ alcada.get_papel_aprovador_display }}{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <a href="{% url 'config_alcada_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Alçadas</a>
+  <h1 class="text-2xl font-semibold mt-2">{{ alcada.get_papel_aprovador_display }}</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">R$ {{ alcada.valor_min|floatformat:2 }}{% if alcada.valor_max %} até R$ {{ alcada.valor_max|floatformat:2 }}{% else %} ou mais{% endif %}</p>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-6 lg:grid-cols-2 items-start max-w-5xl">
+  <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 mb-4 dark:text-slate-100">Aprovadores desta faixa</h2>
+    {% for ap in aprovadores %}
+    <form method="post" class="flex items-center justify-between gap-3 py-3 border-t border-slate-100 first:border-0 first:pt-0 dark:border-slate-700">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="remover">
+      <input type="hidden" name="aprovador" value="{{ ap.pk }}">
+      <span class="text-sm dark:text-slate-100">{{ ap.usuario }}{% if ap.filial %} <span class="text-slate-400">· {{ ap.filial.nome }}</span>{% endif %}</span>
+      <button class="text-xs font-medium text-slate-400 hover:text-red-600">remover</button>
+    </form>
+    {% empty %}
+    <p class="text-sm text-slate-500 dark:text-slate-400">Nenhum aprovador cadastrado ainda.</p>
+    {% endfor %}
+  </section>
+
+  <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 mb-4 dark:text-slate-100">Adicionar aprovador</h2>
+    <form method="post" class="space-y-4">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="adicionar">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Usuário</label>
+        <select name="usuario" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          <option value="">Selecione</option>
+          {% for u in usuarios %}<option value="{{ u.pk }}">{{ u.nome_completo|default:u.username }}</option>{% endfor %}
+        </select>
+      </div>
+      {% if por_filial %}
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Diretor de qual unidade?</label>
+        <select name="filial" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          <option value="">Selecione a unidade</option>
+          {% for f in filiais %}<option value="{{ f.pk }}">{{ f.nome }}</option>{% endfor %}
+        </select>
+        <p class="text-xs text-slate-400 mt-1.5">Em cotações com várias unidades, o diretor de qualquer uma delas pode aprovar.</p>
+      </div>
+      {% endif %}
+      <button class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Adicionar</button>
+    </form>
+  </section>
+</div>
+{% endblock %}

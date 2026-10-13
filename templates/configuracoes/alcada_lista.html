@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block titulo %}Alçadas{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Alçadas de aprovação</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">Quem aprova cada faixa de valor das cotações de compra. A faixa é calculada sobre o total com frete.</p>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
+  {% for a in alcadas %}
+  <article class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+      R$ {{ a.valor_min|floatformat:2 }}{% if a.valor_max %} até R$ {{ a.valor_max|floatformat:2 }}{% else %} ou mais{% endif %}
+    </p>
+    <h2 class="text-lg font-semibold text-slate-900 mt-1 dark:text-slate-100">{{ a.get_papel_aprovador_display }}</h2>
+
+    <div class="mt-4 flex-1">
+      {% if a.papel_aprovador == 'AUTOMATICA' %}
+      <p class="text-sm text-slate-500 dark:text-slate-400">Aprovada automaticamente — não precisa de aprovador.</p>
+      {% else %}
+      {% for ap in a.aprovadores.all %}
+      <p class="text-sm text-slate-700 dark:text-slate-200">{{ ap.usuario }}{% if ap.filial %} <span class="text-slate-400">· {{ ap.filial.sigla }}</span>{% endif %}</p>
+      {% empty %}
+      <p class="text-xs rounded-lg bg-amber-50 text-amber-800 px-2.5 py-1.5 dark:bg-amber-950 dark:text-amber-300">⚠ Sem aprovador — cotações desta faixa ficam travadas</p>
+      {% endfor %}
+      {% endif %}
+    </div>
+
+    {% if a.papel_aprovador != 'AUTOMATICA' %}
+    <a href="{% url 'config_alcada_editar' a.pk %}" class="mt-5 block text-center rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Definir aprovadores</a>
+    {% endif %}
+  </article>
+  {% endfor %}
+</div>
+{% endblock %}

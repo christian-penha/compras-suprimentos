@@ -6,7 +6,7 @@ from django.core.exceptions import PermissionDenied
 from .models import Papel
 
 
-def requer_papel(*papeis):
+def requer_papel(*papeis, modulo=None):
     def decorador(view):
         @wraps(view)
         @login_required
@@ -14,7 +14,7 @@ def requer_papel(*papeis):
             usuario = request.user
             if usuario.is_superuser or usuario.tem_papel(Papel.SUPERADMIN):
                 return view(request, *args, **kwargs)
-            if any(usuario.tem_papel(p) for p in papeis):
+            if any(usuario.tem_papel(p, modulo) for p in papeis):
                 return view(request, *args, **kwargs)
             raise PermissionDenied
         return interna

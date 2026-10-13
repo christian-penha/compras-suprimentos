@@ -51,6 +51,7 @@ TEMPLATES = [
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
                 "pedidos.context_processors.carrinho",
+                "contas.context_processors.menu",
             ],
         },
     },
@@ -80,6 +81,8 @@ STATICFILES_DIRS = [BASE_DIR / "static"]
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = env("MEDIA_ROOT", default=str(BASE_DIR / "media"))
+# Fora de MEDIA_ROOT: o Django serve MEDIA_ROOT em DEBUG, e XML de nota fiscal não pode ser público.
+PRIVATE_ROOT = env("PRIVATE_ROOT", default=str(BASE_DIR / "privado"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

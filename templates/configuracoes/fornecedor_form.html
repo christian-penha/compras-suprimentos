@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block titulo %}{% if instancia %}Editar fornecedor{% else %}Novo fornecedor{% endif %}{% endblock %}
+{% block conteudo %}
+<h1 class="text-2xl font-semibold mb-6 dark:text-slate-100">{% if instancia %}Editar fornecedor{% else %}Novo fornecedor{% endif %}</h1>
+
+<form method="post" class="max-w-2xl">
+  {% csrf_token %}
+  <div class="bg-white rounded-2xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">
+    {% for campo in form.visible_fields %}
+    {% if campo.name == "ativo" %}
+    <div class="sm:col-span-2 pt-2"><label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">{{ campo }} {{ campo.label }}</label></div>
+    {% else %}
+    <div {% if campo.name == "razao_social" or campo.name == "condicoes_pagamento" %}class="sm:col-span-2"{% endif %}>
+      <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">{{ campo.label }}</label>
+      {{ campo }}
+      {% for e in campo.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+    </div>
+    {% endif %}
+    {% endfor %}
+  </div>
+  <div class="flex items-center gap-3 mt-6">
+    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-medium px-5 py-2.5 transition dark:bg-white dark:text-black">Salvar</button>
+    <a href="{% url 'config_fornecedor_lista' %}" class="text-sm text-slate-400 hover:text-slate-600">cancelar</a>
+  </div>
+</form>
+{% endblock %}

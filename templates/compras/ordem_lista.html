@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block titulo %}Ordens de compra{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Ordens de compra</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">Compras aprovadas aguardando nota fiscal e recebimento.</p>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  {% for o in ordens %}
+  <a href="{% url 'ordem_detalhe' o.pk %}" class="block bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg hover:-translate-y-0.5 transition dark:bg-slate-800 dark:border-slate-700">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">OC #{{ o.pk }} · cotação #{{ o.cotacao_id }}</p>
+        <h2 class="text-lg font-semibold text-slate-900 mt-0.5 dark:text-slate-100">{{ o.cotacao.fornecedor }}</h2>
+      </div>
+      <span class="text-xs font-semibold px-3 py-1.5 rounded-full {{ o.status|badge_status }}">{{ o.get_status_display }}</span>
+    </div>
+    <p class="mt-4 text-2xl font-semibold text-slate-900 dark:text-white">R$ {{ o.cotacao.valor_total|floatformat:2 }}</p>
+    <p class="mt-2 text-xs text-slate-400">Emitida em {{ o.criada_em|date:"d/m/Y" }}</p>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-16">
+    <p class="font-semibold text-slate-900 dark:text-slate-100">Nenhuma ordem de compra ainda</p>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">A ordem é gerada a partir de uma cotação aprovada.</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

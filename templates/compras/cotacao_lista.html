@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block titulo %}Cotações{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Cotações</h1>
+      <p class="text-sm text-[#9a9a9a] mt-1">Compras cotadas com fornecedores e a situação de cada alçada.</p>
+    </div>
+    <a href="{% url 'fila_compras' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">Ir para a fila de compras</a>
+  </div>
+  <form method="get" class="mt-5 flex flex-wrap gap-3">
+    <input name="q" value="{{ busca }}" placeholder="Buscar por fornecedor ou produto…" autocomplete="off"
+           class="flex-1 min-w-[220px] rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+    <select name="status" onchange="this.form.submit()"
+            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+      <option value="">Todas as situações</option>
+      {% for valor, rotulo in status_opcoes %}<option value="{{ valor }}" {% if status == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+    </select>
+    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  {% for c in cotacoes %}
+  <a href="{% url 'cotacao_detalhe' c.pk %}" class="block bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg hover:-translate-y-0.5 transition dark:bg-slate-800 dark:border-slate-700">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Cotação #{{ c.pk }}</p>
+        <h2 class="text-lg font-semibold text-slate-900 mt-0.5 dark:text-slate-100">{{ c.fornecedor }}</h2>
+      </div>
+      <span class="text-xs font-semibold px-3 py-1.5 rounded-full {{ c.status|badge_status }}">{{ c.get_status_display }}</span>
+    </div>
+    <p class="mt-4 text-3xl font-semibold text-slate-900 dark:text-white">R$ {{ c.valor_total|floatformat:2 }}</p>
+    <p class="text-xs text-slate-500 mt-0.5 dark:text-slate-400">com frete de R$ {{ c.valor_frete|floatformat:2 }} · {{ c.alcada.get_papel_aprovador_display }}</p>
+    <p class="mt-4 text-sm text-slate-600 dark:text-slate-300">
+      {% for i in c.itens.all|slice:":3" %}{{ i.item_pedido.produto.nome }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if c.itens.all|length > 3 %} +{{ c.itens.all|length|add:"-3" }}{% endif %}
+    </p>
+    <p class="mt-3 text-xs text-slate-400">por {{ c.comprador }} · {{ c.criada_em|date:"d/m H:i" }}</p>
+  </a>
+  {% empty %}
+  <div class="col-span-full text-center py-16">
+    <p class="font-semibold text-slate-900 dark:text-slate-100">Nenhuma cotação encontrada</p>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Cote itens a partir da fila de compras.</p>
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

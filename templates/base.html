@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Compras & Suprimentos{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=8">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=9">
   <script>
     (function () {
       var tema = localStorage.getItem('tema');
@@ -36,6 +36,12 @@
         {% url 'config_filial_lista' as u_config_filiais %}
         {% url 'config_setor_lista' as u_config_setores %}
         {% url 'config_evento_lista' as u_config_eventos %}
+        {% url 'config_alcada_lista' as u_config_alcadas %}
+        {% url 'config_fornecedor_lista' as u_config_fornecedores %}
+        {% url 'fila_compras' as u_fila_compras %}
+        {% url 'cotacao_lista' as u_cotacoes %}
+        {% url 'aprovacoes_compra' as u_aprova_compras %}
+        {% url 'ordem_lista' as u_ordens %}
         {% url 'relatorio_eventos' as u_rel_eventos %}
 
         <a href="{% url 'painel' %}" title="Painel" class="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-3 text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == '/' %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
@@ -77,10 +83,30 @@
             <svg class="grupo-seta w-3 h-3 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
           </button>
           <div class="grupo-itens space-y-1" data-grupo-itens="compras">
-            <span title="Em breve" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#5c5c5c] cursor-default">
+{% if menu_compras %}
+            <a href="{{ u_fila_compras }}" title="Fila de compras" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_fila_compras %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Fila de compras</span>
+            </a>
+{% endif %}
+{% if menu_compras or menu_aprova_compras %}
+            <a href="{{ u_cotacoes }}" title="Cotações" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_cotacoes %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.625c.621 0 1.125.504 1.125 1.125V6h-.75a.75.75 0 0 1-.75-.75V4.5M2.25 6v9a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 15V6"/></svg>
-              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Cotações <span class="text-[10px]">(em breve)</span></span>
-            </span>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Cotações</span>
+            </a>
+{% endif %}
+{% if menu_aprova_compras %}
+            <a href="{{ u_aprova_compras }}" title="Aprovar compras" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_aprova_compras %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Aprovar compras</span>
+            </a>
+{% endif %}
+{% if menu_compras or menu_estoque %}
+            <a href="{{ u_ordens }}" title="Ordens de compra" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_ordens %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Ordens de compra</span>
+            </a>
+{% endif %}
           </div>
         </div>
 
@@ -151,6 +177,14 @@
             <a href="{{ u_config_eventos }}" title="Eventos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_eventos %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Eventos</span>
+            </a>
+            <a href="{{ u_config_alcadas }}" title="Alçadas" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_alcadas %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971Z"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Alçadas</span>
+            </a>
+            <a href="{{ u_config_fornecedores }}" title="Fornecedores" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_fornecedores %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Fornecedores</span>
             </a>
           </div>
         </div>

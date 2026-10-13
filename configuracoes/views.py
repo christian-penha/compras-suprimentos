@@ -3,11 +3,12 @@ from django.contrib.auth import get_user_model
 from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
-from contas.models import Papel, Setor
+from cadastros.models import Fornecedor
+from contas.models import Alcada, AprovadorAlcada, PapelAlcada, Papel, Setor
 from contas.permissoes import requer_papel
 from tenancy.models import Empresa, Evento, Filial
 
-from .forms import EmpresaForm, EventoForm, FilialForm, SetorForm, UsuarioForm
+from .forms import EmpresaForm, EventoForm, FilialForm, FornecedorForm, SetorForm, UsuarioForm
 
 Usuario = get_user_model()
 
@@ -142,3 +143,66 @@ def evento_form(request, pk=None):
         messages.success(request, "Evento salvo com sucesso.")
         return redirect("config_evento_lista")
     return render(request, "configuracoes/evento_form.html", {"form": form, "instancia": instancia})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def alcada_lista(request):
+    alcadas = Alcada.objects.filter(ativo=True).prefetch_related(
+        "aprovadores__usuario", "aprovadores__filial"
+    )
+    return render(request, "configuracoes/alcada_lista.html", {"alcadas": alcadas})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def alcada_form(request, pk):
+    alcada = get_object_or_404(Alcada, pk=pk)
+    por_filial = alcada.papel_aprovador == PapelAlcada.DIRETORIA_UNIDADE
+    if request.method == "POST":
+        acao = request.POST.get("acao")
+        if acao == "remover":
+            AprovadorAlcada.objects.filter(
+                pk=request.POST.get("aprovador") or 0, alcada=alcada
+            ).delete()
+            messages.success(request, "Aprovador removido da faixa.")
+        elif acao == "adicionar":
+            usuario = Usuario.objects.filter(pk=request.POST.get("usuario") or 0, ativo_no_sistema=True).first()
+            filial = Filial.objects.filter(pk=request.POST.get("filial") or 0).first() if por_filial else None
+            if usuario is None:
+                messages.error(request, "Escolha o usuário aprovador.")
+            elif por_filial and filial is None:
+                messages.error(request, "Diretoria de unidade exige informar a filial do diretor.")
+            else:
+                _, criado = AprovadorAlcada.objects.get_or_create(
+                    alcada=alcada, usuario=usuario, filial=filial
+                )
+                messages.success(request, "Aprovador adicionado." if criado else "Esse aprovador já estava na faixa.")
+        return redirect("config_alcada_editar", pk=alcada.pk)
+    return render(request, "configuracoes/alcada_form.html", {
+        "alcada": alcada,
+        "por_filial": por_filial,
+        "aprovadores": alcada.aprovadores.select_related("usuario", "filial"),
+        "usuarios": Usuario.objects.filter(ativo_no_sistema=True).order_by("nome_completo", "username"),
+        "filiais": Filial.objects.filter(ativo=True).order_by("nome"),
+    })
+
+
+@requer_papel(Papel.SUPERADMIN)
+def fornecedor_lista(request):
+    busca = request.GET.get("q", "").strip()
+    fornecedores = Fornecedor.objects.all()
+    if busca:
+        fornecedores = fornecedores.filter(
+            Q(razao_social__icontains=busca) | Q(nome_fantasia__icontains=busca) | Q(cnpj__icontains=busca)
+        )
+    return render(request, "configuracoes/fornecedor_lista.html", {"fornecedores": fornecedores, "busca": busca})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def fornecedor_form(request, pk=None):
+    instancia = get_object_or_404(Fornecedor, pk=pk) if pk else None
+    form = FornecedorForm(request.POST or None, instance=instancia)
+    if request.method == "POST" and form.is_valid():
+        form.save()
+        messages.success(request, "Fornecedor salvo com sucesso.")
+        return redirect("config_fornecedor_lista")
+    return render(request, "configuracoes/fornecedor_form.html", {"form": form, "instancia": instancia})

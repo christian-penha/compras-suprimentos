@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block titulo %}Cotação #{{ cotacao.pk }}{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <a href="{% url 'cotacao_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Cotações</a>
+  <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold">Cotação #{{ cotacao.pk }} — {{ cotacao.fornecedor }}</h1>
+      <p class="text-sm text-[#9a9a9a] mt-1">Registrada por {{ cotacao.comprador }} em {{ cotacao.criada_em|date:"d/m/Y H:i" }}</p>
+    </div>
+    <span class="text-sm font-semibold px-4 py-2 rounded-full {{ cotacao.status|badge_status }}">{{ cotacao.get_status_display }}</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-6 lg:grid-cols-[1fr_340px] items-start">
+  <div class="space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+      <div class="px-6 pt-5 pb-3"><h2 class="font-semibold text-slate-900 dark:text-slate-100">Itens cotados</h2></div>
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+          <tr>
+            <th class="px-6 py-3 font-medium">Produto</th>
+            <th class="px-4 py-3 font-medium">Pedido</th>
+            <th class="px-4 py-3 font-medium text-right">Qtd</th>
+            <th class="px-4 py-3 font-medium text-right">Unitário</th>
+            <th class="px-6 py-3 font-medium text-right">Subtotal</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          {% for i in itens %}
+          <tr class="dark:text-slate-100">
+            <td class="px-6 py-3.5">{{ i.item_pedido.produto }}</td>
+            <td class="px-4 py-3.5"><a href="{% url 'pedido_detalhe' i.item_pedido.pedido_id %}" class="underline decoration-slate-300">#{{ i.item_pedido.pedido_id }}</a> <span class="text-slate-500 dark:text-slate-400">{{ i.item_pedido.pedido.requisitante }}</span></td>
+            <td class="px-4 py-3.5 text-right">{{ i.quantidade|floatformat:"-3" }}</td>
+            <td class="px-4 py-3.5 text-right">R$ {{ i.valor_unitario|floatformat:2 }}</td>
+            <td class="px-6 py-3.5 text-right font-semibold">R$ {{ i.subtotal|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot class="text-sm">
+          <tr class="border-t border-slate-100 dark:border-slate-700 dark:text-slate-100"><td colspan="4" class="px-6 py-2.5 text-right text-slate-500">Frete</td><td class="px-6 py-2.5 text-right">R$ {{ cotacao.valor_frete|floatformat:2 }}</td></tr>
+          <tr class="dark:text-slate-100"><td colspan="4" class="px-6 py-3 text-right font-semibold">Total</td><td class="px-6 py-3 text-right text-lg font-bold">R$ {{ cotacao.valor_total|floatformat:2 }}</td></tr>
+        </tfoot>
+      </table>
+    </section>
+
+    {% if cotacao.status == 'RECUSADA' %}
+    <section class="rounded-2xl border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-800 dark:bg-red-950 dark:border-red-900 dark:text-red-200">
+      <p class="font-semibold">Recusada por {{ cotacao.decidida_por }} em {{ cotacao.decidida_em|date:"d/m H:i" }}</p>
+      <p class="mt-1">{{ cotacao.motivo_recusa }}</p>
+      <p class="mt-2 text-xs opacity-80">Os itens voltaram à fila de compras para nova cotação.</p>
+    </section>
+    {% endif %}
+
+    {% if pode_decidir %}
+    <section class="bg-white rounded-2xl border-2 border-slate-900 p-6 dark:bg-slate-800 dark:border-white">
+      <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Decisão da alçada</h2>
+      <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Você é aprovador da faixa {{ cotacao.alcada.get_papel_aprovador_display }}.</p>
+      <form method="post" class="space-y-3">
+        {% csrf_token %}
+        <input name="motivo" placeholder="Motivo (obrigatório para recusar)"
+               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        <div class="flex gap-3">
+          <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-2.5 transition">Aprovar cotação</button>
+          <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold px-6 py-2.5 transition dark:bg-red-950 dark:text-red-300">Recusar</button>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if e_comprador %}
+    <div class="flex flex-wrap gap-3">
+      {% if cotacao.status == 'APROVADA' and not ordem %}
+      <form method="post">{% csrf_token %}
+        <button name="acao" value="gerar_ordem" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Gerar ordem de compra</button>
+      </form>
+      {% endif %}
+      {% if ordem %}
+      <a href="{% url 'ordem_detalhe' ordem.pk %}" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Abrir ordem de compra #{{ ordem.pk }}</a>
+      {% elif cotacao.ativa %}
+      <form method="post">{% csrf_token %}
+        <button name="acao" value="cancelar" class="rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold px-6 py-3 transition dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">Cancelar cotação</button>
+      </form>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <aside class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 dark:text-slate-100">Alçada</h2>
+    <p class="text-sm text-slate-500 mt-0.5 dark:text-slate-400">Calculada sobre o total com frete.</p>
+    <p class="mt-4 text-lg font-semibold text-slate-900 dark:text-white">{{ cotacao.alcada.get_papel_aprovador_display }}</p>
+    <p class="text-xs text-slate-500 dark:text-slate-400">R$ {{ cotacao.alcada.valor_min|floatformat:2 }} {% if cotacao.alcada.valor_max %}até R$ {{ cotacao.alcada.valor_max|floatformat:2 }}{% else %}ou mais{% endif %}</p>
+
+    {% if cotacao.alcada.papel_aprovador != 'AUTOMATICA' %}
+    <h3 class="text-sm font-semibold text-slate-900 mt-6 mb-2 dark:text-slate-100">Aprovadores</h3>
+    {% if aprovadores %}
+    <ul class="space-y-1.5 text-sm text-slate-700 dark:text-slate-300">
+      {% for a in aprovadores %}<li class="flex items-center gap-2"><span class="h-2 w-2 rounded-full bg-slate-400"></span>{{ a }}</li>{% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm rounded-xl bg-amber-50 text-amber-800 px-3 py-2 dark:bg-amber-950 dark:text-amber-300">Nenhum aprovador cadastrado para esta faixa. Cadastre em Configurações → Alçadas.</p>
+    {% endif %}
+    {% else %}
+    <p class="text-sm text-slate-500 mt-4 dark:text-slate-400">Valor dentro do limite automático — aprovada sem decisão manual.</p>
+    {% endif %}
+
+    {% if cotacao.decidida_por %}
+    <p class="text-xs text-slate-400 mt-5">Decidida por {{ cotacao.decidida_por }} em {{ cotacao.decidida_em|date:"d/m H:i" }}</p>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

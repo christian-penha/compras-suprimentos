@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titulo %}Fila de compras{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Fila de compras</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">Itens sem estoque aguardando cotação, agrupados pelo fornecedor padrão do produto.</p>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+{% if grupos %}
+<form method="get" action="{% url 'cotacao_nova' %}">
+  <div class="space-y-5">
+    {% for g in grupos %}
+    <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+      <header class="flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+        <div>
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Fornecedor padrão</p>
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100">{% if g.fornecedor %}{{ g.fornecedor }}{% else %}Sem fornecedor definido{% endif %}</h2>
+        </div>
+        <label class="flex items-center gap-2 text-sm text-slate-500 cursor-pointer dark:text-slate-400">
+          <input type="checkbox" class="marcar-grupo h-4 w-4 rounded border-slate-300 text-slate-900"> Selecionar todos
+        </label>
+      </header>
+      <ul class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for item in g.itens %}
+        <li class="flex items-center gap-4 px-6 py-3.5 dark:text-slate-100">
+          <input type="checkbox" name="item" value="{{ item.pk }}" class="item-fila h-4 w-4 rounded border-slate-300 text-slate-900" aria-label="Cotar {{ item.produto.nome }}">
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium">{{ item.produto.nome }} <span class="text-slate-400 font-normal">{{ item.produto.especificacao }}</span></p>
+            <p class="text-xs text-slate-500 dark:text-slate-400">
+              Pedido #{{ item.pedido_id }} · {{ item.pedido.requisitante }} · {{ item.pedido.almoxarifado_destino.filial.sigla }}
+              {% if item.pedido.evento %}· <span class="text-slate-700 dark:text-slate-300">{{ item.pedido.evento.nome }}</span>{% endif %}
+              {% if item.pedido.data_desejada %}· para {{ item.pedido.data_desejada|date:"d/m" }}{% endif %}
+            </p>
+          </div>
+          {% if item.pedido.prioridade == 'URGENTE' or item.pedido.prioridade == 'ALTA' %}
+          <span class="text-xs font-medium {% if item.pedido.prioridade == 'URGENTE' %}text-red-700 dark:text-red-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">{{ item.pedido.get_prioridade_display }}</span>
+          {% endif %}
+          <span class="text-sm font-semibold w-20 text-right">{{ item.pendente|floatformat:"-3" }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endfor %}
+  </div>
+
+  <div class="sticky bottom-4 mt-6 flex justify-end">
+    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-3 shadow-xl transition dark:bg-white dark:text-black">Cotar itens selecionados</button>
+  </div>
+</form>
+<script>
+  document.querySelectorAll('.marcar-grupo').forEach(function (todos) {
+    todos.addEventListener('change', function () {
+      todos.closest('section').querySelectorAll('.item-fila').forEach(function (c) { c.checked = todos.checked; });
+    });
+  });
+</script>
+{% else %}
+<div class="bg-white rounded-2xl border border-slate-200 py-16 text-center dark:bg-slate-800 dark:border-slate-700">
+  <p class="font-semibold text-slate-900 dark:text-slate-100">Nenhum item aguardando cotação</p>
+  <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Itens sem estoque aparecem aqui assim que o pedido é aprovado.</p>
+</div>
+{% endif %}
+{% endblock %}

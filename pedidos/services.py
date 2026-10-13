@@ -27,6 +27,7 @@ TRANSICOES = {
     StatusPedido.RASCUNHO: {StatusPedido.ENVIADO},
     StatusPedido.ENVIADO: {StatusPedido.APROVADO_UNIDADE, StatusPedido.RECUSADO},
     StatusPedido.APROVADO_UNIDADE: {StatusPedido.EM_SEPARACAO, StatusPedido.AGUARDANDO_COMPRA},
+    StatusPedido.AGUARDANDO_COMPRA: {StatusPedido.APROVADO_UNIDADE},
     StatusPedido.EM_SEPARACAO: {StatusPedido.ENTREGUE, StatusPedido.ENTREGA_PARCIAL},
     StatusPedido.ENTREGA_PARCIAL: {StatusPedido.ENTREGUE, StatusPedido.ENTREGA_PARCIAL},
     StatusPedido.ENTREGUE: {StatusPedido.CONCLUIDO},
@@ -131,14 +132,29 @@ def transicionar(pedido, novo_status, usuario, observacao=""):
     return pedido
 
 
-def _aplicar_transicao(pedido, novo_status, usuario, observacao):
+def liberar_itens_comprados(pedido, usuario, observacao):
+    """Chamado quando itens comprados entram no estoque: o pedido que esperava a compra
+    volta ao fluxo normal, sem reclassificar itens (isso reverteria itens já entregues)."""
+    EventoPedido.objects.create(
+        pedido=pedido, de_status=pedido.status, para_status=pedido.status,
+        usuario=usuario, observacao=observacao,
+    )
+    tem_item_de_estoque = pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE).exists()
+    if pedido.status == StatusPedido.AGUARDANDO_COMPRA and tem_item_de_estoque:
+        _aplicar_transicao(
+            pedido, StatusPedido.APROVADO_UNIDADE, usuario,
+            "Itens comprados recebidos — pedido liberado para separação.", classificar=False,
+        )
+
+
+def _aplicar_transicao(pedido, novo_status, usuario, observacao, classificar=True):
     EventoPedido.objects.create(
         pedido=pedido, de_status=pedido.status, para_status=novo_status,
         usuario=usuario, observacao=observacao,
     )
     pedido.status = novo_status
     pedido.save(update_fields=["status", "atualizado_em"])
-    if novo_status == StatusPedido.APROVADO_UNIDADE:
+    if novo_status == StatusPedido.APROVADO_UNIDADE and classificar:
         classificar_itens(pedido)
         if not pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE).exists():
             _aplicar_transicao(
