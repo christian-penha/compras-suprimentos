@@ -1,13 +1,17 @@
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
+from django.core.paginator import Paginator
+from django.db.models import Q
 from django.shortcuts import redirect, render
+from django.utils.http import urlencode
 
 from openpyxl import load_workbook
 
 from cadastros.models import Produto
 from contas.models import Papel
 from contas.permissoes import requer_papel
+from tenancy.models import Filial
 
 from .models import Almoxarifado, SaldoEstoque
 from .services import registrar_entrada
@@ -119,11 +123,80 @@ def entrada_planilha(request):
     )
 
 
+SITUACOES = [
+    ("sem_estoque", "Sem estoque"),
+    ("abaixo", "Abaixo do mínimo"),
+    ("atencao", "Em atenção"),
+    ("ok", "Em dia"),
+]
+
+
+def _situacao(saldo):
+    if saldo.quantidade <= 0:
+        return "sem_estoque"
+    if saldo.estoque_minimo is not None and saldo.quantidade < saldo.estoque_minimo:
+        return "abaixo"
+    if saldo.ponto_reposicao is not None and saldo.quantidade <= saldo.ponto_reposicao:
+        return "atencao"
+    return "ok"
+
+
 @requer_papel(Papel.ADMINISTRADOR)
 def posicao_estoque(request):
-    saldos = (
-        SaldoEstoque.objects.filter(quantidade__gt=0)
-        .select_related("produto", "almoxarifado__filial")
-        .order_by("almoxarifado__filial__sigla", "produto__nome")
+    filial_id = request.GET.get("filial", "")
+    almoxarifado_id = request.GET.get("almoxarifado", "")
+    busca = request.GET.get("q", "").strip()
+    situacao = request.GET.get("situacao", "")
+
+    almoxarifados = Almoxarifado.objects.filter(ativo=True).select_related("filial")
+    saldos = SaldoEstoque.objects.filter(almoxarifado__in=almoxarifados).select_related(
+        "produto", "almoxarifado__filial"
     )
-    return render(request, "estoque/posicao.html", {"saldos": saldos})
+    if filial_id.isdigit():
+        saldos = saldos.filter(almoxarifado__filial_id=filial_id)
+    if almoxarifado_id.isdigit():
+        saldos = saldos.filter(almoxarifado_id=almoxarifado_id)
+    if busca:
+        saldos = saldos.filter(
+            Q(produto__nome__icontains=busca)
+            | Q(produto__codigo__icontains=busca)
+            | Q(produto__especificacao__icontains=busca)
+        )
+
+    linhas = []
+    for s in saldos.order_by("almoxarifado__filial__sigla", "almoxarifado__nome", "produto__nome"):
+        s.situacao = _situacao(s)
+        s.valor = s.quantidade * s.custo_medio
+        linhas.append(s)
+
+    contagem = {chave: 0 for chave, _ in SITUACOES}
+    for s in linhas:
+        contagem[s.situacao] += 1
+    kpis = {
+        "itens": sum(1 for s in linhas if s.quantidade > 0),
+        "abaixo": contagem["abaixo"] + contagem["sem_estoque"],
+        "atencao": contagem["atencao"],
+        "valor": sum((s.valor for s in linhas), Decimal("0")),
+    }
+
+    if situacao in contagem:
+        linhas = [s for s in linhas if s.situacao == situacao]
+    pagina = Paginator(linhas, 50).get_page(request.GET.get("pagina"))
+
+    sem_pagina = {k: v for k, v in request.GET.items() if v and k != "pagina"}
+    sem_situacao = {k: v for k, v in sem_pagina.items() if k != "situacao"}
+    return render(request, "estoque/posicao.html", {
+        "pagina": pagina,
+        "total": len(linhas),
+        "kpis": kpis,
+        "contagem": contagem,
+        "situacoes": SITUACOES,
+        "situacao": situacao,
+        "filiais": Filial.objects.filter(ativo=True).order_by("nome"),
+        "almoxarifados": almoxarifados.order_by("filial__sigla", "nome"),
+        "filial_id": filial_id,
+        "almoxarifado_id": almoxarifado_id,
+        "busca": busca,
+        "qs_pagina": urlencode(sem_pagina),
+        "qs_situacao": urlencode(sem_situacao),
+    })

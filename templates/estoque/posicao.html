@@ -1,35 +1,126 @@
 {% extends "base.html" %}
-{% block titulo %}Posição de estoque{% endblock %}
-{% block conteudo %}
-<h1 class="text-2xl font-semibold mb-6">Posição de estoque</h1>
-<div class="bg-white rounded-3xl border border-slate-200 overflow-hidden">
-  <table class="w-full text-sm">
-    <thead class="bg-slate-50 text-slate-500 text-left">
-      <tr>
-        <th class="px-6 py-3 font-medium">Almoxarifado</th>
-        <th class="px-6 py-3 font-medium">Produto</th>
-        <th class="px-6 py-3 font-medium text-right">Saldo</th>
-        <th class="px-6 py-3 font-medium text-right">Custo médio</th>
-        <th class="px-6 py-3 font-medium text-center">Mínimo</th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-slate-100">
-      {% for s in saldos %}
-      <tr {% if s.abaixo_do_minimo %}class="bg-red-50"{% endif %}>
-        <td class="px-6 py-3">{{ s.almoxarifado }}</td>
-        <td class="px-6 py-3">{{ s.produto }}</td>
-        <td class="px-6 py-3 text-right font-medium">{{ s.quantidade|floatformat:"-3" }}</td>
-        <td class="px-6 py-3 text-right">R$ {{ s.custo_medio|floatformat:2 }}</td>
-        <td class="px-6 py-3 text-center">
-          {% if s.abaixo_do_minimo %}<span class="text-xs font-medium px-2.5 py-1 rounded-full bg-red-100 text-red-700">repor</span>
-          {% elif s.estoque_minimo %}<span class="text-xs text-slate-400">{{ s.estoque_minimo|floatformat:"-3" }}</span>
-          {% else %}<span class="text-xs text-slate-300">—</span>{% endif %}
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="5" class="px-6 py-8 text-center text-slate-400 text-sm">Nenhum saldo registrado ainda.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% block titulo %}Controle de estoque{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Controle de estoque</h1>
+      <p class="text-sm text-[#9a9a9a] mt-1">Saldo, mínimo e valor por almoxarifado.</p>
+    </div>
+    <a href="{% url 'entrada_planilha' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">Entrada por planilha</a>
+  </div>
+
+  <form method="get" class="mt-5 flex flex-wrap gap-3">
+    {% if situacao %}<input type="hidden" name="situacao" value="{{ situacao }}">{% endif %}
+    <div class="relative flex-1 min-w-[220px]">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a7a7a]"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+      <input name="q" value="{{ busca }}" placeholder="Buscar por produto, código ou especificação…" autocomplete="off"
+             class="w-full rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] pl-11 pr-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+    </div>
+    <select name="filial" onchange="this.form.submit()"
+            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+      <option value="">Todas as filiais</option>
+      {% for f in filiais %}<option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
+    </select>
+    <select name="almoxarifado" onchange="this.form.submit()"
+            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+      <option value="">Todos os almoxarifados</option>
+      {% for a in almoxarifados %}<option value="{{ a.pk }}" {% if almoxarifado_id == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}
+    </select>
+    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+  </form>
 </div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-3xl font-semibold text-slate-900 dark:text-white">{{ kpis.itens }}</p>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Itens com saldo</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-3xl font-semibold text-red-600 dark:text-red-400">{{ kpis.abaixo }}</p>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Sem estoque ou abaixo do mínimo</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-3xl font-semibold text-amber-600 dark:text-amber-500">{{ kpis.atencao }}</p>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Em atenção (no ponto de reposição)</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-3xl font-semibold text-slate-900 dark:text-white">R$ {{ kpis.valor|floatformat:2 }}</p>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Valor em estoque (custo médio)</p>
+  </div>
+</div>
+
+<div class="flex flex-wrap gap-2 mb-5">
+  <a href="?{{ qs_situacao }}" class="rounded-full px-4 py-1.5 text-sm font-medium border transition {% if not situacao %}bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white{% else %}bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">Todos</a>
+  {% for chave, rotulo in situacoes %}
+  <a href="?{% if qs_situacao %}{{ qs_situacao }}&{% endif %}situacao={{ chave }}" class="rounded-full px-4 py-1.5 text-sm font-medium border transition {% if situacao == chave %}bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white{% else %}bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">
+    {{ rotulo }}{% for c, n in contagem.items %}{% if c == chave %} <span class="opacity-60">{{ n }}</span>{% endif %}{% endfor %}
+  </a>
+  {% endfor %}
+</div>
+
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+        <tr>
+          <th class="px-6 py-3 font-medium">Produto</th>
+          <th class="px-4 py-3 font-medium">Almoxarifado</th>
+          <th class="px-4 py-3 font-medium">Situação</th>
+          <th class="px-4 py-3 font-medium text-right">Saldo</th>
+          <th class="px-4 py-3 font-medium text-right">Mínimo</th>
+          <th class="px-4 py-3 font-medium text-right">Custo médio</th>
+          <th class="px-6 py-3 font-medium text-right">Valor</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for s in pagina %}
+        <tr class="dark:text-slate-100">
+          <td class="px-6 py-3">
+            <div class="flex items-center gap-3">
+              <div class="h-10 w-10 shrink-0 rounded-lg bg-slate-100 overflow-hidden flex items-center justify-center dark:bg-slate-900/40">
+                {% if s.produto.imagem %}<img src="{{ s.produto.imagem.url }}" alt="" class="h-full w-full object-cover">
+                {% else %}<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor" class="w-5 h-5 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159M6 21h12a2.25 2.25 0 0 0 2.25-2.25V5.25A2.25 2.25 0 0 0 18 3H6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6 21Z"/></svg>{% endif %}
+              </div>
+              <div class="min-w-0">
+                <p class="font-medium truncate">{{ s.produto.nome }}</p>
+                <p class="text-xs text-slate-500 truncate dark:text-slate-400">{% if s.produto.codigo %}{{ s.produto.codigo }} · {% endif %}{{ s.produto.especificacao }}</p>
+              </div>
+            </div>
+          </td>
+          <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ s.almoxarifado.filial.sigla }} — {{ s.almoxarifado.nome }}</td>
+          <td class="px-4 py-3">
+            {% if s.situacao == 'sem_estoque' %}<span class="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 dark:text-red-400"><span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>Sem estoque</span>
+            {% elif s.situacao == 'abaixo' %}<span class="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 dark:text-red-400"><span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>Abaixo do mínimo</span>
+            {% elif s.situacao == 'atencao' %}<span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400"><span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>Em atenção</span>
+            {% else %}<span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>Em dia</span>{% endif %}
+          </td>
+          <td class="px-4 py-3 text-right font-semibold">{{ s.quantidade|floatformat:"-3" }}</td>
+          <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">{% if s.estoque_minimo is not None %}{{ s.estoque_minimo|floatformat:"-3" }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">R$ {{ s.custo_medio|floatformat:2 }}</td>
+          <td class="px-6 py-3 text-right font-medium">R$ {{ s.valor|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="px-6 py-14 text-center">
+          <p class="font-semibold text-slate-900 dark:text-slate-100">Nenhum item encontrado</p>
+          <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Ajuste os filtros ou dê entrada de material por planilha.</p>
+        </td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if pagina.paginator.num_pages > 1 %}
+<div class="mt-5 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
+  <span>{{ total }} registros · página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
+  <div class="flex gap-2">
+    {% if pagina.has_previous %}<a href="?{% if qs_pagina %}{{ qs_pagina }}&{% endif %}pagina={{ pagina.previous_page_number }}" class="rounded-xl border border-slate-200 px-4 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700">← Anterior</a>{% endif %}
+    {% if pagina.has_next %}<a href="?{% if qs_pagina %}{{ qs_pagina }}&{% endif %}pagina={{ pagina.next_page_number }}" class="rounded-xl border border-slate-200 px-4 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700">Próxima →</a>{% endif %}
+  </div>
+</div>
+{% endif %}
 {% endblock %}
