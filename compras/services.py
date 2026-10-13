@@ -100,7 +100,8 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
 
     total = sum((i.pendente * precos[i.pk] for i in itens), Decimal("0")) + valor_frete
     total = total.quantize(CENTAVOS)
-    alcada = Alcada.para_valor(total)
+    filiais = {i.pedido.almoxarifado_destino.filial_id for i in itens}
+    alcada = Alcada.para_valor(total, filiais)
     if alcada is None:
         raise TransicaoInvalida(
             "Nenhuma faixa de alçada cobre este valor — cadastre as faixas de alçada."

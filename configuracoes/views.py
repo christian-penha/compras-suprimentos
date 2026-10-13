@@ -5,6 +5,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from cadastros.models import Fornecedor
 from contas.models import Alcada, AprovadorAlcada, PapelAlcada, Papel, Setor
+from contas.alcadas import (
+    TabelaInvalida, criar_tabela_propria, ler_linhas, salvar_tabela, tabela_ativa, voltar_ao_padrao,
+)
 from contas.permissoes import requer_papel
 from tenancy.models import Empresa, Evento, Filial
 
@@ -147,10 +150,46 @@ def evento_form(request, pk=None):
 
 @requer_papel(Papel.SUPERADMIN)
 def alcada_lista(request):
-    alcadas = Alcada.objects.filter(ativo=True).prefetch_related(
-        "aprovadores__usuario", "aprovadores__filial"
-    )
-    return render(request, "configuracoes/alcada_lista.html", {"alcadas": alcadas})
+    """Tabela de alçadas editável: padrão do grupo ou tabela própria de uma filial."""
+    tenant = request.user.tenant
+    filial_id = request.POST.get("filial") or request.GET.get("filial") or ""
+    filial = Filial.objects.filter(pk=filial_id).first() if filial_id.isdigit() else None
+    linhas_form = None
+
+    if request.method == "POST":
+        acao = request.POST.get("acao")
+        try:
+            if acao == "salvar":
+                linhas_form = list(zip(request.POST.getlist("maximo"), request.POST.getlist("papel")))
+                linhas = ler_linhas(request.POST.getlist("maximo"), request.POST.getlist("papel"))
+                mudou = salvar_tabela(tenant=tenant, filial=filial, linhas=linhas, usuario=request.user)
+                messages.success(
+                    request, "Tabela de alçadas salva." if mudou else "Nenhuma alteração na tabela."
+                )
+            elif acao == "criar_propria" and filial:
+                criar_tabela_propria(tenant=tenant, filial=filial, usuario=request.user)
+                messages.success(request, f"{filial.nome} agora tem tabela própria (cópia da do grupo).")
+            elif acao == "voltar_padrao" and filial:
+                voltar_ao_padrao(tenant=tenant, filial=filial)
+                messages.success(request, f"{filial.nome} voltou a seguir a tabela padrão do grupo.")
+            return redirect(f"{request.path}?filial={filial.pk}" if filial else request.path)
+        except TabelaInvalida as e:
+            messages.error(request, str(e))
+
+    propria = tabela_ativa(tenant, filial) if filial else []
+    usa_padrao = filial is not None and not propria
+    tabela = tabela_ativa(tenant, None) if usa_padrao or filial is None else propria
+    return render(request, "configuracoes/alcada_lista.html", {
+        "filial": filial,
+        "filiais": Filial.objects.filter(ativo=True).order_by("nome"),
+        "tabela": tabela,
+        "usa_padrao": usa_padrao,
+        "linhas_form": linhas_form,
+        "papeis": [(v, r) for v, r in PapelAlcada.choices],
+        "filiais_com_tabela": set(
+            Alcada.objects.filter(ativo=True, filial__isnull=False).values_list("filial_id", flat=True)
+        ),
+    })
 
 
 @requer_papel(Papel.SUPERADMIN)

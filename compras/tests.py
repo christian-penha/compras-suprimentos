@@ -276,3 +276,21 @@ class NumeracaoTest(BaseComprasTest):
         esperado = " + ".join(str(i) for i in sorted([pedido_a.pk, pedido_b.pk]))
         self.assertEqual(cotacao.numero, esperado)
         self.assertEqual(cotacao.pedidos_origem, esperado)
+
+
+class AlcadaPorFilialNaCotacaoTest(BaseComprasTest):
+    def test_tabela_da_filial_muda_a_faixa_da_cotacao(self):
+        from contas.alcadas import salvar_tabela
+
+        _, item = self.pedido_sem_estoque("5")
+        sem_regra_propria = self.cotar(item, "100.00")  # R$ 500 na tabela do grupo
+        self.assertEqual(sem_regra_propria.alcada.papel_aprovador, PapelAlcada.DIRETORIA_UNIDADE)
+        services.cancelar_cotacao(sem_regra_propria, self.comprador)
+
+        salvar_tabela(
+            tenant=self.tenant, filial=self.filial, usuario=self.comprador,
+            linhas=[(Decimal("1000.00"), "AUTOMATICA"), (None, "CEO")],
+        )
+        com_regra_propria = self.cotar(item, "100.00")
+        self.assertEqual(com_regra_propria.alcada.filial, self.filial)
+        self.assertEqual(com_regra_propria.status, StatusCotacao.APROVADA)  # automática até R$ 1.000

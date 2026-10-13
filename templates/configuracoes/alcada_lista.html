@@ -4,35 +4,155 @@
 {% block cabecalho %}
 <div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
   <h1 class="text-2xl font-semibold">Alçadas de aprovação</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Quem aprova cada faixa de valor das cotações de compra. A faixa é calculada sobre o total com frete.</p>
+  <p class="text-sm text-[#9a9a9a] mt-1">Limites de valor e quem aprova cada faixa das cotações de compra, calculados sobre o total com frete.</p>
+
+  <form method="get" class="mt-5 flex flex-wrap items-center gap-3">
+    <label class="text-sm text-[#9a9a9a]" for="escopo">Tabela de</label>
+    <select id="escopo" name="filial" onchange="this.form.submit()"
+            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+      <option value="">Padrão do grupo (todas as filiais)</option>
+      {% for f in filiais %}<option value="{{ f.pk }}" {% if filial and filial.pk == f.pk %}selected{% endif %}>{{ f.nome }}{% if f.pk in filiais_com_tabela %} — tabela própria{% endif %}</option>{% endfor %}
+    </select>
+  </form>
 </div>
 {% endblock %}
 
 {% block conteudo %}
-<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-  {% for a in alcadas %}
-  <article class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col dark:bg-slate-800 dark:border-slate-700">
-    <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
-      R$ {{ a.valor_min|floatformat:2 }}{% if a.valor_max %} até R$ {{ a.valor_max|floatformat:2 }}{% else %} ou mais{% endif %}
-    </p>
-    <h2 class="text-lg font-semibold text-slate-900 mt-1 dark:text-slate-100">{{ a.get_papel_aprovador_display }}</h2>
-
-    <div class="mt-4 flex-1">
-      {% if a.papel_aprovador == 'AUTOMATICA' %}
-      <p class="text-sm text-slate-500 dark:text-slate-400">Aprovada automaticamente — não precisa de aprovador.</p>
-      {% else %}
-      {% for ap in a.aprovadores.all %}
-      <p class="text-sm text-slate-700 dark:text-slate-200">{{ ap.usuario }}{% if ap.filial %} <span class="text-slate-400">· {{ ap.filial.sigla }}</span>{% endif %}</p>
-      {% empty %}
-      <p class="text-xs rounded-lg bg-amber-50 text-amber-800 px-2.5 py-1.5 dark:bg-amber-950 dark:text-amber-300">⚠ Sem aprovador — cotações desta faixa ficam travadas</p>
-      {% endfor %}
-      {% endif %}
-    </div>
-
-    {% if a.papel_aprovador != 'AUTOMATICA' %}
-    <a href="{% url 'config_alcada_editar' a.pk %}" class="mt-5 block text-center rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Definir aprovadores</a>
-    {% endif %}
-  </article>
-  {% endfor %}
+{% if filial and usa_padrao %}
+<div class="mb-6 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-6 py-5 dark:bg-slate-800 dark:border-slate-700">
+  <p class="text-sm text-slate-600 dark:text-slate-300"><strong class="text-slate-900 dark:text-white">{{ filial.nome }}</strong> segue a tabela padrão do grupo (abaixo, somente leitura). Crie uma tabela própria para definir limites diferentes só para esta unidade.</p>
+  <form method="post">{% csrf_token %}
+    <input type="hidden" name="filial" value="{{ filial.pk }}">
+    <button name="acao" value="criar_propria" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-5 py-2.5 transition dark:bg-white dark:text-black">Criar tabela própria</button>
+  </form>
 </div>
+{% endif %}
+
+<form method="post" id="tabela-alcada">
+  {% csrf_token %}
+  {% if filial %}<input type="hidden" name="filial" value="{{ filial.pk }}">{% endif %}
+
+  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+        <tr>
+          <th class="px-6 py-3 font-medium">A partir de</th>
+          <th class="px-4 py-3 font-medium">Até (R$)</th>
+          <th class="px-4 py-3 font-medium">Quem aprova</th>
+          <th class="px-4 py-3 font-medium">Aprovadores</th>
+          <th class="px-4 py-3"></th>
+        </tr>
+      </thead>
+      <tbody id="linhas" class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% if linhas_form %}
+          {% for maximo, papel in linhas_form %}
+          <tr class="linha dark:text-slate-100">
+            <td class="px-6 py-3 minimo text-slate-500 dark:text-slate-400"></td>
+            <td class="px-4 py-3"><input name="maximo" value="{{ maximo }}" inputmode="decimal" placeholder="0,00" class="maximo w-36 rounded-xl border border-slate-200 px-3 py-2 text-right dark:bg-slate-800 dark:border-slate-700"><span class="sem-limite hidden text-slate-400">sem limite</span></td>
+            <td class="px-4 py-3">
+              <select name="papel" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 dark:bg-slate-800 dark:border-slate-700">
+                {% for valor, rotulo in papeis %}<option value="{{ valor }}" {% if papel == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+              </select>
+            </td>
+            <td class="px-4 py-3 text-xs text-slate-400">salve para definir</td>
+            <td class="px-4 py-3 text-right"><button type="button" class="remover text-slate-400 hover:text-red-600" aria-label="Remover faixa">×</button></td>
+          </tr>
+          {% endfor %}
+        {% else %}
+          {% for a in tabela %}
+          <tr class="linha dark:text-slate-100">
+            <td class="px-6 py-3 minimo text-slate-500 dark:text-slate-400">R$ {{ a.valor_min|floatformat:2 }}</td>
+            <td class="px-4 py-3">
+              {% if usa_padrao %}
+                {% if a.valor_max %}R$ {{ a.valor_max|floatformat:2 }}{% else %}<span class="text-slate-400">sem limite</span>{% endif %}
+              {% else %}
+                <input name="maximo" value="{% if a.valor_max %}{{ a.valor_max|floatformat:2 }}{% endif %}" inputmode="decimal" placeholder="0,00" class="maximo w-36 rounded-xl border border-slate-200 px-3 py-2 text-right dark:bg-slate-800 dark:border-slate-700">
+                <span class="sem-limite hidden text-slate-400">sem limite</span>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3">
+              {% if usa_padrao %}{{ a.get_papel_aprovador_display }}{% else %}
+              <select name="papel" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 dark:bg-slate-800 dark:border-slate-700">
+                {% for valor, rotulo in papeis %}<option value="{{ valor }}" {% if a.papel_aprovador == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+              </select>
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 text-sm">
+              {% if a.papel_aprovador == 'AUTOMATICA' %}<span class="text-slate-400">automática</span>
+              {% else %}
+                {% for ap in a.aprovadores.all %}<span class="block">{{ ap.usuario }}{% if ap.filial %} <span class="text-slate-400">· {{ ap.filial.sigla }}</span>{% endif %}</span>
+                {% empty %}<span class="text-amber-700 dark:text-amber-400">⚠ sem aprovador</span>{% endfor %}
+                {% if not usa_padrao or not filial %}<a href="{% url 'config_alcada_editar' a.pk %}" class="text-xs font-medium underline dark:text-slate-200">definir aprovadores</a>{% endif %}
+              {% endif %}
+            </td>
+            <td class="px-4 py-3 text-right">{% if not usa_padrao %}<button type="button" class="remover text-slate-400 hover:text-red-600" aria-label="Remover faixa">×</button>{% endif %}</td>
+          </tr>
+          {% endfor %}
+        {% endif %}
+      </tbody>
+    </table>
+  </section>
+
+  {% if not usa_padrao %}
+  <div class="mt-5 flex flex-wrap items-center gap-3">
+    <button type="button" id="adicionar" class="rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold px-5 py-2.5 transition dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700">+ Adicionar faixa</button>
+    <button name="acao" value="salvar" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Salvar tabela</button>
+    {% if filial %}
+    <button name="acao" value="voltar_padrao" formnovalidate onclick="return confirm('Descartar a tabela própria de {{ filial.nome }} e voltar à padrão do grupo?')" class="ml-auto text-sm text-slate-400 hover:text-red-600">Voltar à tabela do grupo</button>
+    {% endif %}
+  </div>
+  <p class="text-xs text-slate-400 mt-4 max-w-3xl">
+    A última faixa não tem limite e precisa de aprovador. Ao salvar, é criada uma nova versão da tabela; cotações já decididas mantêm a faixa de quando foram aprovadas. Em cotação que junta mais de uma unidade vale a faixa mais restritiva entre as tabelas das unidades envolvidas.
+  </p>
+  {% endif %}
+</form>
+
+<script>
+  (function () {
+    var corpo = document.getElementById('linhas');
+    if (!corpo) return;
+
+    function num(t) {
+      t = String(t || '').trim();
+      if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.');
+      var n = parseFloat(t);
+      return isNaN(n) ? null : n;
+    }
+    function brl(n) { return 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
+
+    function atualizar() {
+      var linhas = corpo.querySelectorAll('tr.linha');
+      var anterior = null;
+      linhas.forEach(function (tr, i) {
+        var ultima = i === linhas.length - 1;
+        var campo = tr.querySelector('.maximo');
+        if (campo) {
+          campo.classList.toggle('hidden', ultima);
+          tr.querySelector('.sem-limite').classList.toggle('hidden', !ultima);
+          if (ultima) campo.value = '';
+        }
+        var minimo = tr.querySelector('.minimo');
+        if (campo) minimo.textContent = anterior === null ? brl(0) : brl(anterior + 0.01);
+        if (campo && !ultima) anterior = num(campo.value);
+      });
+    }
+    corpo.addEventListener('input', atualizar);
+    corpo.addEventListener('click', function (e) {
+      var b = e.target.closest('.remover');
+      if (!b) return;
+      if (corpo.querySelectorAll('tr.linha').length > 1) { b.closest('tr').remove(); atualizar(); }
+    });
+    var adicionar = document.getElementById('adicionar');
+    if (adicionar) adicionar.addEventListener('click', function () {
+      var linhas = corpo.querySelectorAll('tr.linha');
+      var clone = linhas[linhas.length - 1].cloneNode(true);
+      clone.querySelector('.maximo').value = '';
+      var sel = clone.querySelector('select'); if (sel) sel.selectedIndex = 0;
+      clone.children[3].innerHTML = '<span class="text-xs text-slate-400">salve para definir</span>';
+      corpo.insertBefore(clone, linhas[linhas.length - 1]);
+      atualizar();
+    });
+    atualizar();
+  })();
+</script>
 {% endblock %}

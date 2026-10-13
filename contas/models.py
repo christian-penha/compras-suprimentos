@@ -152,7 +152,18 @@ class PapelAlcada(models.TextChoices):
     CEO = "CEO", "CEO"
 
 
-class Alcada(models.Model):
+NIVEL_ALCADA = {"AUTOMATICA": 0, "DIRETORIA_UNIDADE": 1, "CFO": 2, "CEO": 3}
+
+
+class Alcada(TenantModel):
+    """Faixa de valor e quem a aprova. `filial` vazia = tabela padrão do grupo; com filial,
+    é uma faixa da tabela própria dessa unidade. Faixas não são editadas no lugar: salvar a
+    tabela cria uma nova versão e desativa a anterior, para as cotações antigas manterem
+    a faixa com que foram decididas."""
+
+    filial = models.ForeignKey(
+        "tenancy.Filial", on_delete=models.PROTECT, null=True, blank=True, related_name="alcadas"
+    )
     valor_min = models.DecimalField(max_digits=12, decimal_places=2)
     valor_max = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True,
@@ -182,13 +193,27 @@ class Alcada(models.Model):
         return f"R$ {self.valor_min} até {teto} — {self.get_papel_aprovador_display()}"
 
     @classmethod
-    def para_valor(cls, valor):
-        return (
-            cls.objects.filter(ativo=True, valor_min__lte=valor)
-            .filter(models.Q(valor_max__gte=valor) | models.Q(valor_max__isnull=True))
-            .order_by("valor_min")
-            .last()
-        )
+    def para_valor(cls, valor, filiais=()):
+        """Faixa aplicável ao valor. Cada filial usa a tabela própria, se tiver, ou a padrão
+        do grupo. Com várias filiais (cotação que junta unidades) vale a mais restritiva:
+        a que exige o aprovador de nível mais alto."""
+        ativas = cls.objects.filter(ativo=True)
+        padrao = ativas.filter(filial__isnull=True)
+        encontradas = []
+        for filial_id in set(filiais) or {None}:
+            tabela = padrao
+            if filial_id is not None and ativas.filter(filial_id=filial_id).exists():
+                tabela = ativas.filter(filial_id=filial_id)
+            faixa = (
+                tabela.filter(valor_min__lte=valor)
+                .filter(models.Q(valor_max__gte=valor) | models.Q(valor_max__isnull=True))
+                .order_by("valor_min").last()
+            )
+            if faixa is not None:
+                encontradas.append(faixa)
+        if not encontradas:
+            return None
+        return max(encontradas, key=lambda f: (NIVEL_ALCADA[f.papel_aprovador], f.valor_min))
 
 
 class AprovadorAlcada(models.Model):
