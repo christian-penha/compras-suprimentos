@@ -15,13 +15,14 @@
   <a href="{% url 'ordem_detalhe' o.pk %}" class="block bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg hover:-translate-y-0.5 transition dark:bg-slate-800 dark:border-slate-700">
     <div class="flex items-start justify-between gap-3">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">OC #{{ o.pk }} · cotação #{{ o.cotacao_id }}</p>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">OC #{{ o.numero }}</p>
         <h2 class="text-lg font-semibold text-slate-900 mt-0.5 dark:text-slate-100">{{ o.cotacao.fornecedor }}</h2>
       </div>
       <span class="text-xs font-semibold px-3 py-1.5 rounded-full {{ o.status|badge_status }}">{{ o.get_status_display }}</span>
     </div>
     <p class="mt-4 text-2xl font-semibold text-slate-900 dark:text-white">R$ {{ o.cotacao.valor_total|floatformat:2 }}</p>
-    <p class="mt-2 text-xs text-slate-400">Emitida em {{ o.criada_em|date:"d/m/Y" }}</p>
+    <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Cotação #{{ o.numero }} · Pedido(s) #{{ o.cotacao.pedidos_origem }}</p>
+    <p class="mt-1 text-xs text-slate-400">Emitida em {{ o.criada_em|date:"d/m/Y" }}</p>
   </a>
   {% empty %}
   <div class="col-span-full text-center py-16">

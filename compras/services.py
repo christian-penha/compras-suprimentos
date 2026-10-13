@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from django.core.files.base import ContentFile
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from contas.models import Alcada, AprovadorAlcada, PapelAlcada, Usuario
@@ -68,6 +69,15 @@ def itens_para_cotar():
     )
 
 
+def proximo_numero_cotacao(tenant, pedido_ids):
+    """Número herdado do(s) pedido(s): '9', '9.2' (2ª cotação do mesmo pedido), '9 + 11'."""
+    base = " + ".join(str(p) for p in sorted(set(pedido_ids)))
+    existentes = Cotacao.todos_os_tenants.filter(tenant=tenant).filter(
+        Q(numero=base) | Q(numero__startswith=base + ".")
+    ).count()
+    return base if existentes == 0 else f"{base}.{existentes + 1}"
+
+
 @transaction.atomic
 def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), observacao=""):
     """`precos` é {item_pedido_id: valor_unitario}. Criar já envia: a faixa de alçada é
@@ -99,6 +109,7 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
 
     cotacao = Cotacao.objects.create(
         tenant=comprador.tenant, fornecedor=fornecedor, comprador=comprador,
+        numero=proximo_numero_cotacao(comprador.tenant, {i.pedido_id for i in itens}),
         valor_frete=valor_frete, valor_total=total, alcada=alcada, observacao=observacao,
         status=StatusCotacao.APROVADA if automatica else StatusCotacao.AGUARDANDO_ALCADA,
         decidida_em=timezone.now() if automatica else None,
@@ -115,7 +126,7 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
     )
     _registrar_nos_pedidos(
         {i.pedido for i in itens}, comprador,
-        f"Cotação #{cotacao.pk} com {fornecedor}: R$ {total} — {situacao}.",
+        f"Cotação #{cotacao.numero} com {fornecedor}: R$ {total} — {situacao}.",
     )
     return cotacao
 
@@ -160,9 +171,9 @@ def decidir_cotacao(cotacao, usuario, aprovar, motivo=""):
 
     pedidos = {i.item_pedido.pedido for i in cotacao.itens.select_related("item_pedido__pedido")}
     if aprovar:
-        texto = f"Cotação #{cotacao.pk} aprovada pela alçada."
+        texto = f"Cotação #{cotacao.numero} aprovada pela alçada."
     else:
-        texto = f"Cotação #{cotacao.pk} recusada pela alçada: {cotacao.motivo_recusa}. Item volta à fila de compras."
+        texto = f"Cotação #{cotacao.numero} recusada pela alçada: {cotacao.motivo_recusa}. Item volta à fila de compras."
     _registrar_nos_pedidos(pedidos, usuario, texto)
     return cotacao
 
@@ -175,7 +186,7 @@ def cancelar_cotacao(cotacao, usuario):
     cotacao.status = StatusCotacao.CANCELADA
     cotacao.save(update_fields=["status"])
     pedidos = {i.item_pedido.pedido for i in cotacao.itens.select_related("item_pedido__pedido")}
-    _registrar_nos_pedidos(pedidos, usuario, f"Cotação #{cotacao.pk} cancelada. Item volta à fila de compras.")
+    _registrar_nos_pedidos(pedidos, usuario, f"Cotação #{cotacao.numero} cancelada. Item volta à fila de compras.")
     return cotacao
 
 
@@ -190,7 +201,7 @@ def gerar_ordem_compra(cotacao, usuario):
         raise TransicaoInvalida("Esta cotação já tem ordem de compra.")
     ordem = OrdemCompra.objects.create(tenant=cotacao.tenant, cotacao=cotacao, criada_por=usuario)
     pedidos = {i.item_pedido.pedido for i in cotacao.itens.select_related("item_pedido__pedido")}
-    _registrar_nos_pedidos(pedidos, usuario, f"Ordem de compra #{ordem.pk} emitida para {cotacao.fornecedor}.")
+    _registrar_nos_pedidos(pedidos, usuario, f"Ordem de compra #{ordem.numero} emitida para {cotacao.fornecedor}.")
     return ordem
 
 
@@ -307,8 +318,8 @@ def confirmar_recebimento(ordem, usuario, conferencias, nota=None, observacao=""
         produto = item.item_pedido.produto
         registrar_entrada(
             produto=produto, destino=central, quantidade=qtd, responsavel=usuario,
-            valor_unitario=custo, arquivo_origem=f"OC #{ordem.pk}",
-            observacao=f"Recebimento da OC #{ordem.pk}" + (f" — NF {nota.numero}" if nota and nota.numero else ""),
+            valor_unitario=custo, arquivo_origem=f"OC #{ordem.numero}",
+            observacao=f"Recebimento da OC #{ordem.numero}" + (f" — NF {nota.numero}" if nota and nota.numero else ""),
         )
         item.quantidade_recebida += qtd
         item.save(update_fields=["quantidade_recebida"])
@@ -336,6 +347,6 @@ def confirmar_recebimento(ordem, usuario, conferencias, nota=None, observacao=""
 
     for pedido in pedidos.values():
         liberar_itens_comprados(
-            pedido, usuario, f"Recebimento da OC #{ordem.pk} confirmado — material entrou no estoque."
+            pedido, usuario, f"Recebimento da OC #{ordem.numero} confirmado — material entrou no estoque."
         )
     return recebimento

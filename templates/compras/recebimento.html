@@ -1,9 +1,9 @@
 {% extends "base.html" %}
-{% block titulo %}Conferência — OC #{{ ordem.pk }}{% endblock %}
+{% block titulo %}Conferência — OC #{{ ordem.numero }}{% endblock %}
 
 {% block cabecalho %}
 <div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'ordem_detalhe' ordem.pk %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Ordem de compra #{{ ordem.pk }}</a>
+  <a href="{% url 'ordem_detalhe' ordem.pk %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Ordem de compra #{{ ordem.numero }}</a>
   <h1 class="text-2xl font-semibold mt-2">Conferência do recebimento</h1>
   <p class="text-sm text-[#9a9a9a] mt-1">
     {{ ordem.cotacao.fornecedor }}{% if nota %} · NF {{ nota.numero }} · R$ {{ nota.valor_total|floatformat:2 }}{% endif %}.

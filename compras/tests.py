@@ -246,3 +246,33 @@ class AcessoACotacaoTest(BaseComprasTest):
         self.client.force_login(self.estranho)
         resposta = self.client.get(reverse("cotacao_detalhe", args=[cotacao.pk]))
         self.assertEqual(resposta.status_code, 403)
+
+
+class NumeracaoTest(BaseComprasTest):
+    """Cotação e OC herdam o número do pedido, para a cadeia ser reconhecível."""
+
+    def test_cotacao_e_ordem_tem_o_numero_do_pedido(self):
+        pedido, item = self.pedido_sem_estoque("5")
+        cotacao = self.cotar(item, "20.00")
+        ordem = services.gerar_ordem_compra(cotacao, self.comprador)
+        self.assertEqual(cotacao.numero, str(pedido.pk))
+        self.assertEqual(ordem.numero, str(pedido.pk))
+
+    def test_segunda_cotacao_do_mesmo_pedido_ganha_sufixo(self):
+        pedido, item = self.pedido_sem_estoque("5")
+        primeira = self.cotar(item, "100.00")  # alçada: aguarda
+        services.cancelar_cotacao(primeira, self.comprador)
+        segunda = self.cotar(item, "90.00")
+        self.assertEqual(primeira.numero, str(pedido.pk))
+        self.assertEqual(segunda.numero, f"{pedido.pk}.2")
+
+    def test_cotacao_com_varios_pedidos_junta_os_numeros(self):
+        pedido_a, item_a = self.pedido_sem_estoque("5")
+        pedido_b, item_b = self.pedido_sem_estoque("3")
+        cotacao = services.criar_cotacao(
+            comprador=self.comprador, fornecedor=self.fornecedor,
+            precos={item_a.pk: Decimal("10.00"), item_b.pk: Decimal("10.00")},
+        )
+        esperado = " + ".join(str(i) for i in sorted([pedido_a.pk, pedido_b.pk]))
+        self.assertEqual(cotacao.numero, esperado)
+        self.assertEqual(cotacao.pedidos_origem, esperado)

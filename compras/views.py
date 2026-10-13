@@ -102,7 +102,7 @@ def cotacao_nova(request):
             except ERROS_DE_NEGOCIO as e:
                 erro = str(e)
             else:
-                messages.success(request, f"Cotação #{cotacao.pk} registrada.")
+                messages.success(request, f"Cotação #{cotacao.numero} registrada.")
                 return redirect("cotacao_detalhe", pk=cotacao.pk)
         messages.error(request, erro)
         contexto["fornecedor_id"] = request.POST.get("fornecedor", "")
@@ -150,16 +150,16 @@ def cotacao_detalhe(request, pk):
         try:
             if acao == "aprovar":
                 decidir_cotacao(cotacao, usuario, True)
-                messages.success(request, f"Cotação #{cotacao.pk} aprovada.")
+                messages.success(request, f"Cotação #{cotacao.numero} aprovada.")
             elif acao == "recusar":
                 decidir_cotacao(cotacao, usuario, False, request.POST.get("motivo", ""))
-                messages.success(request, f"Cotação #{cotacao.pk} recusada — itens voltaram à fila.")
+                messages.success(request, f"Cotação #{cotacao.numero} recusada — itens voltaram à fila.")
             elif acao == "cancelar" and e_comprador:
                 cancelar_cotacao(cotacao, usuario)
-                messages.success(request, f"Cotação #{cotacao.pk} cancelada.")
+                messages.success(request, f"Cotação #{cotacao.numero} cancelada.")
             elif acao == "gerar_ordem" and e_comprador:
                 ordem = gerar_ordem_compra(cotacao, usuario)
-                messages.success(request, f"Ordem de compra #{ordem.pk} gerada.")
+                messages.success(request, f"Ordem de compra #{ordem.numero} gerada.")
                 return redirect("ordem_detalhe", pk=ordem.pk)
             else:
                 raise SemPermissao("Ação não permitida.")
@@ -195,7 +195,9 @@ def ordem_lista(request):
     if not (_e_papel(request.user, Modulo.COMPRAS) or _e_papel(request.user, Modulo.ESTOQUE)):
         raise PermissionDenied
     status = request.GET.get("status", "")
-    ordens = OrdemCompra.objects.select_related("cotacao__fornecedor")
+    ordens = OrdemCompra.objects.select_related("cotacao__fornecedor").prefetch_related(
+        "cotacao__itens__item_pedido"
+    )
     if status:
         ordens = ordens.filter(status=status)
     return render(request, "compras/ordem_lista.html", {"ordens": ordens, "status": status})
@@ -258,7 +260,7 @@ def recebimento(request, pk, nota_pk=None):
         except ERROS_DE_NEGOCIO as e:
             messages.error(request, str(e))
             return redirect(request.path)
-        messages.success(request, f"Recebimento da OC #{ordem.pk} confirmado — material entrou no estoque.")
+        messages.success(request, f"Recebimento da OC #{ordem.numero} confirmado — material entrou no estoque.")
         return redirect("ordem_detalhe", pk=ordem.pk)
 
     return render(request, "compras/recebimento.html", {

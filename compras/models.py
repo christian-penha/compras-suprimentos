@@ -34,6 +34,10 @@ class Cotacao(TenantModel):
     status = models.CharField(
         max_length=20, choices=StatusCotacao.choices, default=StatusCotacao.AGUARDANDO_ALCADA
     )
+    numero = models.CharField(
+        max_length=60, blank=True,
+        help_text="Herdado do(s) pedido(s) de origem: 9, 9.2 (2ª cotação do pedido 9), 9 + 11",
+    )
     observacao = models.CharField(max_length=300, blank=True)
     decidida_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
@@ -46,9 +50,20 @@ class Cotacao(TenantModel):
         verbose_name = "cotação"
         verbose_name_plural = "cotações"
         ordering = ["-criada_em"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["tenant", "numero"], condition=~models.Q(numero=""),
+                name="numero_de_cotacao_unico_por_tenant",
+            ),
+        ]
 
     def __str__(self):
-        return f"Cotação #{self.pk} — {self.fornecedor}"
+        return f"Cotação #{self.numero or self.pk} — {self.fornecedor}"
+
+    @property
+    def pedidos_origem(self):
+        ids = sorted({i.item_pedido.pedido_id for i in self.itens.all()})
+        return " + ".join(str(i) for i in ids)
 
     @property
     def valor_itens(self):
@@ -112,7 +127,12 @@ class OrdemCompra(TenantModel):
         ordering = ["-criada_em"]
 
     def __str__(self):
-        return f"OC #{self.pk}"
+        return f"OC #{self.numero}"
+
+    @property
+    def numero(self):
+        """A OC tem o mesmo número da cotação (e, portanto, do pedido de origem)."""
+        return self.cotacao.numero or self.pk
 
     @property
     def aberta(self):

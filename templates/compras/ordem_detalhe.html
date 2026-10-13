@@ -1,14 +1,14 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block titulo %}Ordem de compra #{{ ordem.pk }}{% endblock %}
+{% block titulo %}Ordem de compra #{{ ordem.numero }}{% endblock %}
 
 {% block cabecalho %}
 <div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
   <a href="{% url 'ordem_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Ordens de compra</a>
   <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h1 class="text-2xl font-semibold">Ordem de compra #{{ ordem.pk }} — {{ cotacao.fornecedor }}</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">Origem: <a href="{% url 'cotacao_detalhe' cotacao.pk %}" class="underline">cotação #{{ cotacao.pk }}</a> · R$ {{ cotacao.valor_total|floatformat:2 }}</p>
+      <h1 class="text-2xl font-semibold">Ordem de compra #{{ ordem.numero }} — {{ cotacao.fornecedor }}</h1>
+      <p class="text-sm text-[#9a9a9a] mt-1">Origem: <a href="{% url 'cotacao_detalhe' cotacao.pk %}" class="underline">cotação #{{ cotacao.numero }}</a> · pedido(s) #{{ cotacao.pedidos_origem }} · R$ {{ cotacao.valor_total|floatformat:2 }}</p>
     </div>
     <span class="text-sm font-semibold px-4 py-2 rounded-full {{ ordem.status|badge_status }}">{{ ordem.get_status_display }}</span>
   </div>

@@ -1,13 +1,13 @@
 {% extends "base.html" %}
 {% load ui %}
-{% block titulo %}Cotação #{{ cotacao.pk }}{% endblock %}
+{% block titulo %}Cotação #{{ cotacao.numero }}{% endblock %}
 
 {% block cabecalho %}
 <div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
   <a href="{% url 'cotacao_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Cotações</a>
   <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h1 class="text-2xl font-semibold">Cotação #{{ cotacao.pk }} — {{ cotacao.fornecedor }}</h1>
+      <h1 class="text-2xl font-semibold">Cotação #{{ cotacao.numero }} — {{ cotacao.fornecedor }}</h1>
       <p class="text-sm text-[#9a9a9a] mt-1">Registrada por {{ cotacao.comprador }} em {{ cotacao.criada_em|date:"d/m/Y H:i" }}</p>
     </div>
     <span class="text-sm font-semibold px-4 py-2 rounded-full {{ cotacao.status|badge_status }}">{{ cotacao.get_status_display }}</span>
@@ -80,7 +80,7 @@
       </form>
       {% endif %}
       {% if ordem %}
-      <a href="{% url 'ordem_detalhe' ordem.pk %}" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Abrir ordem de compra #{{ ordem.pk }}</a>
+      <a href="{% url 'ordem_detalhe' ordem.pk %}" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Abrir ordem de compra #{{ ordem.numero }}</a>
       {% elif cotacao.ativa %}
       <form method="post">{% csrf_token %}
         <button name="acao" value="cancelar" class="rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold px-6 py-3 transition dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">Cancelar cotação</button>
