@@ -11,6 +11,7 @@ class StatusPedido(models.TextChoices):
     APROVADO_UNIDADE = "APROVADO_UNIDADE", "Aprovado — aguardando suprimentos"
     RECUSADO = "RECUSADO", "Recusado"
     EM_SEPARACAO = "EM_SEPARACAO", "Em separação"
+    ENTREGA_PARCIAL = "ENTREGA_PARCIAL", "Entregue parcialmente"
     ENTREGUE = "ENTREGUE", "Entregue"
     CONCLUIDO = "CONCLUIDO", "Concluído"
 
@@ -95,6 +96,10 @@ class ItemPedido(models.Model):
 
     def __str__(self):
         return f"{self.quantidade} × {self.produto}"
+
+    @property
+    def pendente(self):
+        return self.quantidade - self.quantidade_entregue
 
 
 class EventoPedido(models.Model):

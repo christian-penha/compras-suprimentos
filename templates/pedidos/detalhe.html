@@ -73,6 +73,7 @@
           <tr>
             <th class="px-6 py-3 font-medium">Produto</th>
             <th class="px-6 py-3 font-medium text-right">Qtd</th>
+            <th class="px-6 py-3 font-medium text-right">Entregue</th>
             <th class="px-6 py-3 font-medium">Atendimento</th>
           </tr>
         </thead>
@@ -81,6 +82,9 @@
           <tr class="dark:text-slate-100">
             <td class="px-6 py-3.5">{{ item.produto }}</td>
             <td class="px-6 py-3.5 text-right font-medium">{{ item.quantidade|floatformat:"-3" }}</td>
+            <td class="px-6 py-3.5 text-right {% if item.quantidade_entregue and item.pendente > 0 %}text-sky-700 dark:text-sky-400{% endif %}">
+              {% if item.quantidade_entregue %}{{ item.quantidade_entregue|floatformat:"-3" }}{% else %}<span class="text-slate-300">—</span>{% endif %}
+            </td>
             <td class="px-6 py-3.5">
               {% if item.origem_atendimento == 'ESTOQUE' %}
                 <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>Estoque · 72h</span>
@@ -117,10 +121,48 @@
       <form method="post">{% csrf_token %}
         <button name="acao" value="separar" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Iniciar separação</button>
       </form>
-      {% elif pedido.status == 'EM_SEPARACAO' %}
-      <form method="post">{% csrf_token %}
-        <button name="acao" value="entregar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 transition">Registrar entrega (baixa no estoque)</button>
-      </form>
+      {% elif pedido.status == 'EM_SEPARACAO' or pedido.status == 'ENTREGA_PARCIAL' %}
+      <section class="bg-white rounded-2xl border-2 border-slate-900 p-6 dark:bg-slate-800 dark:border-white">
+        <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Registrar entrega</h2>
+        <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Informe quanto de cada item sai agora. Pode entregar em partes: o pedido continua na fila até zerar o pendente.</p>
+        {% if itens_entrega %}
+        <form method="post">
+          {% csrf_token %}
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-slate-500 text-left dark:text-slate-400">
+                <tr>
+                  <th class="py-2 pr-4 font-medium">Produto</th>
+                  <th class="py-2 px-3 font-medium text-right">Pendente</th>
+                  <th class="py-2 px-3 font-medium text-right">Estoque central</th>
+                  <th class="py-2 pl-3 font-medium text-right">Entregar agora</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                {% for linha in itens_entrega %}
+                <tr class="dark:text-slate-100">
+                  <td class="py-3 pr-4">{{ linha.item.produto }}</td>
+                  <td class="py-3 px-3 text-right font-medium">{{ linha.item.pendente|floatformat:"-3" }}</td>
+                  <td class="py-3 px-3 text-right {% if linha.saldo < linha.item.pendente %}text-amber-700 dark:text-amber-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ linha.saldo|floatformat:"-3" }}</td>
+                  <td class="py-3 pl-3 text-right">
+                    <input name="qtd_{{ linha.item.pk }}" inputmode="decimal" aria-label="Quantidade a entregar de {{ linha.item.produto.nome }}"
+                           value="{% if linha.saldo >= linha.item.pendente %}{{ linha.item.pendente|floatformat:'-3' }}{% else %}{{ linha.saldo|floatformat:'-3' }}{% endif %}"
+                           class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <button name="acao" value="entregar" class="mt-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 transition">Registrar entrega (baixa no estoque)</button>
+        </form>
+        {% else %}
+        <p class="text-sm text-slate-500 dark:text-slate-400">Não há itens de estoque pendentes neste pedido.</p>
+        <form method="post" class="mt-4">{% csrf_token %}
+          <button name="acao" value="entregar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 transition">Concluir entrega</button>
+        </form>
+        {% endif %}
+      </section>
       {% endif %}
     {% endif %}
 

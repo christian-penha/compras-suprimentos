@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db import transaction
 
 from contas.models import ModoAprovacaoSetor, RegraAprovacaoEmpresa
@@ -25,7 +27,8 @@ TRANSICOES = {
     StatusPedido.RASCUNHO: {StatusPedido.ENVIADO},
     StatusPedido.ENVIADO: {StatusPedido.APROVADO_UNIDADE, StatusPedido.RECUSADO},
     StatusPedido.APROVADO_UNIDADE: {StatusPedido.EM_SEPARACAO},
-    StatusPedido.EM_SEPARACAO: {StatusPedido.ENTREGUE},
+    StatusPedido.EM_SEPARACAO: {StatusPedido.ENTREGUE, StatusPedido.ENTREGA_PARCIAL},
+    StatusPedido.ENTREGA_PARCIAL: {StatusPedido.ENTREGUE, StatusPedido.ENTREGA_PARCIAL},
     StatusPedido.ENTREGUE: {StatusPedido.CONCLUIDO},
 }
 
@@ -173,17 +176,49 @@ def classificar_itens(pedido):
 
 
 @transaction.atomic
-def entregar(pedido, usuario):
+def entregar(pedido, usuario, quantidades=None):
+    """Entrega itens do estoque central ao destino do pedido.
+
+    `quantidades` é {item_id: Decimal} para entrega parcial; sem ele entrega todo o
+    saldo pendente. O pedido vira ENTREGUE quando nenhum item de estoque tem pendência,
+    senão ENTREGA_PARCIAL (e pode receber novas entregas).
+    """
+    if pedido.status not in (StatusPedido.EM_SEPARACAO, StatusPedido.ENTREGA_PARCIAL):
+        raise TransicaoInvalida("Só é possível entregar pedidos em separação.")
+
     central = Almoxarifado.objects.get(central=True)
-    itens_estoque = pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE)
-    for item in itens_estoque.select_related("produto"):
+    itens = list(
+        pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE)
+        .select_related("produto").select_for_update(of=("self",))
+    )
+    a_entregar = []
+    for item in itens:
+        qtd = item.pendente if quantidades is None else quantidades.get(item.pk, Decimal("0"))
+        if qtd < 0 or qtd > item.pendente:
+            raise TransicaoInvalida(
+                f"{item.produto}: a quantidade a entregar deve estar entre 0 e {item.pendente:f}."
+            )
+        if qtd > 0:
+            a_entregar.append((item, qtd))
+    if quantidades is not None and not a_entregar:
+        raise TransicaoInvalida("Informe a quantidade de pelo menos um item para entregar.")
+
+    for item, qtd in a_entregar:
         transferir(
             produto=item.produto, origem=central, destino=pedido.almoxarifado_destino,
-            quantidade=item.quantidade, responsavel=usuario, pedido=pedido,
+            quantidade=qtd, responsavel=usuario, pedido=pedido,
         )
-        item.quantidade_entregue = item.quantidade
+        item.quantidade_entregue += qtd
         item.save(update_fields=["quantidade_entregue"])
-    return transicionar(pedido, StatusPedido.ENTREGUE, usuario)
+
+    completo = all(item.pendente == 0 for item in itens)
+    resumo = "; ".join(f"{qtd:f} × {item.produto.nome}" for item, qtd in a_entregar)[:480]
+    return transicionar(
+        pedido,
+        StatusPedido.ENTREGUE if completo else StatusPedido.ENTREGA_PARCIAL,
+        usuario,
+        f"Entregue: {resumo}" if resumo else "",
+    )
 
 
 def saldo_central(produto):

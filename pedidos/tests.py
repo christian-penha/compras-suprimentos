@@ -376,3 +376,62 @@ class RelatorioEventosTest(BaseFluxoTest):
         self.assertEqual(linha["custo_estoque"], Decimal("100.00"))  # 10 un × R$ 10,00
         self.assertEqual(linha["pedidos"], 1)
         self.assertEqual(resposta.context["total_estoque"], Decimal("100.00"))
+
+
+class EntregaParcialTest(BaseFluxoTest):
+    def pedido_em_separacao(self, quantidade="10"):
+        pedido = self.novo_pedido(quantidade)
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        aprovar_como_lider(pedido, self.aprovador)
+        transicionar(pedido, StatusPedido.EM_SEPARACAO, self.suprimentos)
+        return pedido
+
+    def saldo(self, almoxarifado):
+        return SaldoEstoque.objects.get(produto=self.produto, almoxarifado=almoxarifado).quantidade
+
+    def test_entrega_parcial_e_depois_o_restante(self):
+        pedido = self.pedido_em_separacao("10")
+        item = pedido.itens.get()
+
+        entregar(pedido, self.suprimentos, {item.pk: Decimal("4")})
+        item.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.ENTREGA_PARCIAL)
+        self.assertEqual(item.quantidade_entregue, Decimal("4"))
+        self.assertEqual(self.saldo(self.destino), Decimal("4"))
+        self.assertEqual(self.saldo(self.central), Decimal("46"))
+
+        entregar(pedido, self.suprimentos)  # sem quantidades: entrega todo o pendente
+        item.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.ENTREGUE)
+        self.assertEqual(item.quantidade_entregue, Decimal("10"))
+        self.assertEqual(self.saldo(self.central), Decimal("40"))
+
+    def test_quantidade_acima_do_pendente_rejeitada(self):
+        pedido = self.pedido_em_separacao("10")
+        item = pedido.itens.get()
+        with self.assertRaises(TransicaoInvalida):
+            entregar(pedido, self.suprimentos, {item.pk: Decimal("11")})
+        self.assertEqual(self.saldo(self.central), Decimal("50"))
+
+    def test_entrega_sem_nenhuma_quantidade_rejeitada(self):
+        pedido = self.pedido_em_separacao("10")
+        item = pedido.itens.get()
+        with self.assertRaises(TransicaoInvalida):
+            entregar(pedido, self.suprimentos, {item.pk: Decimal("0")})
+
+    def test_estoque_insuficiente_nao_deixa_entrega_pela_metade(self):
+        pedido = self.pedido_em_separacao("10")
+        item = pedido.itens.get()
+        registrar_saida(  # o estoque central cai para 3 depois da aprovação
+            produto=self.produto, origem=self.central, quantidade=Decimal("47"),
+            responsavel=self.suprimentos,
+        )
+        with self.assertRaises(EstoqueInsuficiente):
+            entregar(pedido, self.suprimentos, {item.pk: Decimal("5")})
+        item.refresh_from_db()
+        self.assertEqual(item.quantidade_entregue, Decimal("0"))
+        self.assertEqual(pedido.status, StatusPedido.EM_SEPARACAO)
+
+    def test_pedido_parcial_continua_na_fila_de_suprimentos(self):
+        from .views import FILA_SUPRIMENTOS
+        self.assertIn(StatusPedido.ENTREGA_PARCIAL, FILA_SUPRIMENTOS)

@@ -1,4 +1,4 @@
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -10,6 +10,7 @@ from cadastros.models import Categoria, Produto
 from contas.models import Papel
 from contas.permissoes import requer_papel
 from estoque.models import Movimentacao, SaldoEstoque, TipoMovimentacao
+from estoque.services import EstoqueInsuficiente
 from tenancy.models import Evento, Filial
 
 from . import cart
@@ -24,6 +25,11 @@ from .services import (
     saldo_central,
     transicionar,
 )
+
+
+FILA_SUPRIMENTOS = [
+    StatusPedido.APROVADO_UNIDADE, StatusPedido.EM_SEPARACAO, StatusPedido.ENTREGA_PARCIAL,
+]
 
 
 @login_required
@@ -44,7 +50,7 @@ def painel(request):
         contexto["qtd_aprovacoes"] = pedidos_para_aprovar.count()
     if usuario.tem_papel(Papel.ADMINISTRADOR) or usuario.is_superuser:
         contexto["qtd_fila"] = Pedido.objects.filter(
-            status__in=[StatusPedido.APROVADO_UNIDADE, StatusPedido.EM_SEPARACAO], ativo=True
+            status__in=FILA_SUPRIMENTOS, ativo=True
         ).count()
     return render(request, "painel.html", contexto)
 
@@ -200,12 +206,22 @@ def pedido_detalhe(request, pk):
                 transicionar(pedido, StatusPedido.EM_SEPARACAO, usuario)
                 messages.success(request, f"Pedido #{pedido.pk} em separação.")
             elif acao == "entregar":
-                entregar(pedido, usuario)
-                messages.success(request, f"Pedido #{pedido.pk} entregue — baixa registrada.")
+                quantidades = {}
+                for item in pedido.itens.all():
+                    bruto = request.POST.get(f"qtd_{item.pk}", "").strip().replace(",", ".")
+                    try:
+                        quantidades[item.pk] = Decimal(bruto) if bruto else Decimal("0")
+                    except InvalidOperation:
+                        raise TransicaoInvalida(f"Quantidade inválida para {item.produto}.")
+                entregar(pedido, usuario, quantidades)
+                if pedido.status == StatusPedido.ENTREGUE:
+                    messages.success(request, f"Pedido #{pedido.pk} entregue por completo — baixa registrada.")
+                else:
+                    messages.success(request, f"Entrega parcial registrada no pedido #{pedido.pk}.")
             elif acao == "concluir":
                 transicionar(pedido, StatusPedido.CONCLUIDO, usuario)
                 messages.success(request, "Recebimento confirmado. Pedido concluído.")
-        except (TransicaoInvalida, SemPermissao) as e:
+        except (TransicaoInvalida, SemPermissao, EstoqueInsuficiente) as e:
             messages.error(request, str(e))
         return redirect("pedido_detalhe", pk=pedido.pk)
 
@@ -214,6 +230,12 @@ def pedido_detalhe(request, pk):
         {
             "pedido": pedido,
             "itens": pedido.itens.select_related("produto"),
+            "itens_entrega": [
+                {"item": i, "saldo": saldo_central(i.produto)}
+                for i in pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE)
+                .select_related("produto")
+                if i.pendente > 0
+            ],
             "eventos": pedido.eventos.select_related("usuario"),
             "pode_aprovar": pode_aprovar(usuario, pedido),
             "e_gestor": e_gestor,
@@ -236,7 +258,7 @@ def aprovacoes(request):
 @requer_papel(Papel.ADMINISTRADOR)
 def fila_suprimentos(request):
     pedidos = Pedido.objects.filter(
-        status__in=[StatusPedido.APROVADO_UNIDADE, StatusPedido.EM_SEPARACAO], ativo=True
+        status__in=FILA_SUPRIMENTOS, ativo=True
     ).select_related("requisitante", "almoxarifado_destino__filial")
     return render(request, "estoque/fila.html", {"pedidos": pedidos})
 
