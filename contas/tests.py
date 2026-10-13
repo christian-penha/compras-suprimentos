@@ -119,3 +119,35 @@ class AlcadasEditaveisTest(TenantTestCase):
         self.salvar([(Decimal("1000.00"), "AUTOMATICA"), (None, "CEO")], filial=self.cp)
         voltar_ao_padrao(tenant=self.tenant, filial=self.cp)
         self.assertEqual(Alcada.para_valor(Decimal("500"), [self.cp.pk]).papel_aprovador, "DIRETORIA_UNIDADE")
+
+
+class TelaDeAlcadasTest(TenantTestCase):
+    def setUp(self):
+        super().setUp()
+        self.admin = Usuario.objects.create_superuser("root", tenant=self.tenant, password=None)
+        self.client.force_login(self.admin)
+
+    def test_tela_abre_com_os_cartoes_das_faixas(self):
+        resposta = self.client.get("/configuracoes/alcadas/")
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "Aprovação automática")
+        self.assertContains(resposta, 'name="maximo"')
+
+    def test_salvar_pela_tela_cria_nova_versao(self):
+        resposta = self.client.post("/configuracoes/alcadas/", {
+            "acao": "salvar",
+            "maximo": ["800,00", ""],
+            "papel": ["AUTOMATICA", "CFO"],
+        })
+        self.assertEqual(resposta.status_code, 302)
+        ativas = Alcada.objects.filter(ativo=True, filial__isnull=True).order_by("valor_min")
+        self.assertEqual([(a.valor_max, a.papel_aprovador) for a in ativas],
+                         [(Decimal("800.00"), "AUTOMATICA"), (None, "CFO")])
+
+    def test_tabela_invalida_volta_com_erro_e_nao_grava(self):
+        antes = Alcada.objects.filter(ativo=True).count()
+        resposta = self.client.post("/configuracoes/alcadas/", {
+            "acao": "salvar", "maximo": ["500,00", ""], "papel": ["DIRETORIA_UNIDADE", "AUTOMATICA"],
+        })
+        self.assertEqual(resposta.status_code, 200)  # reexibe a tela com a mensagem
+        self.assertEqual(Alcada.objects.filter(ativo=True).count(), antes)
