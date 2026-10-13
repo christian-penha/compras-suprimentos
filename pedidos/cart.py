@@ -9,35 +9,35 @@ def _carrinho(session):
     return session.setdefault(SESSAO, {})
 
 
-def adicionar(session, codigo, quantidade):
+def adicionar(session, produto_id, quantidade):
     try:
         qtd = Decimal(str(quantidade).replace(",", "."))
     except (InvalidOperation, AttributeError):
         return False
-    if qtd <= 0:
+    if qtd <= 0 or not produto_id:
         return False
     carrinho = _carrinho(session)
-    atual = Decimal(carrinho.get(codigo, "0"))
-    carrinho[codigo] = str(atual + qtd)
+    atual = Decimal(carrinho.get(produto_id, "0"))
+    carrinho[produto_id] = str(atual + qtd)
     session.modified = True
     return True
 
 
-def definir(session, codigo, quantidade):
+def definir(session, produto_id, quantidade):
     carrinho = _carrinho(session)
     try:
         qtd = Decimal(str(quantidade).replace(",", "."))
     except (InvalidOperation, AttributeError):
         return
     if qtd <= 0:
-        carrinho.pop(codigo, None)
+        carrinho.pop(produto_id, None)
     else:
-        carrinho[codigo] = str(qtd)
+        carrinho[produto_id] = str(qtd)
     session.modified = True
 
 
-def remover(session, codigo):
-    _carrinho(session).pop(codigo, None)
+def remover(session, produto_id):
+    _carrinho(session).pop(produto_id, None)
     session.modified = True
 
 
@@ -47,15 +47,17 @@ def limpar(session):
 
 
 def quantidade_total(session):
-    return len(_carrinho(session))
+    # conta o que itens() resolve de fato: chave órfã (produto apagado) não pode inflar o badge
+    return len(itens(session))
 
 
 def itens(session):
     carrinho = _carrinho(session)
-    produtos = {p.codigo: p for p in Produto.objects.filter(codigo__in=carrinho.keys())}
+    ids = [k for k in carrinho if str(k).isdigit()]
+    produtos = {str(p.pk): p for p in Produto.objects.filter(pk__in=ids)}
     resultado = []
-    for codigo, qtd in carrinho.items():
-        produto = produtos.get(codigo)
+    for produto_id, qtd in carrinho.items():
+        produto = produtos.get(str(produto_id))
         if produto:
             resultado.append({"produto": produto, "quantidade": Decimal(qtd)})
     return resultado

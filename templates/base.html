@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Compras & Suprimentos{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=5">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=6">
   <script>
     (function () {
       var tema = localStorage.getItem('tema');
@@ -172,10 +172,11 @@
   {% endif %}
     <main class="{% if user.is_authenticated %}flex-1 min-w-0 px-4 sm:px-8 py-8{% else %}mx-auto max-w-6xl px-4 py-8{% endif %}">
       {% if messages %}
-        <div class="space-y-2 mb-6">
+        <div id="toasts" class="fixed top-6 right-6 z-50 w-80 max-w-[calc(100vw-3rem)] space-y-3">
           {% for m in messages %}
-            <div class="rounded-2xl px-4 py-3 text-sm {% if m.tags == 'error' %}bg-red-50 text-red-700 border border-red-100 dark:bg-red-950 dark:text-red-300 dark:border-red-900{% elif m.tags == 'success' %}bg-emerald-50 text-emerald-700 border border-emerald-100 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900{% else %}bg-slate-100 text-slate-700 border border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">
-              {{ m }}
+            <div role="alert" class="toast flex items-start gap-3 rounded-2xl px-5 py-4 text-sm font-medium shadow-2xl transition-all duration-300 {% if m.tags == 'error' %}bg-red-600 text-white{% elif m.tags == 'success' %}bg-emerald-600 text-white{% else %}bg-slate-900 text-white dark:bg-white dark:text-slate-900{% endif %}">
+              <span class="flex-1">{{ m }}</span>
+              <button type="button" class="toast-fechar opacity-70 hover:opacity-100 leading-none text-lg" aria-label="Fechar">&times;</button>
             </div>
           {% endfor %}
         </div>
@@ -193,6 +194,15 @@
           localStorage.setItem('tema', escuro ? 'escuro' : 'claro');
         });
       }
+      document.querySelectorAll('.toast').forEach(function (toast) {
+        var fechar = function () {
+          toast.classList.add('opacity-0', 'translate-x-4');
+          setTimeout(function () { toast.remove(); }, 300);
+        };
+        toast.querySelector('.toast-fechar').addEventListener('click', fechar);
+        setTimeout(fechar, 4000);
+      });
+
       var botaoRecolher = document.getElementById('botao-recolher');
       if (botaoRecolher) {
         botaoRecolher.addEventListener('click', function () {

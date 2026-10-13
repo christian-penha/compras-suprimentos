@@ -45,7 +45,7 @@
       </p>
       <form method="post" action="{% url 'carrinho_adicionar' %}" class="mt-4 flex gap-2">
         {% csrf_token %}
-        <input type="hidden" name="codigo" value="{{ p.codigo }}">
+        <input type="hidden" name="produto" value="{{ p.pk }}">
         <input type="hidden" name="voltar" value="{{ request.get_full_path }}">
         <input name="quantidade" value="1" inputmode="decimal"
                class="w-16 rounded-xl border-slate-200 px-3 py-2 text-sm text-center focus:border-blue-400 focus:ring-blue-400">

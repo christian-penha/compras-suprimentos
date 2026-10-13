@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.contrib.sessions.backends.db import SessionStore
 
 from cadastros.models import Categoria, Produto
 from contas.models import ModoAprovacaoSetor, RegraAprovacaoEmpresa, Setor
@@ -230,3 +231,23 @@ class AprovacaoPorSetorTest(BaseFluxoTest):
         transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
         with self.assertRaises(SemPermissao):
             aprovar_como_lider(pedido, self.segundo_lider)
+
+
+class CarrinhoTest(TenantTestCase):
+    def test_produto_sem_codigo_aparece_no_carrinho(self):
+        from . import cart
+
+        categoria = Categoria.objects.get(nome="Pedagógico")
+        produto = Produto.objects.create(nome="Sem código", especificacao="x", categoria=categoria)
+        self.assertIsNone(produto.codigo)
+        sessao = SessionStore()
+        self.assertTrue(cart.adicionar(sessao, str(produto.pk), "2"))
+        self.assertEqual(cart.quantidade_total(sessao), 1)
+        self.assertEqual([i["produto"] for i in cart.itens(sessao)], [produto])
+
+    def test_chave_orfa_nao_infla_o_contador(self):
+        from . import cart
+
+        sessao = SessionStore()
+        sessao["carrinho"] = {"None": "1", "999999": "1"}
+        self.assertEqual(cart.quantidade_total(sessao), 0)

@@ -58,11 +58,11 @@ def catalogo(request):
 
     saldos = dict(
         SaldoEstoque.objects.filter(almoxarifado__central=True)
-        .values_list("produto__codigo", "quantidade")
+        .values_list("produto_id", "quantidade")
     )
     produtos = produtos.order_by("nome")[:60]
     for p in produtos:
-        p.saldo_central = saldos.get(p.codigo, 0)
+        p.saldo_central = saldos.get(p.pk, 0)
 
     return render(
         request, "pedidos/catalogo.html",
@@ -78,9 +78,9 @@ def catalogo(request):
 @login_required
 def carrinho_adicionar(request):
     if request.method == "POST":
-        codigo = request.POST.get("codigo", "")
+        produto_id = request.POST.get("produto", "")
         quantidade = request.POST.get("quantidade", "1")
-        if cart.adicionar(request.session, codigo, quantidade):
+        if cart.adicionar(request.session, produto_id, quantidade):
             messages.success(request, "Item adicionado ao carrinho.")
         else:
             messages.error(request, "Quantidade inválida.")
@@ -91,11 +91,11 @@ def carrinho_adicionar(request):
 def carrinho_ver(request):
     if request.method == "POST":
         acao = request.POST.get("acao")
-        codigo = request.POST.get("codigo", "")
+        produto_id = request.POST.get("produto", "")
         if acao == "remover":
-            cart.remover(request.session, codigo)
+            cart.remover(request.session, produto_id)
         elif acao == "atualizar":
-            cart.definir(request.session, codigo, request.POST.get("quantidade", "0"))
+            cart.definir(request.session, produto_id, request.POST.get("quantidade", "0"))
         elif acao == "limpar":
             cart.limpar(request.session)
         return redirect("carrinho_ver")

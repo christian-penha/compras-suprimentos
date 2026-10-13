@@ -23,7 +23,7 @@
     </div>
     <form method="post" class="flex items-center gap-2">
       {% csrf_token %}
-      <input type="hidden" name="codigo" value="{{ item.produto.codigo }}">
+      <input type="hidden" name="produto" value="{{ item.produto.pk }}">
       <input type="hidden" name="acao" value="atualizar">
       <input name="quantidade" value="{{ item.quantidade|floatformat:'-3' }}" inputmode="decimal"
              class="w-20 rounded-xl border-slate-200 px-3 py-2 text-sm text-center focus:border-blue-400 focus:ring-blue-400">
@@ -31,7 +31,7 @@
     </form>
     <form method="post">
       {% csrf_token %}
-      <input type="hidden" name="codigo" value="{{ item.produto.codigo }}">
+      <input type="hidden" name="produto" value="{{ item.produto.pk }}">
       <button name="acao" value="remover" class="text-slate-300 hover:text-red-500 text-xl leading-none px-1" aria-label="Remover">×</button>
     </form>
   </div>
