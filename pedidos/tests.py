@@ -213,6 +213,19 @@ class AprovacaoPorSetorTest(BaseFluxoTest):
         aprovar_como_lider(pedido, self.segundo_lider)
         self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
 
+    def test_regra_do_setor_vale_mais_que_a_da_empresa(self):
+        self.setor.lideres.add(self.segundo_lider)
+        self.definir_modo(ModoAprovacaoSetor.QUALQUER_LIDER)  # empresa: um basta
+        self.setor.modo_aprovacao = ModoAprovacaoSetor.TODOS_LIDERES  # setor: todos
+        self.setor.save()
+        pedido = self.novo_pedido()
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+
+        aprovar_como_lider(pedido, self.aprovador)
+        self.assertEqual(pedido.status, StatusPedido.ENVIADO)
+        aprovar_como_lider(pedido, self.segundo_lider)
+        self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
+
     def test_envio_bloqueado_sem_setor(self):
         self.requisitante.setor = None
         self.requisitante.save(update_fields=["setor"])

@@ -1,43 +1,83 @@
 {% extends "base.html" %}
 {% block titulo %}Setores{% endblock %}
-{% block conteudo %}
-<div class="flex items-center justify-between mb-6">
-  <h1 class="text-2xl font-semibold dark:text-slate-100">Setores</h1>
-  <a href="{% url 'config_setor_novo' %}" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">+ Novo setor</a>
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Setores</h1>
+      <p class="text-sm text-[#9a9a9a] mt-1">Quem lidera cada setor aprova os pedidos das pessoas que fazem parte dele.</p>
+    </div>
+    <a href="{% url 'config_setor_novo' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">+ Novo setor</a>
+  </div>
+
+  <form method="get" class="mt-5 flex flex-wrap gap-3">
+    <div class="relative flex-1 min-w-[220px]">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a7a7a]"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+      <input name="q" value="{{ busca }}" placeholder="Buscar por setor ou pessoa…" autocomplete="off"
+             class="w-full rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] pl-11 pr-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+    </div>
+    <select name="filial" onchange="this.form.submit()"
+            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+      <option value="">Todas as filiais</option>
+      {% for f in filiais %}<option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
+    </select>
+    <select name="situacao" onchange="this.form.submit()"
+            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+      <option value="ativos" {% if situacao == "ativos" %}selected{% endif %}>Somente ativos</option>
+      <option value="todos" {% if situacao == "todos" %}selected{% endif %}>Ativos e inativos</option>
+    </select>
+    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+  </form>
 </div>
-<div class="bg-white rounded-3xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
-  <table class="w-full text-sm">
-    <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
-      <tr>
-        <th class="px-6 py-3 font-medium">Setor</th>
-        <th class="px-6 py-3 font-medium">Filial</th>
-        <th class="px-6 py-3 font-medium">Líderes</th>
-        <th class="px-6 py-3 font-medium text-center">Membros</th>
-        <th class="px-6 py-3 font-medium text-center">Ativo</th>
-        <th class="px-6 py-3 font-medium"></th>
-      </tr>
-    </thead>
-    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-      {% for s in setores %}
-      <tr class="dark:text-slate-100">
-        <td class="px-6 py-3">{{ s.nome }}</td>
-        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ s.filial.nome }}</td>
-        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">
-          {% for l in s.lideres.all %}{{ l }}{% if not forloop.last %}, {% endif %}{% empty %}
-          <span class="text-amber-600 dark:text-amber-500">sem líder</span>{% endfor %}
-        </td>
-        <td class="px-6 py-3 text-center text-slate-500 dark:text-slate-400">{{ s.membros.count }}</td>
-        <td class="px-6 py-3 text-center">
-          <span class="inline-block h-2.5 w-2.5 rounded-full {% if s.ativo %}bg-emerald-500{% else %}bg-red-500{% endif %}"></span>
-        </td>
-        <td class="px-6 py-3 text-right">
-          <a href="{% url 'config_setor_editar' s.pk %}" class="text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">editar</a>
-        </td>
-      </tr>
-      {% empty %}
-      <tr><td colspan="6" class="px-6 py-8 text-center text-slate-400 text-sm">Nenhum setor cadastrado.</td></tr>
-      {% endfor %}
-    </tbody>
-  </table>
+{% endblock %}
+
+{% block conteudo %}
+<p class="text-sm text-slate-500 mb-5 dark:text-slate-400">{{ setores|length }} {{ setores|length|pluralize:"setor,setores" }}</p>
+
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  {% for s in setores %}
+  <article class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col hover:shadow-lg hover:-translate-y-0.5 transition dark:bg-slate-800 dark:border-slate-700 {% if not s.ativo %}opacity-60{% endif %}">
+    <div class="flex items-start justify-between gap-3">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ s.filial.nome }}</p>
+        <h2 class="text-lg font-semibold text-slate-900 mt-0.5 dark:text-slate-100">{{ s.nome }}</h2>
+      </div>
+      <span class="inline-flex items-center gap-1.5 text-xs font-medium {% if s.ativo %}text-emerald-700 dark:text-emerald-400{% else %}text-slate-500{% endif %}">
+        <span class="h-2 w-2 rounded-full {% if s.ativo %}bg-emerald-500{% else %}bg-slate-400{% endif %}"></span>{% if s.ativo %}Ativo{% else %}Inativo{% endif %}
+      </span>
+    </div>
+
+    <div class="mt-4">
+      <p class="text-xs font-medium text-slate-500 mb-1.5 dark:text-slate-400">Líderes</p>
+      {% if s.lideres.all %}
+      <div class="flex flex-wrap gap-1.5">
+        {% for l in s.lideres.all %}
+        <span class="inline-flex items-center gap-1.5 rounded-full bg-slate-100 pl-1 pr-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-700 dark:text-slate-200">
+          <span class="h-5 w-5 rounded-full bg-slate-900 text-white flex items-center justify-center text-[10px] font-bold dark:bg-white dark:text-slate-900">{{ l.nome_completo|default:l.username|slice:":1"|upper }}</span>{{ l.nome_completo|default:l.username }}
+        </span>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p class="inline-flex items-center gap-1.5 rounded-lg bg-amber-50 text-amber-800 text-xs font-medium px-2.5 py-1.5 dark:bg-amber-950 dark:text-amber-300">⚠ Sem líder — pedidos não podem ser aprovados</p>
+      {% endif %}
+    </div>
+
+    <div class="mt-4 flex items-center justify-between text-sm">
+      <span class="text-slate-500 dark:text-slate-400"><strong class="text-slate-900 dark:text-slate-100">{{ s.membros.all|length }}</strong> {{ s.membros.all|length|pluralize:"membro,membros" }}</span>
+      <span class="text-xs rounded-full border border-slate-200 px-2.5 py-1 text-slate-600 dark:border-slate-600 dark:text-slate-300">
+        {% if s.modo_aprovacao == "TODOS_LIDERES" %}Todos os líderes aprovam{% elif s.modo_aprovacao == "QUALQUER_LIDER" %}Qualquer líder aprova{% else %}Regra da empresa{% endif %}
+      </span>
+    </div>
+
+    <a href="{% url 'config_setor_editar' s.pk %}" class="mt-5 block text-center rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Editar setor e pessoas</a>
+  </article>
+  {% empty %}
+  <div class="col-span-full text-center py-16">
+    <p class="font-semibold text-slate-900 dark:text-slate-100">Nenhum setor encontrado</p>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Ajuste os filtros ou crie o primeiro setor.</p>
+    <a href="{% url 'config_setor_lista' %}" class="inline-block mt-3 text-sm font-medium underline dark:text-white">Limpar filtros</a>
+  </div>
+  {% endfor %}
 </div>
 {% endblock %}

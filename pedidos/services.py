@@ -68,6 +68,8 @@ def pode_aprovar(usuario, pedido):
 
 
 def modo_aprovacao_de(requisitante):
+    if requisitante.setor_id and requisitante.setor.modo_aprovacao:
+        return requisitante.setor.modo_aprovacao
     if not requisitante.filial_id:
         return ModoAprovacaoSetor.QUALQUER_LIDER
     regra = RegraAprovacaoEmpresa.objects.filter(

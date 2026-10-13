@@ -26,6 +26,11 @@ class CicloPedagogico(models.TextChoices):
     ADMINISTRATIVO = "ADMINISTRATIVO", "Administrativo"
 
 
+class ModoAprovacaoSetor(models.TextChoices):
+    QUALQUER_LIDER = "QUALQUER_LIDER", "Qualquer líder do setor aprova"
+    TODOS_LIDERES = "TODOS_LIDERES", "Todos os líderes do setor devem aprovar"
+
+
 class Setor(TenantModel):
     """Agrupamento de colaboradores dentro de uma filial. Os líderes do setor aprovam
     as requisições dos membros do mesmo setor."""
@@ -36,6 +41,10 @@ class Setor(TenantModel):
     nome = models.CharField(max_length=100)
     lideres = models.ManyToManyField(
         settings.AUTH_USER_MODEL, related_name="setores_liderados", blank=True
+    )
+    modo_aprovacao = models.CharField(
+        max_length=20, choices=ModoAprovacaoSetor.choices, blank=True,
+        help_text="Vazio = usa a regra da empresa",
     )
     ativo = models.BooleanField(default=True)
 
@@ -116,11 +125,6 @@ class PapelUsuario(models.Model):
         if self.modulo:
             return f"{self.usuario} — {self.get_papel_display()} ({self.get_modulo_display()})"
         return f"{self.usuario} — {self.get_papel_display()}"
-
-
-class ModoAprovacaoSetor(models.TextChoices):
-    QUALQUER_LIDER = "QUALQUER_LIDER", "Qualquer líder do setor aprova"
-    TODOS_LIDERES = "TODOS_LIDERES", "Todos os líderes do setor devem aprovar"
 
 
 class RegraAprovacaoEmpresa(models.Model):

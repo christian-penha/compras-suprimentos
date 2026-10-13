@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
+from django.db.models import Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from contas.models import Papel, Setor
@@ -62,8 +63,33 @@ def empresa_form(request, pk=None):
 
 @requer_papel(Papel.SUPERADMIN)
 def setor_lista(request):
-    setores = Setor.objects.select_related("filial").prefetch_related("lideres").order_by("filial", "nome")
-    return render(request, "configuracoes/setor_lista.html", {"setores": setores})
+    filial_id = request.GET.get("filial", "")
+    busca = request.GET.get("q", "").strip()
+    situacao = request.GET.get("situacao", "ativos")
+
+    setores = Setor.objects.select_related("filial").prefetch_related("lideres", "membros")
+    if filial_id:
+        setores = setores.filter(filial_id=filial_id)
+    if situacao == "ativos":
+        setores = setores.filter(ativo=True)
+    if busca:
+        setores = setores.filter(
+            Q(nome__icontains=busca)
+            | Q(lideres__nome_completo__icontains=busca)
+            | Q(lideres__username__icontains=busca)
+            | Q(membros__nome_completo__icontains=busca)
+            | Q(membros__username__icontains=busca)
+        ).distinct()
+    return render(
+        request, "configuracoes/setor_lista.html",
+        {
+            "setores": setores.order_by("filial__nome", "nome"),
+            "filiais": Filial.objects.filter(ativo=True).order_by("nome"),
+            "filial_id": filial_id,
+            "busca": busca,
+            "situacao": situacao,
+        },
+    )
 
 
 @requer_papel(Papel.SUPERADMIN)

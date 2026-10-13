@@ -93,29 +93,58 @@ class UsuarioForm(forms.ModelForm):
 
 
 class SetorForm(forms.ModelForm):
+    """Líderes e membros são marcados na própria tela do setor (checkboxes por pessoa)."""
+
+    membros = forms.ModelMultipleChoiceField(
+        queryset=Usuario.objects.none(), required=False, widget=forms.CheckboxSelectMultiple
+    )
+
     class Meta:
         model = Setor
-        fields = ["filial", "nome", "lideres", "ativo"]
+        fields = ["filial", "nome", "modo_aprovacao", "lideres", "ativo"]
         labels = {
             "filial": "Filial/unidade",
             "nome": "Nome do setor",
-            "lideres": "Líderes (aprovam os pedidos do setor)",
+            "modo_aprovacao": "Regra de aprovação",
+            "lideres": "Líderes",
             "ativo": "Ativo",
         }
         widgets = {
             "filial": forms.Select(attrs={"class": CAMPO}),
             "nome": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Pedagógico"}),
-            "lideres": forms.SelectMultiple(attrs={"class": CAMPO + " h-40"}),
+            "modo_aprovacao": forms.Select(attrs={"class": CAMPO}),
+            "lideres": forms.CheckboxSelectMultiple,
             "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        pessoas = Usuario.objects.filter(ativo_no_sistema=True).select_related("setor__filial")
+        pessoas = pessoas.order_by("nome_completo", "username")
+        self.pessoas = list(pessoas)
         self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
-        self.fields["lideres"].queryset = Usuario.objects.filter(
-            ativo_no_sistema=True
-        ).order_by("nome_completo", "username")
+        self.fields["lideres"].queryset = pessoas
         self.fields["lideres"].required = False
+        self.fields["membros"].queryset = pessoas
+        self.fields["modo_aprovacao"].choices = [
+            ("", "Usar a regra da empresa")
+        ] + list(ModoAprovacaoSetor.choices)
+        if self.instance.pk:
+            self.initial["membros"] = list(self.instance.membros.values_list("pk", flat=True))
+            self.initial["lideres"] = list(self.instance.lideres.values_list("pk", flat=True))
+        self.membros_marcados = {str(pk) for pk in self.initial.get("membros", [])}
+        self.lideres_marcados = {str(pk) for pk in self.initial.get("lideres", [])}
+        if self.is_bound:
+            self.membros_marcados = set(self.data.getlist("membros"))
+            self.lideres_marcados = set(self.data.getlist("lideres"))
+
+    def save(self, commit=True):
+        setor = super().save(commit=commit)
+        if commit:
+            ids = [u.pk for u in self.cleaned_data["membros"]]
+            Usuario.objects.filter(setor=setor).exclude(pk__in=ids).update(setor=None)
+            Usuario.objects.filter(pk__in=ids).update(setor=setor)
+        return setor
 
 
 class EmpresaForm(forms.ModelForm):
