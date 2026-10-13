@@ -31,10 +31,15 @@ TRANSICOES = {
 
 
 def lideres_do_setor(usuario):
-    """Líderes ativos do setor do usuário — quem pode aprovar os pedidos dele."""
+    """Líderes ativos do setor do usuário que podem aprovar os pedidos dele.
+
+    O próprio usuário fica de fora: ninguém aprova o próprio pedido, então contá-lo
+    deixaria o pedido sem aprovador (ou, no modo TODOS_LIDERES, esperando um voto
+    que nunca pode acontecer).
+    """
     if not usuario.setor_id:
         return []
-    return list(usuario.setor.lideres.filter(ativo_no_sistema=True))
+    return list(usuario.setor.lideres.filter(ativo_no_sistema=True).exclude(pk=usuario.pk))
 
 
 def tem_lider_disponivel(requisitante):
@@ -86,7 +91,8 @@ def transicionar(pedido, novo_status, usuario, observacao=""):
             )
         if not tem_lider_disponivel(pedido.requisitante):
             raise TransicaoInvalida(
-                "O seu setor não tem líder ativo para aprovar pedidos — contate o administrador."
+                "O seu setor não tem outro líder ativo para aprovar o seu pedido — peça ao "
+                "administrador para cadastrar mais um líder no setor."
             )
 
     if novo_status in (StatusPedido.APROVADO_UNIDADE, StatusPedido.RECUSADO):

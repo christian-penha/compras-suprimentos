@@ -226,6 +226,22 @@ class AprovacaoPorSetorTest(BaseFluxoTest):
         with self.assertRaises(TransicaoInvalida):
             transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
 
+    def test_lider_unico_nao_envia_o_proprio_pedido(self):
+        self.setor.lideres.set([self.requisitante])
+        pedido = self.novo_pedido()
+        with self.assertRaises(TransicaoInvalida):
+            transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+
+    def test_requisitante_lider_nao_conta_como_voto_pendente(self):
+        self.setor.lideres.add(self.requisitante, self.segundo_lider)
+        self.definir_modo(ModoAprovacaoSetor.TODOS_LIDERES)
+        pedido = self.novo_pedido()
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+
+        aprovar_como_lider(pedido, self.aprovador)
+        aprovar_como_lider(pedido, self.segundo_lider)
+        self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
+
     def test_lider_de_outro_setor_nao_aprova(self):
         outro_setor = Setor.objects.create(
             tenant=self.tenant, filial=self.filial, nome="Financeiro"
