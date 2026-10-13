@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titulo %}Eventos{% endblock %}
+{% block conteudo %}
+<div class="flex items-center justify-between mb-6">
+  <div>
+    <h1 class="text-2xl font-semibold dark:text-slate-100">Eventos</h1>
+    <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Eventos por unidade, usados para acompanhar o custo dos pedidos do motivo "Evento Pedagógico".</p>
+  </div>
+  <a href="{% url 'config_evento_novo' %}" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-medium px-4 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">+ Novo evento</a>
+</div>
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+      <tr>
+        <th class="px-6 py-3 font-medium">Evento</th>
+        <th class="px-6 py-3 font-medium">Unidade</th>
+        <th class="px-6 py-3 font-medium text-center">Ativo</th>
+        <th class="px-6 py-3 font-medium"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+      {% for e in eventos %}
+      <tr class="dark:text-slate-100">
+        <td class="px-6 py-3">{{ e.nome }}</td>
+        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ e.filial.nome }}</td>
+        <td class="px-6 py-3 text-center">
+          <span class="inline-block h-2.5 w-2.5 rounded-full {% if e.ativo %}bg-emerald-500{% else %}bg-red-500{% endif %}"></span>
+        </td>
+        <td class="px-6 py-3 text-right">
+          <a href="{% url 'config_evento_editar' e.pk %}" class="text-slate-400 hover:text-slate-900 dark:hover:text-white text-sm">editar</a>
+        </td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="4" class="px-6 py-8 text-center text-slate-400 text-sm">Nenhum evento cadastrado.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

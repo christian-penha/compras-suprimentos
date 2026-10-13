@@ -83,6 +83,11 @@ class Filial(TenantModel):
     def __str__(self):
         return self.nome
 
+    def almoxarifado_padrao(self):
+        """Almoxarifado que recebe os pedidos desta filial: prefere 'Geral', nunca o central."""
+        candidatos = self.almoxarifados.filter(ativo=True, central=False).order_by("nome")
+        return candidatos.filter(nome="Geral").first() or candidatos.first()
+
 
 class Almoxarifado(TenantModel):
     filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name="almoxarifados")
@@ -149,6 +154,9 @@ class Subcentro(TenantModel):
 
 class MotivoRequisicao(TenantModel):
     nome = models.CharField(max_length=100)
+    exige_evento = models.BooleanField(
+        default=False, help_text="Pedidos com este motivo precisam informar o evento"
+    )
     ativo = models.BooleanField(default=True)
 
     class Meta:
@@ -161,3 +169,20 @@ class MotivoRequisicao(TenantModel):
 
     def __str__(self):
         return self.nome
+
+
+class Evento(TenantModel):
+    filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name="eventos")
+    nome = models.CharField(max_length=150)
+    ativo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "evento"
+        verbose_name_plural = "eventos"
+        ordering = ["filial", "nome"]
+        constraints = [
+            models.UniqueConstraint(fields=["filial", "nome"], name="evento_unico_por_filial"),
+        ]
+
+    def __str__(self):
+        return f"{self.filial.sigla} — {self.nome}"

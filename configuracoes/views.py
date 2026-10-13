@@ -4,9 +4,9 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from contas.models import Papel, Setor
 from contas.permissoes import requer_papel
-from tenancy.models import Empresa, Filial
+from tenancy.models import Empresa, Evento, Filial
 
-from .forms import EmpresaForm, FilialForm, SetorForm, UsuarioForm
+from .forms import EmpresaForm, EventoForm, FilialForm, SetorForm, UsuarioForm
 
 Usuario = get_user_model()
 
@@ -97,3 +97,22 @@ def filial_form(request, pk=None):
         messages.success(request, "Filial salva com sucesso.")
         return redirect("config_filial_lista")
     return render(request, "configuracoes/filial_form.html", {"form": form, "instancia": instancia})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def evento_lista(request):
+    eventos = Evento.objects.select_related("filial").order_by("filial", "nome")
+    return render(request, "configuracoes/evento_lista.html", {"eventos": eventos})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def evento_form(request, pk=None):
+    instancia = get_object_or_404(Evento, pk=pk) if pk else None
+    form = EventoForm(request.POST or None, instance=instancia)
+    if request.method == "POST" and form.is_valid():
+        if not form.instance.tenant_id:
+            form.instance.tenant = request.user.tenant
+        form.save()
+        messages.success(request, "Evento salvo com sucesso.")
+        return redirect("config_evento_lista")
+    return render(request, "configuracoes/evento_form.html", {"form": form, "instancia": instancia})

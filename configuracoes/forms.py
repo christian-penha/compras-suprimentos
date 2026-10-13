@@ -8,7 +8,7 @@ from contas.models import (
     RegraAprovacaoEmpresa,
     Setor,
 )
-from tenancy.models import Empresa, Filial
+from tenancy.models import Empresa, Evento, Filial
 
 Usuario = get_user_model()
 
@@ -30,7 +30,7 @@ class UsuarioForm(forms.ModelForm):
         model = Usuario
         fields = [
             "username", "nome_completo", "email", "telefone",
-            "filial", "setor", "cargo", "ciclo",
+            "filial", "filiais_permitidas", "setor", "cargo", "ciclo",
             "papel", "senha", "is_staff", "ativo_no_sistema",
         ]
         labels = {
@@ -40,6 +40,7 @@ class UsuarioForm(forms.ModelForm):
             "telefone": "Telefone",
             "filial": "Filial/unidade",
             "setor": "Setor",
+            "filiais_permitidas": "Unidades onde pode fazer pedidos",
             "cargo": "Cargo",
             "ciclo": "Ciclo/segmento",
             "is_staff": "Acesso ao admin do Django",
@@ -52,6 +53,7 @@ class UsuarioForm(forms.ModelForm):
             "telefone": forms.TextInput(attrs={"class": CAMPO}),
             "filial": forms.Select(attrs={"class": CAMPO}),
             "setor": forms.Select(attrs={"class": CAMPO}),
+            "filiais_permitidas": forms.SelectMultiple(attrs={"class": CAMPO + " h-32"}),
             "cargo": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Coordenadora Pedagógica"}),
             "ciclo": forms.Select(attrs={"class": CAMPO}),
             "is_staff": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
@@ -63,6 +65,8 @@ class UsuarioForm(forms.ModelForm):
         self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
         self.fields["filial"].required = False
         self.fields["filial"].empty_label = "— sem filial definida —"
+        self.fields["filiais_permitidas"].queryset = Filial.objects.filter(ativo=True)
+        self.fields["filiais_permitidas"].required = False
         self.fields["setor"].queryset = Setor.objects.filter(ativo=True).select_related("filial")
         self.fields["setor"].required = False
         self.fields["setor"].empty_label = "— sem setor definido —"
@@ -81,6 +85,7 @@ class UsuarioForm(forms.ModelForm):
             usuario.set_password(senha)
         if commit:
             usuario.save()
+            self.save_m2m()
             papel = self.cleaned_data["papel"]
             PapelUsuario.objects.filter(usuario=usuario).exclude(papel=papel).delete()
             PapelUsuario.objects.get_or_create(usuario=usuario, papel=papel)
@@ -171,3 +176,19 @@ class FilialForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["empresa"].queryset = Empresa.objects.filter(ativo=True)
+
+
+class EventoForm(forms.ModelForm):
+    class Meta:
+        model = Evento
+        fields = ["filial", "nome", "ativo"]
+        labels = {"filial": "Unidade", "nome": "Nome do evento", "ativo": "Ativo"}
+        widgets = {
+            "filial": forms.Select(attrs={"class": CAMPO}),
+            "nome": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Festa Junina 2026"}),
+            "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["filial"].queryset = Filial.objects.filter(ativo=True)

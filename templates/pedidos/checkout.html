@@ -1,48 +1,143 @@
 {% extends "base.html" %}
 {% block titulo %}Finalizar pedido{% endblock %}
-{% block conteudo %}
-<h1 class="text-2xl font-semibold mb-1">Finalizar pedido</h1>
-<p class="text-slate-500 text-sm mb-8">Confira os itens e informe os dados do pedido.</p>
 
-<form method="post" class="grid gap-6 lg:grid-cols-3">
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <a href="{% url 'carrinho_ver' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Voltar ao carrinho</a>
+  <h1 class="text-2xl font-semibold mt-2">Finalizar pedido</h1>
+  <ol class="mt-4 flex items-center gap-3 text-xs font-medium">
+    <li class="flex items-center gap-2 text-[#9a9a9a]"><span class="h-6 w-6 rounded-full bg-[#232323] flex items-center justify-center">✓</span>Carrinho</li>
+    <li class="h-px w-8 bg-[#2c2c2c]"></li>
+    <li class="flex items-center gap-2 text-white"><span class="h-6 w-6 rounded-full bg-white text-[#0a0a0a] flex items-center justify-center font-bold">2</span>Detalhes do pedido</li>
+    <li class="h-px w-8 bg-[#2c2c2c]"></li>
+    <li class="flex items-center gap-2 text-[#5c5c5c]"><span class="h-6 w-6 rounded-full bg-[#1c1c1c] flex items-center justify-center">3</span>Aprovação</li>
+  </ol>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<form method="post" class="grid gap-6 lg:grid-cols-[1fr_340px] items-start">
   {% csrf_token %}
-  <div class="lg:col-span-2 space-y-6">
-    <div class="bg-white rounded-3xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2">
-      <div>
-        <label class="block text-sm font-medium text-slate-600 mb-1.5">Destino (almoxarifado)</label>
-        {{ form.almoxarifado_destino }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-600 mb-1.5">Motivo</label>
-        {{ form.motivo }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-600 mb-1.5">Centro de custo</label>
-        {{ form.centro_custo }}
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-600 mb-1.5">Subcentro (opcional)</label>
-        {{ form.subcentro }}
-      </div>
-      <div class="sm:col-span-2">
-        <label class="block text-sm font-medium text-slate-600 mb-1.5">Observação</label>
-        {{ form.observacao }}
-      </div>
+
+  <div class="space-y-6">
+    {% if form.non_field_errors %}
+    <div class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700 dark:bg-red-950 dark:border-red-900 dark:text-red-300">
+      {% for e in form.non_field_errors %}<p>{{ e }}</p>{% endfor %}
     </div>
+    {% endif %}
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">Para onde e para quê</h2>
+      <p class="text-sm text-slate-500 mt-0.5 mb-5 dark:text-slate-400">Defina a unidade que vai receber e o motivo do pedido.</p>
+
+      <div class="grid gap-5 sm:grid-cols-2">
+        <div class="sm:col-span-2">
+          <label for="{{ form.filial_destino.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Unidade de destino <span class="text-red-500">*</span></label>
+          {{ form.filial_destino }}
+          {% for e in form.filial_destino.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div>
+          <label for="{{ form.motivo.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Motivo <span class="text-red-500">*</span></label>
+          {{ form.motivo }}
+          {% for e in form.motivo.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div id="campo-evento" class="hidden">
+          <label for="{{ form.evento.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Evento <span class="text-red-500">*</span></label>
+          {{ form.evento }}
+          <p class="text-xs text-slate-400 mt-1">Eventos da unidade escolhida. Usado para acompanhar o custo de cada evento.</p>
+          {% for e in form.evento.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">Prazo e prioridade</h2>
+      <p class="text-sm text-slate-500 mt-0.5 mb-5 dark:text-slate-400">Ajuda o suprimentos a organizar a fila.</p>
+
+      <div class="grid gap-5 sm:grid-cols-2">
+        <div>
+          <span class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Prioridade <span class="text-red-500">*</span></span>
+          <div class="flex flex-wrap gap-2">
+            {% for radio in form.prioridade %}
+            <label class="cursor-pointer">
+              <span class="sr-only">{{ radio.tag }}</span>
+              <span class="prioridade-pill inline-flex rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 dark:border-slate-700 dark:text-slate-300">{{ radio.choice_label }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          {% for e in form.prioridade.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div>
+          <label for="{{ form.data_desejada.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Data desejada <span class="text-red-500">*</span></label>
+          {{ form.data_desejada }}
+          {% for e in form.data_desejada.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        </div>
+
+        <div class="sm:col-span-2">
+          <label for="{{ form.observacao.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Descrição <span class="text-red-500">*</span></label>
+          {{ form.observacao }}
+          {% for e in form.observacao.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        </div>
+      </div>
+    </section>
   </div>
 
-  <div class="bg-white rounded-3xl border border-slate-200 p-6 h-fit">
-    <h2 class="font-medium mb-4">Itens ({{ itens|length }})</h2>
-    <ul class="space-y-3 text-sm mb-6">
+  <aside class="bg-white rounded-2xl border border-slate-200 p-6 lg:sticky lg:top-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 dark:text-slate-100">Resumo do pedido</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400">{{ itens|length }} {{ itens|length|pluralize:"produto,produtos" }}</p>
+    <ul class="mt-4 space-y-3 text-sm divide-y divide-slate-100 dark:divide-slate-700">
       {% for item in itens %}
-      <li class="flex justify-between gap-2">
-        <span class="text-slate-600">{{ item.produto.nome }}</span>
-        <span class="text-slate-400 shrink-0">× {{ item.quantidade|floatformat:'-3' }}</span>
+      <li class="flex justify-between gap-3 pt-3 first:pt-0">
+        <span class="text-slate-700 dark:text-slate-200">{{ item.produto.nome }}</span>
+        <span class="text-slate-500 shrink-0 font-medium dark:text-slate-400">× {{ item.quantidade|floatformat:'-3' }}</span>
       </li>
       {% endfor %}
     </ul>
-    <button class="w-full rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 transition">Enviar pedido</button>
-    <a href="{% url 'carrinho_ver' %}" class="block text-center text-sm text-slate-400 hover:text-slate-600 mt-3">voltar ao carrinho</a>
-  </div>
+    <button class="mt-6 w-full rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Enviar pedido</button>
+    <p class="text-xs text-slate-400 text-center mt-3">O pedido segue para aprovação do líder do seu setor.</p>
+  </aside>
 </form>
+
+{{ form.dados_js|json_script:"dados-checkout" }}
+<script>
+  (function () {
+    var dados = JSON.parse(document.getElementById('dados-checkout').textContent);
+    var motivo = document.getElementById('{{ form.motivo.id_for_label }}');
+    var filial = document.getElementById('{{ form.filial_destino.id_for_label }}');
+    var evento = document.getElementById('{{ form.evento.id_for_label }}');
+    var bloco = document.getElementById('campo-evento');
+
+    function atualizar() {
+      var exige = dados.motivos_com_evento.indexOf(parseInt(motivo.value, 10)) !== -1;
+      bloco.classList.toggle('hidden', !exige);
+      Array.prototype.forEach.call(evento.options, function (opt) {
+        if (!opt.value) return;
+        var ok = !filial.value || String(dados.evento_filial[opt.value]) === filial.value;
+        opt.hidden = !ok;
+        opt.disabled = !ok;
+        if (!ok && opt.selected) evento.value = '';
+      });
+      if (!exige) evento.value = '';
+    }
+    motivo.addEventListener('change', atualizar);
+    filial.addEventListener('change', atualizar);
+    atualizar();
+
+    function pintarPrioridade() {
+      document.querySelectorAll('.prioridade-pill').forEach(function (pill) {
+        var marcado = pill.parentElement.querySelector('input').checked;
+        pill.classList.toggle('bg-slate-900', marcado);
+        pill.classList.toggle('text-white', marcado);
+        pill.classList.toggle('border-slate-900', marcado);
+      });
+    }
+    document.querySelectorAll('.prioridade-pill').forEach(function (pill) {
+      pill.parentElement.querySelector('input').addEventListener('change', pintarPrioridade);
+    });
+    pintarPrioridade();
+  })();
+</script>
 {% endblock %}

@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block titulo %}Custo por evento{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Custo por evento</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">Quanto cada evento consumiu, por unidade. Considera pedidos aprovados em andamento e entregues.</p>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<form method="get" class="flex flex-wrap items-end gap-3 mb-6">
+  <div>
+    <label class="block text-xs font-medium text-slate-500 mb-1 dark:text-slate-400">Unidade</label>
+    <select name="filial" onchange="this.form.submit()"
+            class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+      <option value="">Todas as unidades</option>
+      {% for f in filiais %}
+      <option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>
+      {% endfor %}
+    </select>
+  </div>
+</form>
+
+<div class="grid gap-4 sm:grid-cols-3 mb-6">
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-sm text-slate-500 dark:text-slate-400">Custo de estoque</p>
+    <p class="text-3xl font-semibold text-slate-900 mt-1 dark:text-white">R$ {{ total_estoque|floatformat:2 }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-sm text-slate-500 dark:text-slate-400">Pedidos vinculados</p>
+    <p class="text-3xl font-semibold text-slate-900 mt-1 dark:text-white">{{ total_pedidos }}</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-sm text-slate-500 dark:text-slate-400">Itens a comprar</p>
+    <p class="text-3xl font-semibold text-amber-600 mt-1 dark:text-amber-500">{{ total_a_comprar }}</p>
+    <p class="text-xs text-slate-400 mt-1">valor disponível com o módulo de Compras</p>
+  </div>
+</div>
+
+{% if alguma_sem_custo %}
+<div class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-800 mb-6 dark:bg-amber-950 dark:border-amber-900 dark:text-amber-200">
+  Há itens entregues sem custo cadastrado no estoque (entrada sem valor). O custo desses itens aparece como R$ 0,00 e o total pode estar subestimado.
+</div>
+{% endif %}
+
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+      <tr>
+        <th class="px-6 py-3 font-medium">Evento</th>
+        <th class="px-6 py-3 font-medium">Unidade</th>
+        <th class="px-6 py-3 font-medium text-right">Pedidos</th>
+        <th class="px-6 py-3 font-medium text-right">Custo de estoque</th>
+        <th class="px-6 py-3 font-medium text-right">Itens a comprar</th>
+        <th class="px-6 py-3 font-medium text-right">Compra</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+      {% for l in linhas %}
+      <tr class="dark:text-slate-100">
+        <td class="px-6 py-3.5 font-medium">{{ l.evento.nome }}{% if not l.evento.ativo %} <span class="text-xs text-slate-400">(inativo)</span>{% endif %}</td>
+        <td class="px-6 py-3.5 text-slate-500 dark:text-slate-400">{{ l.evento.filial.nome }}</td>
+        <td class="px-6 py-3.5 text-right">{{ l.pedidos }}</td>
+        <td class="px-6 py-3.5 text-right font-semibold">
+          R$ {{ l.custo_estoque|floatformat:2 }}
+          {% if l.sem_custo %}<span title="Há itens entregues sem custo no estoque" class="text-amber-600">⚠</span>{% endif %}
+        </td>
+        <td class="px-6 py-3.5 text-right">{{ l.a_comprar }}</td>
+        <td class="px-6 py-3.5 text-right"><span class="text-xs font-medium text-slate-400">pendente</span></td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="px-6 py-10 text-center text-slate-400">Nenhum evento cadastrado. Cadastre em Configurações → Eventos.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

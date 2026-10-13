@@ -2,7 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from cadastros.models import Produto
-from tenancy.models import Almoxarifado, CentroCusto, MotivoRequisicao, Subcentro
+from tenancy.models import Almoxarifado, CentroCusto, Evento, MotivoRequisicao, Subcentro
 
 
 class StatusPedido(models.TextChoices):
@@ -20,6 +20,13 @@ class OrigemAtendimento(models.TextChoices):
     COMPRA = "COMPRA", "Compra"
 
 
+class PrioridadePedido(models.TextChoices):
+    BAIXA = "BAIXA", "Baixa"
+    NORMAL = "NORMAL", "Normal"
+    ALTA = "ALTA", "Alta"
+    URGENTE = "URGENTE", "Urgente"
+
+
 class Pedido(models.Model):
     requisitante = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="pedidos"
@@ -27,15 +34,24 @@ class Pedido(models.Model):
     almoxarifado_destino = models.ForeignKey(
         Almoxarifado, on_delete=models.PROTECT, related_name="pedidos"
     )
-    centro_custo = models.ForeignKey(CentroCusto, on_delete=models.PROTECT, related_name="pedidos")
+    centro_custo = models.ForeignKey(
+        CentroCusto, on_delete=models.PROTECT, null=True, blank=True, related_name="pedidos"
+    )
     subcentro = models.ForeignKey(
         Subcentro, on_delete=models.PROTECT, null=True, blank=True, related_name="pedidos"
     )
     motivo = models.ForeignKey(MotivoRequisicao, on_delete=models.PROTECT, related_name="pedidos")
+    evento = models.ForeignKey(
+        Evento, on_delete=models.PROTECT, null=True, blank=True, related_name="pedidos"
+    )
+    prioridade = models.CharField(
+        max_length=10, choices=PrioridadePedido.choices, default=PrioridadePedido.NORMAL
+    )
+    data_desejada = models.DateField(null=True, blank=True)
     status = models.CharField(
         max_length=20, choices=StatusPedido.choices, default=StatusPedido.RASCUNHO
     )
-    observacao = models.CharField(max_length=500, blank=True)
+    observacao = models.CharField(max_length=500, blank=True, verbose_name="descrição")
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
     ativo = models.BooleanField(default=True)

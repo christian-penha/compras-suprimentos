@@ -1,15 +1,19 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.urls import reverse
+from django.utils import timezone
 from django.contrib.sessions.backends.db import SessionStore
 
 from cadastros.models import Categoria, Produto
 from contas.models import ModoAprovacaoSetor, RegraAprovacaoEmpresa, Setor
 from estoque.models import DebitoAlmoxarifado, SaldoEstoque
 from estoque.services import EstoqueInsuficiente, registrar_entrada, registrar_saida, transferir
-from tenancy.models import Almoxarifado, CentroCusto, Filial, MotivoRequisicao
+from tenancy.models import Almoxarifado, CentroCusto, Evento, Filial, MotivoRequisicao
 from tenancy.testing import TenantTestCase
 
+from .forms import PedidoForm
 from .models import ItemPedido, OrigemAtendimento, Pedido, StatusPedido
 from .services import (
     SemPermissao,
@@ -251,3 +255,98 @@ class CarrinhoTest(TenantTestCase):
         sessao = SessionStore()
         sessao["carrinho"] = {"None": "1", "999999": "1"}
         self.assertEqual(cart.quantidade_total(sessao), 0)
+
+
+class CheckoutFormTest(BaseFluxoTest):
+    def setUp(self):
+        super().setUp()
+        self.vc = Filial.objects.get(sigla="VC")
+        self.motivo_evento = MotivoRequisicao.objects.get(nome="Evento Pedagógico")
+        self.evento = Evento.objects.create(tenant=self.tenant, filial=self.filial, nome="Festa Junina")
+        self.evento_vc = Evento.objects.create(tenant=self.tenant, filial=self.vc, nome="Feira VC")
+
+    def dados(self, **sobrescrever):
+        base = {
+            "filial_destino": self.filial.pk,
+            "observacao": "Material para a semana",
+            "prioridade": "NORMAL",
+            "data_desejada": (timezone.localdate() + timedelta(days=3)).isoformat(),
+            "motivo": self.motivo.pk,
+        }
+        base.update(sobrescrever)
+        return base
+
+    def test_pedido_valido_deriva_almoxarifado_da_filial(self):
+        form = PedidoForm(self.dados(), usuario=self.requisitante)
+        self.assertTrue(form.is_valid(), form.errors)
+        pedido = form.save(commit=False)
+        self.assertEqual(pedido.almoxarifado_destino.filial, self.filial)
+        self.assertFalse(pedido.almoxarifado_destino.central)
+
+    def test_motivo_evento_exige_evento(self):
+        form = PedidoForm(self.dados(motivo=self.motivo_evento.pk), usuario=self.requisitante)
+        self.assertFalse(form.is_valid())
+        self.assertIn("evento", form.errors)
+
+    def test_motivo_evento_com_evento_da_unidade_e_valido(self):
+        dados = self.dados(motivo=self.motivo_evento.pk, evento=self.evento.pk)
+        form = PedidoForm(dados, usuario=self.requisitante)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_evento_de_outra_unidade_rejeitado(self):
+        self.requisitante.filiais_permitidas.add(self.filial, self.vc)
+        dados = self.dados(motivo=self.motivo_evento.pk, evento=self.evento_vc.pk)
+        form = PedidoForm(dados, usuario=self.requisitante)
+        self.assertFalse(form.is_valid())
+        self.assertIn("evento", form.errors)
+
+    def test_data_no_passado_rejeitada(self):
+        ontem = (timezone.localdate() - timedelta(days=1)).isoformat()
+        form = PedidoForm(self.dados(data_desejada=ontem), usuario=self.requisitante)
+        self.assertFalse(form.is_valid())
+        self.assertIn("data_desejada", form.errors)
+
+    def test_filial_fora_das_permitidas_rejeitada(self):
+        self.requisitante.filiais_permitidas.add(self.filial)
+        form = PedidoForm(self.dados(filial_destino=self.vc.pk), usuario=self.requisitante)
+        self.assertFalse(form.is_valid())
+        self.assertIn("filial_destino", form.errors)
+
+    def test_sem_permitidas_vale_a_filial_do_usuario(self):
+        form = PedidoForm(usuario=self.requisitante)
+        self.assertEqual(list(form.filiais), [self.filial])
+
+    def test_usuario_sem_destino_nao_tem_opcao(self):
+        self.requisitante.filial = None
+        form = PedidoForm(usuario=self.requisitante)
+        self.assertFalse(form.filiais.exists())
+
+    def test_filial_sem_almoxarifado_de_destino_fica_de_fora(self):
+        csc = Filial.objects.get(sigla="CSC")  # só tem o almoxarifado central
+        self.requisitante.filiais_permitidas.add(csc, self.filial)
+        form = PedidoForm(usuario=self.requisitante)
+        self.assertEqual(list(form.filiais), [self.filial])
+
+
+class RelatorioEventosTest(BaseFluxoTest):
+    def test_custo_de_estoque_soma_quantidade_vezes_custo_medio(self):
+        evento = Evento.objects.create(tenant=self.tenant, filial=self.filial, nome="Festa Junina")
+        pedido = self.novo_pedido("10")
+        pedido.evento = evento
+        pedido.save(update_fields=["evento"])
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        aprovar_como_lider(pedido, self.aprovador)
+        transicionar(pedido, StatusPedido.EM_SEPARACAO, self.suprimentos)
+        entregar(pedido, self.suprimentos)
+
+        admin = Usuario.objects.create_superuser(
+            "admin", password="senha-forte-123", tenant=self.tenant
+        )
+        self.client.force_login(admin)
+        resposta = self.client.get(reverse("relatorio_eventos"))
+
+        self.assertEqual(resposta.status_code, 200)
+        linha = next(l for l in resposta.context["linhas"] if l["evento"] == evento)
+        self.assertEqual(linha["custo_estoque"], Decimal("100.00"))  # 10 un × R$ 10,00
+        self.assertEqual(linha["pedidos"], 1)
+        self.assertEqual(resposta.context["total_estoque"], Decimal("100.00"))

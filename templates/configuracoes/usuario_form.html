@@ -27,6 +27,11 @@
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Filial/unidade</label>
       {{ form.filial }}
     </div>
+    <div class="sm:col-span-2">
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Unidades onde pode fazer pedidos</label>
+      {{ form.filiais_permitidas }}
+      <p class="text-xs text-slate-400 mt-1">Define as opções de "Unidade de destino" no checkout. Sem nenhuma marcada, vale só a filial do usuário. Ctrl/Cmd para marcar mais de uma.</p>
+    </div>
     <div>
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Setor</label>
       {{ form.setor }}

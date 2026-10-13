@@ -1,64 +1,94 @@
 {% extends "base.html" %}
 {% block titulo %}Catálogo{% endblock %}
-{% block conteudo %}
-<div class="mb-6">
-  <h1 class="text-2xl font-semibold">Catálogo de produtos</h1>
-  <p class="text-slate-500 text-sm mt-1">Escolha os itens e adicione ao carrinho. No fim, você informa o destino e o motivo.</p>
-</div>
 
-<form method="get" class="bg-white rounded-3xl border border-slate-200 p-4 mb-8 grid gap-3 sm:grid-cols-[1fr_260px]">
-  <div>
-    <label class="block text-xs font-medium text-slate-500 mb-1">Nome</label>
-    <input name="q" value="{{ busca }}" placeholder="Pesquisar produto…"
-           class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Mercado Perfil</h1>
+      <p class="text-sm text-[#9a9a9a] mt-1">Escolha os itens, adicione ao carrinho e finalize o pedido.</p>
+    </div>
+    <a href="{% url 'carrinho_ver' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272"/></svg>
+      Meu carrinho
+      <span class="rounded-full bg-[#0a0a0a] text-white text-xs font-bold h-5 min-w-5 px-1.5 inline-flex items-center justify-center">{{ carrinho_qtd|default:0 }}</span>
+    </a>
   </div>
-  <div>
-    <label class="block text-xs font-medium text-slate-500 mb-1">Categoria</label>
-    <select name="categoria" onchange="this.form.submit()"
-            class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
-      <option value="">Todas</option>
-      {% for c in categorias %}
-      <option value="{{ c.pk }}" {% if categoria_id == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>
-      {% endfor %}
-    </select>
-  </div>
-</form>
+
+  <form method="get" class="mt-5 flex flex-wrap gap-3">
+    {% if categoria_id %}<input type="hidden" name="categoria" value="{{ categoria_id }}">{% endif %}
+    <div class="relative flex-1 min-w-[220px]">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a7a7a]"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+      <input name="q" value="{{ busca }}" placeholder="Buscar produto pelo nome…" autocomplete="off"
+             class="w-full rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] pl-11 pr-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+    </div>
+    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Buscar</button>
+  </form>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="flex flex-wrap gap-2 mb-6">
+  <a href="?{% if busca %}q={{ busca|urlencode }}{% endif %}"
+     class="rounded-full px-4 py-1.5 text-sm font-medium border transition {% if not categoria_id %}bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white{% else %}bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">Todas</a>
+  {% for c in categorias %}
+  <a href="?categoria={{ c.pk }}{% if busca %}&q={{ busca|urlencode }}{% endif %}"
+     class="rounded-full px-4 py-1.5 text-sm font-medium border transition {% if categoria_id == c.pk|stringformat:'s' %}bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white{% else %}bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">{{ c.nome }}</a>
+  {% endfor %}
+</div>
 
 <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
   {% for p in produtos %}
-  <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden flex flex-col hover:shadow-md transition">
-    <div class="aspect-square bg-slate-50 flex items-center justify-center">
+  <div class="group bg-white rounded-2xl border border-slate-200 overflow-hidden flex flex-col hover:shadow-lg hover:-translate-y-0.5 transition dark:bg-slate-800 dark:border-slate-700">
+    <div class="relative aspect-[4/3] bg-slate-100 flex items-center justify-center dark:bg-slate-900/40">
       {% if p.imagem %}
         <img src="{{ p.imagem.url }}" alt="{{ p.nome }}" class="w-full h-full object-cover">
       {% else %}
-        <div class="text-slate-300 flex flex-col items-center gap-1">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" class="w-12 h-12"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 9h.008M6 21h12a2.25 2.25 0 0 0 2.25-2.25V5.25A2.25 2.25 0 0 0 18 3H6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6 21Z"/></svg>
-          <span class="text-xs">sem foto</span>
-        </div>
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.1" stroke="currentColor" class="w-14 h-14 text-slate-300 dark:text-slate-600"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 9h.008M6 21h12a2.25 2.25 0 0 0 2.25-2.25V5.25A2.25 2.25 0 0 0 18 3H6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6 21Z"/></svg>
       {% endif %}
+      <span class="absolute top-3 left-3 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-2.5 py-1 text-xs font-medium shadow-sm {% if p.saldo_central > 0 %}text-emerald-700{% else %}text-amber-700{% endif %}">
+        <span class="h-2 w-2 rounded-full {% if p.saldo_central > 0 %}bg-emerald-500{% else %}bg-amber-500{% endif %}"></span>
+        {% if p.saldo_central > 0 %}{{ p.saldo_central|floatformat:"-3" }} em estoque{% else %}Sem estoque · será comprado{% endif %}
+      </span>
     </div>
     <div class="p-4 flex flex-col flex-1">
-      <p class="font-medium text-slate-800 leading-snug">{{ p.nome }}</p>
-      {% if p.especificacao %}<p class="text-sm text-slate-500 mt-0.5">{{ p.especificacao }}</p>{% endif %}
-      <p class="text-xs mt-2 {% if p.saldo_central > 0 %}text-emerald-600{% else %}text-slate-400{% endif %}">
-        Estoque: {{ p.saldo_central|floatformat:"-3" }}
-      </p>
-      <form method="post" action="{% url 'carrinho_adicionar' %}" class="mt-4 flex gap-2">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ p.categoria.nome }}</p>
+      <p class="font-semibold text-slate-900 leading-snug mt-1 dark:text-slate-100">{{ p.nome }}</p>
+      {% if p.especificacao %}<p class="text-sm text-slate-500 mt-1 line-clamp-2 dark:text-slate-400">{{ p.especificacao }}</p>{% endif %}
+
+      <form method="post" action="{% url 'carrinho_adicionar' %}" class="mt-auto pt-4 space-y-3">
         {% csrf_token %}
         <input type="hidden" name="produto" value="{{ p.pk }}">
         <input type="hidden" name="voltar" value="{{ request.get_full_path }}">
-        <input name="quantidade" value="1" inputmode="decimal"
-               class="w-16 rounded-xl border-slate-200 px-3 py-2 text-sm text-center focus:border-blue-400 focus:ring-blue-400">
-        <button class="flex-1 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 transition">Adicionar</button>
+        <div class="flex items-center justify-between rounded-xl border border-slate-200 dark:border-slate-700">
+          <button type="button" data-passo="-1" class="h-10 w-10 text-lg text-slate-500 hover:text-slate-900 dark:hover:text-white" aria-label="Diminuir">−</button>
+          <input name="quantidade" value="1" inputmode="decimal" aria-label="Quantidade"
+                 class="w-14 border-0 bg-transparent text-center text-sm font-semibold focus:ring-0 dark:text-slate-100">
+          <button type="button" data-passo="1" class="h-10 w-10 text-lg text-slate-500 hover:text-slate-900 dark:hover:text-white" aria-label="Aumentar">+</button>
+        </div>
+        <button class="w-full rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Adicionar ao carrinho</button>
       </form>
     </div>
   </div>
   {% empty %}
-  <p class="col-span-full text-center text-slate-400 text-sm py-12">Nenhum produto encontrado com esse filtro.</p>
+  <div class="col-span-full text-center py-16">
+    <p class="text-slate-500 dark:text-slate-400">Nenhum produto encontrado com esse filtro.</p>
+    <a href="{% url 'catalogo' %}" class="inline-block mt-3 text-sm font-medium text-slate-900 underline dark:text-white">Limpar filtros</a>
+  </div>
   {% endfor %}
 </div>
 
 {% if produtos|length == 60 %}
 <p class="text-center text-xs text-slate-400 mt-8">Mostrando os primeiros 60 resultados — refine a busca para ver mais.</p>
 {% endif %}
+
+<script>
+  document.addEventListener('click', function (e) {
+    var botao = e.target.closest('[data-passo]');
+    if (!botao) return;
+    var campo = botao.parentElement.querySelector('input[name="quantidade"]');
+    var atual = parseFloat(String(campo.value).replace(',', '.')) || 0;
+    campo.value = Math.max(1, atual + parseInt(botao.dataset.passo, 10));
+  });
+</script>
 {% endblock %}

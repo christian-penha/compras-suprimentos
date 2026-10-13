@@ -1,100 +1,150 @@
 {% extends "base.html" %}
 {% load ui %}
 {% block titulo %}Pedido #{{ pedido.pk }}{% endblock %}
-{% block conteudo %}
-<div class="flex items-center justify-between mb-6">
-  <div>
-    <h1 class="text-2xl font-semibold">Pedido #{{ pedido.pk }}</h1>
-    <p class="text-slate-500 text-sm mt-1">
-      {{ pedido.requisitante }} → {{ pedido.almoxarifado_destino }} ·
-      {{ pedido.centro_custo }}{% if pedido.subcentro %} / {{ pedido.subcentro.nome }}{% endif %} ·
-      {{ pedido.motivo }}
-    </p>
-  </div>
-  <span class="text-xs font-medium px-3 py-1.5 rounded-full {{ pedido.status|badge_status }}">{{ pedido.get_status_display }}</span>
-</div>
 
-<div class="grid gap-6 lg:grid-cols-3">
-  <div class="lg:col-span-2 space-y-6">
-    <div class="bg-white rounded-3xl border border-slate-200 overflow-hidden">
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <a href="{% url 'pedido_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Meus pedidos</a>
+  <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold">Pedido #{{ pedido.pk }}</h1>
+      <p class="text-sm text-[#9a9a9a] mt-1">
+        Solicitado por {{ pedido.requisitante }} em {{ pedido.criado_em|date:"d/m/Y \à\s H:i" }}
+      </p>
+    </div>
+    <span class="text-sm font-semibold px-4 py-2 rounded-full {{ pedido.status|badge_status }}">{{ pedido.get_status_display }}</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-6 lg:grid-cols-[1fr_340px] items-start">
+  <div class="space-y-6">
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 mb-4 dark:text-slate-100">Informações do pedido</h2>
+      <dl class="grid gap-x-6 gap-y-5 sm:grid-cols-2 text-sm">
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">Unidade de destino</dt>
+          <dd class="font-medium text-slate-900 mt-0.5 dark:text-slate-100">{{ pedido.almoxarifado_destino }}</dd>
+        </div>
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">Motivo</dt>
+          <dd class="font-medium text-slate-900 mt-0.5 dark:text-slate-100">{{ pedido.motivo }}</dd>
+        </div>
+        {% if pedido.evento %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">Evento</dt>
+          <dd class="font-medium text-slate-900 mt-0.5 dark:text-slate-100">{{ pedido.evento.nome }}</dd>
+        </div>
+        {% endif %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">Prioridade</dt>
+          <dd class="mt-0.5">
+            <span class="inline-flex items-center gap-1.5 font-medium {% if pedido.prioridade == 'URGENTE' %}text-red-700 dark:text-red-400{% elif pedido.prioridade == 'ALTA' %}text-amber-700 dark:text-amber-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">
+              <span class="h-2 w-2 rounded-full {% if pedido.prioridade == 'URGENTE' %}bg-red-500{% elif pedido.prioridade == 'ALTA' %}bg-amber-500{% elif pedido.prioridade == 'BAIXA' %}bg-slate-300{% else %}bg-emerald-500{% endif %}"></span>
+              {{ pedido.get_prioridade_display }}
+            </span>
+          </dd>
+        </div>
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">Data desejada</dt>
+          <dd class="font-medium text-slate-900 mt-0.5 dark:text-slate-100">{{ pedido.data_desejada|date:"d/m/Y"|default:"—" }}</dd>
+        </div>
+        {% if pedido.centro_custo %}
+        <div>
+          <dt class="text-slate-500 dark:text-slate-400">Centro de custo</dt>
+          <dd class="font-medium text-slate-900 mt-0.5 dark:text-slate-100">{{ pedido.centro_custo }}{% if pedido.subcentro %} / {{ pedido.subcentro.nome }}{% endif %}</dd>
+        </div>
+        {% endif %}
+        {% if pedido.observacao %}
+        <div class="sm:col-span-2">
+          <dt class="text-slate-500 dark:text-slate-400">Descrição</dt>
+          <dd class="text-slate-800 mt-0.5 dark:text-slate-200">{{ pedido.observacao }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+      <div class="px-6 pt-5 pb-3"><h2 class="font-semibold text-slate-900 dark:text-slate-100">Itens</h2></div>
       <table class="w-full text-sm">
-        <thead class="bg-slate-50 text-slate-500 text-left">
+        <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
           <tr>
             <th class="px-6 py-3 font-medium">Produto</th>
             <th class="px-6 py-3 font-medium text-right">Qtd</th>
             <th class="px-6 py-3 font-medium">Atendimento</th>
           </tr>
         </thead>
-        <tbody class="divide-y divide-slate-100">
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
           {% for item in itens %}
-          <tr>
+          <tr class="dark:text-slate-100">
             <td class="px-6 py-3.5">{{ item.produto }}</td>
-            <td class="px-6 py-3.5 text-right">{{ item.quantidade|floatformat:"-3" }}</td>
+            <td class="px-6 py-3.5 text-right font-medium">{{ item.quantidade|floatformat:"-3" }}</td>
             <td class="px-6 py-3.5">
               {% if item.origem_atendimento == 'ESTOQUE' %}
-                <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700">Estoque · 72h</span>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>Estoque · 72h</span>
               {% elif item.origem_atendimento == 'COMPRA' %}
-                <span class="text-xs font-medium px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">Compra · 7 dias úteis</span>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400"><span class="h-2 w-2 rounded-full bg-amber-500"></span>Compra · 7 dias úteis</span>
               {% else %}
-                <span class="text-xs text-slate-400">—</span>
+                <span class="text-xs text-slate-400">Aguardando aprovação</span>
               {% endif %}
             </td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-    </div>
+    </section>
 
     {% if pedido.status == 'ENVIADO' and pode_aprovar %}
-    <div class="bg-white rounded-3xl border border-slate-200 p-6">
-      <h2 class="font-medium mb-4">Decisão do aprovador</h2>
+    <section class="bg-white rounded-2xl border-2 border-slate-900 p-6 dark:bg-slate-800 dark:border-white">
+      <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Decisão do aprovador</h2>
+      <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Este pedido aguarda a sua aprovação como líder do setor.</p>
       <form method="post" class="space-y-3">
         {% csrf_token %}
         <input name="observacao" placeholder="Motivo (obrigatório para recusar)"
-               class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
         <div class="flex gap-3">
-          <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 transition">Aprovar</button>
-          <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-medium px-5 py-2.5 transition">Recusar</button>
+          <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-2.5 transition">Aprovar</button>
+          <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold px-6 py-2.5 transition dark:bg-red-950 dark:text-red-300">Recusar</button>
         </div>
       </form>
-    </div>
+    </section>
     {% endif %}
 
     {% if e_gestor %}
       {% if pedido.status == 'APROVADO_UNIDADE' %}
       <form method="post">{% csrf_token %}
-        <button name="acao" value="separar" class="rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-medium px-5 py-2.5 transition">Iniciar separação</button>
+        <button name="acao" value="separar" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Iniciar separação</button>
       </form>
       {% elif pedido.status == 'EM_SEPARACAO' %}
       <form method="post">{% csrf_token %}
-        <button name="acao" value="entregar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-5 py-2.5 transition">Registrar entrega (baixa no estoque)</button>
+        <button name="acao" value="entregar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 transition">Registrar entrega (baixa no estoque)</button>
       </form>
       {% endif %}
     {% endif %}
 
     {% if pedido.status == 'ENTREGUE' and user == pedido.requisitante %}
     <form method="post">{% csrf_token %}
-      <button name="acao" value="concluir" class="rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-5 py-2.5 transition">Confirmar recebimento</button>
+      <button name="acao" value="concluir" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Confirmar recebimento</button>
     </form>
     {% endif %}
   </div>
 
-  <div class="bg-white rounded-3xl border border-slate-200 p-6 h-fit">
-    <h2 class="font-medium mb-4">Histórico</h2>
-    <ol class="space-y-4 text-sm">
+  <aside class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 mb-5 dark:text-slate-100">Histórico</h2>
+    <ol class="relative border-l border-slate-200 ml-1.5 space-y-5 text-sm dark:border-slate-700">
       {% for e in eventos %}
-      <li class="flex gap-3">
-        <span class="mt-1 h-2 w-2 rounded-full bg-blue-400 shrink-0"></span>
-        <div>
-          <p class="font-medium">{{ e.get_para_status_display }}</p>
-          <p class="text-slate-500">{{ e.usuario }} · {{ e.criado_em|date:"d/m H:i" }}</p>
-          {% if e.observacao %}<p class="text-slate-500 italic mt-0.5">"{{ e.observacao }}"</p>{% endif %}
-        </div>
+      <li class="ml-5">
+        <span class="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full {% if forloop.last %}bg-slate-900 dark:bg-white{% else %}bg-slate-300 dark:bg-slate-600{% endif %}"></span>
+        <p class="font-medium text-slate-900 dark:text-slate-100">{{ e.get_para_status_display }}</p>
+        <p class="text-slate-500 dark:text-slate-400">{{ e.usuario }} · {{ e.criado_em|date:"d/m H:i" }}</p>
+        {% if e.observacao %}<p class="text-slate-500 italic mt-0.5 dark:text-slate-400">"{{ e.observacao }}"</p>{% endif %}
       </li>
       {% empty %}
-      <p class="text-slate-400">Sem eventos.</p>
+      <li class="ml-5 text-slate-400">Sem eventos.</li>
       {% endfor %}
     </ol>
-  </div>
+  </aside>
 </div>
 {% endblock %}

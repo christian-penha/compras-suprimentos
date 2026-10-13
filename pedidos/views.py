@@ -3,22 +3,25 @@ from decimal import Decimal
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db import transaction
+from django.db.models import Count, DecimalField, F, Sum
 from django.shortcuts import get_object_or_404, redirect, render
 
 from cadastros.models import Categoria, Produto
 from contas.models import Papel
 from contas.permissoes import requer_papel
-from estoque.models import SaldoEstoque
+from estoque.models import Movimentacao, SaldoEstoque, TipoMovimentacao
+from tenancy.models import Evento, Filial
 
 from . import cart
 from .forms import PedidoForm
-from .models import ItemPedido, Pedido, StatusPedido
+from .models import ItemPedido, OrigemAtendimento, Pedido, StatusPedido
 from .services import (
     SemPermissao,
     TransicaoInvalida,
     aprovar_como_lider,
     entregar,
     pode_aprovar,
+    saldo_central,
     transicionar,
 )
 
@@ -99,7 +102,19 @@ def carrinho_ver(request):
         elif acao == "limpar":
             cart.limpar(request.session)
         return redirect("carrinho_ver")
-    return render(request, "pedidos/carrinho.html", {"itens": cart.itens(request.session)})
+    itens = cart.itens(request.session)
+    for item in itens:
+        item["saldo"] = saldo_central(item["produto"])
+        item["sem_estoque"] = item["quantidade"] > item["saldo"]
+    qtd_sem_estoque = sum(1 for i in itens if i["sem_estoque"])
+    return render(
+        request, "pedidos/carrinho.html",
+        {
+            "itens": itens,
+            "qtd_sem_estoque": qtd_sem_estoque,
+            "qtd_do_estoque": len(itens) - qtd_sem_estoque,
+        },
+    )
 
 
 @login_required
@@ -109,7 +124,14 @@ def checkout(request):
         messages.error(request, "Seu carrinho está vazio.")
         return redirect("catalogo")
 
-    form = PedidoForm(request.POST or None)
+    form = PedidoForm(request.POST or None, usuario=request.user)
+    if not form.filiais.exists():
+        messages.error(
+            request,
+            "Você não tem nenhuma unidade de destino cadastrada — peça ao administrador "
+            "para definir as unidades em que você pode fazer pedidos.",
+        )
+        return redirect("carrinho_ver")
     if request.method == "POST" and form.is_valid():
         with transaction.atomic():
             pedido = form.save(commit=False)
@@ -211,3 +233,60 @@ def fila_suprimentos(request):
         status__in=[StatusPedido.APROVADO_UNIDADE, StatusPedido.EM_SEPARACAO], ativo=True
     ).select_related("requisitante", "almoxarifado_destino__filial")
     return render(request, "estoque/fila.html", {"pedidos": pedidos})
+
+
+@requer_papel(Papel.ADMINISTRADOR)
+def relatorio_eventos(request):
+    filial_id = request.GET.get("filial", "")
+    eventos = Evento.objects.select_related("filial").order_by("filial", "nome")
+    if filial_id:
+        eventos = eventos.filter(filial_id=filial_id)
+    eventos = list(eventos)
+
+    validos = Pedido.objects.filter(
+        evento_id__in=[e.pk for e in eventos], ativo=True
+    ).exclude(status__in=[StatusPedido.RASCUNHO, StatusPedido.RECUSADO])
+    entregas = Movimentacao.objects.filter(pedido__in=validos, tipo=TipoMovimentacao.TRANSFERENCIA)
+
+    n_pedidos = dict(
+        validos.order_by().values_list("evento_id").annotate(n=Count("pk"))
+    )
+    custo = {
+        r["pedido__evento_id"]: r["total"]
+        for r in entregas.order_by().values("pedido__evento_id").annotate(
+            total=Sum(
+                F("quantidade") * F("valor_unitario"),
+                output_field=DecimalField(max_digits=14, decimal_places=2),
+            )
+        )
+    }
+    sem_custo = set(
+        entregas.filter(valor_unitario=0).values_list("pedido__evento_id", flat=True)
+    )
+    a_comprar = dict(
+        ItemPedido.objects.filter(pedido__in=validos, origem_atendimento=OrigemAtendimento.COMPRA)
+        .order_by().values_list("pedido__evento_id").annotate(n=Count("pk"))
+    )
+
+    linhas = [
+        {
+            "evento": e,
+            "pedidos": n_pedidos.get(e.pk, 0),
+            "custo_estoque": custo.get(e.pk) or 0,
+            "sem_custo": e.pk in sem_custo,
+            "a_comprar": a_comprar.get(e.pk, 0),
+        }
+        for e in eventos
+    ]
+    return render(
+        request, "relatorios/eventos.html",
+        {
+            "linhas": linhas,
+            "filiais": Filial.objects.filter(ativo=True).order_by("nome"),
+            "filial_id": filial_id,
+            "total_estoque": sum(l["custo_estoque"] for l in linhas),
+            "total_pedidos": sum(l["pedidos"] for l in linhas),
+            "total_a_comprar": sum(l["a_comprar"] for l in linhas),
+            "alguma_sem_custo": any(l["sem_custo"] for l in linhas),
+        },
+    )

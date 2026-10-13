@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Compras & Suprimentos{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=6">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=7">
   <script>
     (function () {
       var tema = localStorage.getItem('tema');
@@ -35,6 +35,8 @@
         {% url 'config_empresa_lista' as u_config_empresas %}
         {% url 'config_filial_lista' as u_config_filiais %}
         {% url 'config_setor_lista' as u_config_setores %}
+        {% url 'config_evento_lista' as u_config_eventos %}
+        {% url 'relatorio_eventos' as u_rel_eventos %}
 
         <a href="{% url 'painel' %}" title="Painel" class="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-3 text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == '/' %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955a1.5 1.5 0 0 1 2.122 0l8.955 8.955M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg>
@@ -111,6 +113,10 @@
             <svg class="grupo-seta w-3 h-3 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
           </button>
           <div class="grupo-itens space-y-1" data-grupo-itens="relatorios">
+            <a href="{{ u_rel_eventos }}" title="Custo por evento" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_rel_eventos %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Custo por evento</span>
+            </a>
             <span title="Em breve" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#5c5c5c] cursor-default">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Desembolso <span class="text-[10px]">(em breve)</span></span>
@@ -142,6 +148,10 @@
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Setores</span>
             </a>
+            <a href="{{ u_config_eventos }}" title="Eventos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_eventos %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Eventos</span>
+            </a>
           </div>
         </div>
         {% endif %}
@@ -170,7 +180,9 @@
       </div>
     </aside>
   {% endif %}
-    <main class="{% if user.is_authenticated %}flex-1 min-w-0 px-4 sm:px-8 py-8{% else %}mx-auto max-w-6xl px-4 py-8{% endif %}">
+    <main class="{% if user.is_authenticated %}flex-1 min-w-0{% else %}mx-auto max-w-6xl px-4 py-8{% endif %}">
+      {% block cabecalho %}{% endblock %}
+      <div class="{% if user.is_authenticated %}px-4 sm:px-8 py-8{% endif %}">
       {% if messages %}
         <div id="toasts" class="fixed top-6 right-6 z-50 w-80 max-w-[calc(100vw-3rem)] space-y-3">
           {% for m in messages %}
@@ -182,6 +194,7 @@
         </div>
       {% endif %}
       {% block conteudo %}{% endblock %}
+      </div>
     </main>
   </div>
 

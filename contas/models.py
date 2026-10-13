@@ -61,6 +61,10 @@ class Usuario(AbstractUser):
     setor = models.ForeignKey(
         Setor, on_delete=models.PROTECT, null=True, blank=True, related_name="membros"
     )
+    filiais_permitidas = models.ManyToManyField(
+        "tenancy.Filial", blank=True, related_name="usuarios_permitidos",
+        help_text="Unidades para as quais este usuário pode fazer pedidos",
+    )
     cargo = models.CharField(max_length=100, blank=True, help_text="Cargo/função, ex.: Coordenadora Pedagógica")
     ciclo = models.CharField(max_length=20, choices=CicloPedagogico.choices, blank=True)
     nome_completo = models.CharField(max_length=150, blank=True)
