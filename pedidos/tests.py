@@ -435,3 +435,31 @@ class EntregaParcialTest(BaseFluxoTest):
     def test_pedido_parcial_continua_na_fila_de_suprimentos(self):
         from .views import FILA_SUPRIMENTOS
         self.assertIn(StatusPedido.ENTREGA_PARCIAL, FILA_SUPRIMENTOS)
+
+
+class PedidoComItemDeCompraTest(BaseFluxoTest):
+    def aprovar(self, pedido):
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        aprovar_como_lider(pedido, self.aprovador)
+
+    def test_pedido_so_de_compra_fica_aguardando_compra(self):
+        pedido = self.novo_pedido("100")  # estoque central só tem 50
+        self.aprovar(pedido)
+        self.assertEqual(pedido.status, StatusPedido.AGUARDANDO_COMPRA)
+        with self.assertRaises(TransicaoInvalida):
+            transicionar(pedido, StatusPedido.EM_SEPARACAO, self.suprimentos)
+
+    def test_pedido_misto_nao_fecha_com_item_de_compra_pendente(self):
+        sem_estoque = Produto.objects.create(
+            nome="Papel crepom", especificacao="rolo", categoria=self.categoria
+        )
+        pedido = self.novo_pedido("10")  # tem estoque
+        ItemPedido.objects.create(pedido=pedido, produto=sem_estoque, quantidade=Decimal("5"))
+        self.aprovar(pedido)
+        self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
+
+        transicionar(pedido, StatusPedido.EM_SEPARACAO, self.suprimentos)
+        entregar(pedido, self.suprimentos)
+        self.assertEqual(pedido.status, StatusPedido.ENTREGA_PARCIAL)
+        with self.assertRaises(TransicaoInvalida):  # nada mais do estoque para entregar
+            entregar(pedido, self.suprimentos)

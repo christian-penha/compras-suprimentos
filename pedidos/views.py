@@ -28,7 +28,8 @@ from .services import (
 
 
 FILA_SUPRIMENTOS = [
-    StatusPedido.APROVADO_UNIDADE, StatusPedido.EM_SEPARACAO, StatusPedido.ENTREGA_PARCIAL,
+    StatusPedido.APROVADO_UNIDADE, StatusPedido.AGUARDANDO_COMPRA,
+    StatusPedido.EM_SEPARACAO, StatusPedido.ENTREGA_PARCIAL,
 ]
 
 
@@ -230,6 +231,9 @@ def pedido_detalhe(request, pk):
         {
             "pedido": pedido,
             "itens": pedido.itens.select_related("produto"),
+            "tem_item_de_compra": pedido.itens.filter(
+                origem_atendimento=OrigemAtendimento.COMPRA
+            ).exists(),
             "itens_entrega": [
                 {"item": i, "saldo": saldo_central(i.produto)}
                 for i in pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE)

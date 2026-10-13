@@ -9,6 +9,7 @@ class StatusPedido(models.TextChoices):
     RASCUNHO = "RASCUNHO", "Rascunho"
     ENVIADO = "ENVIADO", "Aguardando aprovação"
     APROVADO_UNIDADE = "APROVADO_UNIDADE", "Aprovado — aguardando suprimentos"
+    AGUARDANDO_COMPRA = "AGUARDANDO_COMPRA", "Aguardando compra"
     RECUSADO = "RECUSADO", "Recusado"
     EM_SEPARACAO = "EM_SEPARACAO", "Em separação"
     ENTREGA_PARCIAL = "ENTREGA_PARCIAL", "Entregue parcialmente"

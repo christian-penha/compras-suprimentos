@@ -116,6 +116,13 @@
     </section>
     {% endif %}
 
+    {% if pedido.status == 'AGUARDANDO_COMPRA' or pedido.status == 'ENTREGA_PARCIAL' and tem_item_de_compra %}
+    <section class="rounded-2xl border border-orange-200 bg-orange-50 px-6 py-5 text-sm text-orange-800 dark:bg-orange-950 dark:border-orange-900 dark:text-orange-200">
+      <p class="font-semibold">Itens aguardando compra</p>
+      <p class="mt-1">Alguns itens deste pedido não têm estoque suficiente e dependem de compra. O pedido só é concluído quando tudo for entregue.</p>
+    </section>
+    {% endif %}
+
     {% if e_gestor %}
       {% if pedido.status == 'APROVADO_UNIDADE' %}
       <form method="post">{% csrf_token %}
@@ -157,10 +164,7 @@
           <button name="acao" value="entregar" class="mt-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 transition">Registrar entrega (baixa no estoque)</button>
         </form>
         {% else %}
-        <p class="text-sm text-slate-500 dark:text-slate-400">Não há itens de estoque pendentes neste pedido.</p>
-        <form method="post" class="mt-4">{% csrf_token %}
-          <button name="acao" value="entregar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 transition">Concluir entrega</button>
-        </form>
+        <p class="text-sm text-slate-500 dark:text-slate-400">Não há mais itens do estoque pendentes. Os itens restantes aguardam compra.</p>
         {% endif %}
       </section>
       {% endif %}

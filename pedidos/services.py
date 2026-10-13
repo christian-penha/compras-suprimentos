@@ -26,7 +26,7 @@ class SemPermissao(Exception):
 TRANSICOES = {
     StatusPedido.RASCUNHO: {StatusPedido.ENVIADO},
     StatusPedido.ENVIADO: {StatusPedido.APROVADO_UNIDADE, StatusPedido.RECUSADO},
-    StatusPedido.APROVADO_UNIDADE: {StatusPedido.EM_SEPARACAO},
+    StatusPedido.APROVADO_UNIDADE: {StatusPedido.EM_SEPARACAO, StatusPedido.AGUARDANDO_COMPRA},
     StatusPedido.EM_SEPARACAO: {StatusPedido.ENTREGUE, StatusPedido.ENTREGA_PARCIAL},
     StatusPedido.ENTREGA_PARCIAL: {StatusPedido.ENTREGUE, StatusPedido.ENTREGA_PARCIAL},
     StatusPedido.ENTREGUE: {StatusPedido.CONCLUIDO},
@@ -138,6 +138,11 @@ def _aplicar_transicao(pedido, novo_status, usuario, observacao):
     pedido.save(update_fields=["status", "atualizado_em"])
     if novo_status == StatusPedido.APROVADO_UNIDADE:
         classificar_itens(pedido)
+        if not pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE).exists():
+            _aplicar_transicao(
+                pedido, StatusPedido.AGUARDANDO_COMPRA, usuario,
+                "Nenhum item tem estoque suficiente — pedido aguardando compra.",
+            )
 
 
 @transaction.atomic
@@ -200,8 +205,11 @@ def entregar(pedido, usuario, quantidades=None):
             )
         if qtd > 0:
             a_entregar.append((item, qtd))
-    if quantidades is not None and not a_entregar:
-        raise TransicaoInvalida("Informe a quantidade de pelo menos um item para entregar.")
+    if not a_entregar:
+        raise TransicaoInvalida(
+            "Informe a quantidade de pelo menos um item para entregar."
+            if itens else "Nenhum item deste pedido está disponível no estoque para entrega."
+        )
 
     for item, qtd in a_entregar:
         transferir(
@@ -211,7 +219,8 @@ def entregar(pedido, usuario, quantidades=None):
         item.quantidade_entregue += qtd
         item.save(update_fields=["quantidade_entregue"])
 
-    completo = all(item.pendente == 0 for item in itens)
+    # itens de compra também contam: o pedido só fecha quando tudo foi entregue
+    completo = all(item.pendente == 0 for item in pedido.itens.all())
     resumo = "; ".join(f"{qtd:f} × {item.produto.nome}" for item, qtd in a_entregar)[:480]
     return transicionar(
         pedido,
