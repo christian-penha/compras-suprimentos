@@ -46,6 +46,17 @@ def tem_lider_disponivel(requisitante):
     return bool(lideres_do_setor(requisitante))
 
 
+def e_lider_do_proprio_setor(usuario):
+    return bool(usuario.setor_id) and usuario.setor.lideres.filter(
+        pk=usuario.pk, ativo_no_sistema=True
+    ).exists()
+
+
+def aprovacao_do_setor_dispensada(requisitante):
+    """Líder que pede e não tem outro líder no setor não passa por aprovação do setor."""
+    return e_lider_do_proprio_setor(requisitante) and not tem_lider_disponivel(requisitante)
+
+
 def pode_aprovar(usuario, pedido):
     requisitante = pedido.requisitante
     if usuario == requisitante or not requisitante.setor_id:
@@ -89,10 +100,11 @@ def transicionar(pedido, novo_status, usuario, observacao=""):
                 "Você não está vinculado a nenhum setor — peça ao administrador para "
                 "cadastrar o seu setor antes de enviar pedidos."
             )
-        if not tem_lider_disponivel(pedido.requisitante):
+        if not tem_lider_disponivel(pedido.requisitante) and not e_lider_do_proprio_setor(
+            pedido.requisitante
+        ):
             raise TransicaoInvalida(
-                "O seu setor não tem outro líder ativo para aprovar o seu pedido — peça ao "
-                "administrador para cadastrar mais um líder no setor."
+                "O seu setor não tem líder ativo para aprovar pedidos — contate o administrador."
             )
 
     if novo_status in (StatusPedido.APROVADO_UNIDADE, StatusPedido.RECUSADO):
@@ -104,16 +116,25 @@ def transicionar(pedido, novo_status, usuario, observacao=""):
     if novo_status == StatusPedido.CONCLUIDO and usuario != pedido.requisitante:
         raise SemPermissao("Apenas o requisitante confirma o recebimento.")
 
+    _aplicar_transicao(pedido, novo_status, usuario, observacao)
+
+    if novo_status == StatusPedido.ENVIADO and aprovacao_do_setor_dispensada(pedido.requisitante):
+        _aplicar_transicao(
+            pedido, StatusPedido.APROVADO_UNIDADE, usuario,
+            "Aprovação do setor dispensada: você é o líder do setor.",
+        )
+    return pedido
+
+
+def _aplicar_transicao(pedido, novo_status, usuario, observacao):
     EventoPedido.objects.create(
-        pedido=pedido, de_status=atual, para_status=novo_status,
+        pedido=pedido, de_status=pedido.status, para_status=novo_status,
         usuario=usuario, observacao=observacao,
     )
     pedido.status = novo_status
     pedido.save(update_fields=["status", "atualizado_em"])
-
     if novo_status == StatusPedido.APROVADO_UNIDADE:
         classificar_itens(pedido)
-    return pedido
 
 
 @transaction.atomic

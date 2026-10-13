@@ -148,7 +148,13 @@ def checkout(request):
                 messages.error(request, str(e))
                 return redirect("carrinho_ver")
         cart.limpar(request.session)
-        messages.success(request, f"Pedido #{pedido.pk} enviado para aprovação.")
+        if pedido.status == StatusPedido.APROVADO_UNIDADE:
+            messages.success(
+                request,
+                f"Pedido #{pedido.pk} enviado — como líder do setor, ele já segue para suprimentos.",
+            )
+        else:
+            messages.success(request, f"Pedido #{pedido.pk} enviado para aprovação.")
         return redirect("pedido_detalhe", pk=pedido.pk)
 
     return render(request, "pedidos/checkout.html", {"form": form, "itens": itens_carrinho})

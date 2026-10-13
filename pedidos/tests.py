@@ -226,11 +226,21 @@ class AprovacaoPorSetorTest(BaseFluxoTest):
         with self.assertRaises(TransicaoInvalida):
             transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
 
-    def test_lider_unico_nao_envia_o_proprio_pedido(self):
+    def test_lider_unico_pula_a_aprovacao_do_setor(self):
         self.setor.lideres.set([self.requisitante])
         pedido = self.novo_pedido()
-        with self.assertRaises(TransicaoInvalida):
-            transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
+        self.assertEqual(pedido.aprovacoes_lider.count(), 0)
+        self.assertEqual(pedido.eventos.last().para_status, StatusPedido.APROVADO_UNIDADE)
+
+    def test_lider_com_outro_lider_no_setor_precisa_de_aprovacao(self):
+        self.setor.lideres.add(self.requisitante)  # aprovador continua sendo líder
+        pedido = self.novo_pedido()
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        self.assertEqual(pedido.status, StatusPedido.ENVIADO)
+        aprovar_como_lider(pedido, self.aprovador)
+        self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
 
     def test_requisitante_lider_nao_conta_como_voto_pendente(self):
         self.setor.lideres.add(self.requisitante, self.segundo_lider)
