@@ -51,7 +51,9 @@ def _registrar_nos_pedidos(pedidos, usuario, texto):
 def itens_para_cotar():
     """Itens que precisam de compra e ainda não estão em nenhuma cotação ativa."""
     em_cotacao_ativa = ItemCotacao.objects.filter(
-        cotacao__status__in=[StatusCotacao.AGUARDANDO_ALCADA, StatusCotacao.APROVADA]
+        cotacao__status__in=[
+            StatusCotacao.EM_COMPARACAO, StatusCotacao.AGUARDANDO_ALCADA, StatusCotacao.APROVADA,
+        ]
     ).values("item_pedido_id")
     return (
         ItemPedido.objects.filter(

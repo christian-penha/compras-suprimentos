@@ -13,6 +13,7 @@ def armazenamento_privado():
 
 
 class StatusCotacao(models.TextChoices):
+    EM_COMPARACAO = "EM_COMPARACAO", "Em comparação"
     AGUARDANDO_ALCADA = "AGUARDANDO_ALCADA", "Aguardando alçada"
     APROVADA = "APROVADA", "Aprovada"
     RECUSADA = "RECUSADA", "Recusada"
@@ -44,6 +45,8 @@ class Cotacao(TenantModel):
     )
     decidida_em = models.DateTimeField(null=True, blank=True)
     motivo_recusa = models.CharField(max_length=300, blank=True)
+    # Propostas de fornecedores concorrentes pelos mesmos itens compartilham a rodada.
+    rodada = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     criada_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:
@@ -71,7 +74,9 @@ class Cotacao(TenantModel):
 
     @property
     def ativa(self):
-        return self.status in (StatusCotacao.AGUARDANDO_ALCADA, StatusCotacao.APROVADA)
+        return self.status in (
+            StatusCotacao.EM_COMPARACAO, StatusCotacao.AGUARDANDO_ALCADA, StatusCotacao.APROVADA
+        )
 
 
 class ItemCotacao(models.Model):

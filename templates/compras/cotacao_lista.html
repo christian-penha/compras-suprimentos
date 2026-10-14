@@ -12,6 +12,8 @@
     <a href="{% url 'fila_compras' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">Ir para a fila de compras</a>
   </div>
   <form method="get" class="mt-5 flex flex-wrap gap-3">
+    <input type="hidden" name="agrupar" value="{{ agrupar }}">
+    <input type="hidden" name="visao" value="{{ visao }}">
     <input name="q" value="{{ busca }}" placeholder="Buscar por fornecedor ou produto…" autocomplete="off"
            class="flex-1 min-w-[220px] rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
     <select name="status" onchange="this.form.submit()"
@@ -20,12 +22,119 @@
       {% for valor, rotulo in status_opcoes %}<option value="{{ valor }}" {% if status == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
     </select>
     <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+    {% include "compras/_alternar.html" %}
+    {% if agrupar == "cotacao" %}{% include "compras/_visao.html" %}{% endif %}
   </form>
 </div>
 {% endblock %}
 
 {% block conteudo %}
+{% if agrupar != "cotacao" %}
+<div class="space-y-5">
+  {% for g in grupos %}
+  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ g.subtitulo }}</p>
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">{{ g.titulo }}</h2>
+    </header>
+    <ul class="divide-y divide-slate-100 dark:divide-slate-700">
+      {% for i in g.itens %}
+      <li><a href="{% url 'cotacao_detalhe' i.cotacao_id %}" class="flex items-center gap-4 px-6 py-3.5 hover:bg-slate-50 dark:text-slate-100 dark:hover:bg-slate-700/60 transition">
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-medium">{% if agrupar == "pedido" %}{{ i.item_pedido.produto.nome }}{% else %}Pedido #{{ i.item_pedido.pedido_id }} · {{ i.item_pedido.pedido.requisitante }}{% endif %}</p>
+          <p class="text-xs text-slate-500 dark:text-slate-400">Cotação #{{ i.cotacao.numero }} · {{ i.cotacao.fornecedor }}</p>
+        </div>
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-full {{ i.cotacao.status|badge_status }}">{{ i.cotacao.get_status_display }}</span>
+        <span class="text-sm text-slate-500 w-24 text-right dark:text-slate-400">{{ i.quantidade|floatformat:"-3" }} × {{ i.valor_unitario|floatformat:2 }}</span>
+        <span class="text-sm font-semibold w-28 text-right">R$ {{ i.subtotal|floatformat:2 }}</span>
+      </a></li>
+      {% endfor %}
+    </ul>
+  </section>
+  {% empty %}
+  <div class="text-center py-16"><p class="font-semibold text-slate-900 dark:text-slate-100">Nenhuma cotação encontrada</p></div>
+  {% endfor %}
+</div>
+
+{% elif visao == "lista" %}
+<div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto dark:bg-slate-800 dark:border-slate-700">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+      <tr>
+        <th class="px-6 py-3 font-medium">Cotação</th>
+        <th class="px-4 py-3 font-medium">Fornecedor</th>
+        <th class="px-4 py-3 font-medium">Pedido(s)</th>
+        <th class="px-4 py-3 font-medium">Situação</th>
+        <th class="px-4 py-3 font-medium text-right">Total</th>
+        <th class="px-6 py-3 font-medium">Comprador</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+      {% for r in rodadas %}
+      <tr class="dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/60">
+        <td class="px-6 py-3"><a href="{% url 'rodada_comparar' r.rodada %}" class="font-medium">Comparação</a></td>
+        <td class="px-4 py-3">{% for c in r.propostas %}{{ c.fornecedor }}{% if not forloop.last %} × {% endif %}{% endfor %}</td>
+        <td class="px-4 py-3 text-slate-500 dark:text-slate-400">—</td>
+        <td class="px-4 py-3"><span class="text-xs font-semibold px-2.5 py-1 rounded-full {{ 'EM_COMPARACAO'|badge_status }}">Em comparação</span></td>
+        <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">{% for c in r.propostas %}{{ c.valor_total|floatformat:2 }}{% if not forloop.last %} · {% endif %}{% endfor %}</td>
+        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ r.propostas.0.comprador }}</td>
+      </tr>
+      {% endfor %}
+      {% for c in cotacoes %}
+      <tr class="dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/60">
+        <td class="px-6 py-3"><a href="{% url 'cotacao_detalhe' c.pk %}" class="font-medium">#{{ c.numero }}</a></td>
+        <td class="px-4 py-3">{{ c.fornecedor }}</td>
+        <td class="px-4 py-3 text-slate-500 dark:text-slate-400">#{{ c.pedidos_origem }}</td>
+        <td class="px-4 py-3"><span class="text-xs font-semibold px-2.5 py-1 rounded-full {{ c.status|badge_status }}">{{ c.get_status_display }}</span></td>
+        <td class="px-4 py-3 text-right font-semibold">R$ {{ c.valor_total|floatformat:2 }}</td>
+        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ c.comprador }}</td>
+      </tr>
+      {% empty %}
+      {% if not rodadas %}<tr><td colspan="6" class="px-6 py-14 text-center text-slate-500 dark:text-slate-400">Nenhuma cotação encontrada.</td></tr>{% endif %}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% elif visao == "kanban" %}
+<div class="flex gap-4 overflow-x-auto pb-4">
+  {% for col in colunas %}
+  <section class="w-72 shrink-0 rounded-2xl bg-slate-100 p-3 dark:bg-slate-900/40">
+    <h2 class="px-1 pb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ col.titulo }} <span class="ml-1 text-slate-400">{{ col.total }}</span></h2>
+    <div class="space-y-3">
+      {% for r in col.rodadas %}
+      <a href="{% url 'rodada_comparar' r.rodada %}" class="block bg-white rounded-xl border-2 border-violet-200 p-4 hover:shadow-md transition dark:bg-slate-800 dark:border-violet-900">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Comparação</p>
+        <p class="font-semibold text-slate-900 dark:text-slate-100">{% for c in r.propostas %}{{ c.fornecedor }}{% if not forloop.last %} × {% endif %}{% endfor %}</p>
+      </a>
+      {% endfor %}
+      {% for c in col.cotacoes %}
+      <a href="{% url 'cotacao_detalhe' c.pk %}" class="block bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition dark:bg-slate-800 dark:border-slate-700">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">#{{ c.numero }} · Pedido(s) #{{ c.pedidos_origem }}</p>
+        <p class="font-semibold text-slate-900 dark:text-slate-100">{{ c.fornecedor }}</p>
+        <p class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">R$ {{ c.valor_total|floatformat:2 }}</p>
+        <p class="text-xs text-slate-500 dark:text-slate-400">{{ c.alcada.get_papel_aprovador_display }}</p>
+      </a>
+      {% endfor %}
+      {% if not col.cotacoes and not col.rodadas %}<p class="px-1 py-4 text-center text-xs text-slate-400">Vazio</p>{% endif %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+{% else %}
 <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  {% for r in rodadas %}
+  <a href="{% url 'rodada_comparar' r.rodada %}" class="block bg-white rounded-2xl border-2 border-violet-200 p-5 hover:shadow-lg hover:-translate-y-0.5 transition dark:bg-slate-800 dark:border-violet-900">
+    <div class="flex items-start justify-between gap-3">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Comparação de fornecedores</p>
+      <span class="text-xs font-semibold px-3 py-1.5 rounded-full {{ 'EM_COMPARACAO'|badge_status }}">Em comparação</span>
+    </div>
+    <h2 class="text-lg font-semibold text-slate-900 mt-1 dark:text-slate-100">{% for c in r.propostas %}{{ c.fornecedor }}{% if not forloop.last %} × {% endif %}{% endfor %}</h2>
+    <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">{% for c in r.propostas %}R$ {{ c.valor_total|floatformat:2 }}{% if not forloop.last %} · {% endif %}{% endfor %}</p>
+    <p class="mt-3 text-sm font-medium text-slate-900 dark:text-white">Escolher vencedores →</p>
+  </a>
+  {% endfor %}
   {% for c in cotacoes %}
   <a href="{% url 'cotacao_detalhe' c.pk %}" class="block bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg hover:-translate-y-0.5 transition dark:bg-slate-800 dark:border-slate-700">
     <div class="flex items-start justify-between gap-3">
@@ -43,10 +152,13 @@
     <p class="mt-3 text-xs text-slate-400">por {{ c.comprador }} · {{ c.criada_em|date:"d/m H:i" }}</p>
   </a>
   {% empty %}
+  {% if not rodadas %}
   <div class="col-span-full text-center py-16">
     <p class="font-semibold text-slate-900 dark:text-slate-100">Nenhuma cotação encontrada</p>
     <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Cote itens a partir da fila de compras.</p>
   </div>
+  {% endif %}
   {% endfor %}
 </div>
+{% endif %}
 {% endblock %}

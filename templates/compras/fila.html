@@ -4,7 +4,14 @@
 {% block cabecalho %}
 <div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
   <h1 class="text-2xl font-semibold">Fila de compras</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Itens sem estoque aguardando cotação, agrupados pelo fornecedor padrão do produto.</p>
+  <p class="text-sm text-[#9a9a9a] mt-1">Itens sem estoque aguardando cotação. Selecione os itens e cote com um ou mais fornecedores.</p>
+  <form method="get" class="mt-5 flex flex-wrap gap-3">
+    <input type="hidden" name="agrupar" value="{{ agrupar }}">
+    <input name="q" value="{{ busca }}" placeholder="Buscar por produto ou requisitante…" autocomplete="off"
+           class="flex-1 min-w-[220px] rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Buscar</button>
+    {% include "compras/_alternar.html" %}
+  </form>
 </div>
 {% endblock %}
 
@@ -16,8 +23,8 @@
     <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
       <header class="flex items-center justify-between gap-3 px-6 py-4 border-b border-slate-100 dark:border-slate-700">
         <div>
-          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Fornecedor padrão</p>
-          <h2 class="font-semibold text-slate-900 dark:text-slate-100">{% if g.fornecedor %}{{ g.fornecedor }}{% else %}Sem fornecedor definido{% endif %}</h2>
+          <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ g.subtitulo }}</p>
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100">{{ g.titulo }}</h2>
         </div>
         <label class="flex items-center gap-2 text-sm text-slate-500 cursor-pointer dark:text-slate-400">
           <input type="checkbox" class="marcar-grupo h-4 w-4 rounded border-slate-300 text-slate-900"> Selecionar todos

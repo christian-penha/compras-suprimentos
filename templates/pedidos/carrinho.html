@@ -24,8 +24,8 @@
     {% for item in itens %}
     <div class="flex flex-wrap items-center gap-4 px-5 py-4">
       <div class="h-20 w-20 rounded-xl bg-slate-100 flex items-center justify-center shrink-0 overflow-hidden dark:bg-slate-900/40">
-        {% if item.produto.imagem %}
-          <img src="{{ item.produto.imagem.url }}" alt="{{ item.produto.nome }}" class="w-full h-full object-cover">
+        {% if item.produto.imagem_exibicao %}
+          <img src="{{ item.produto.imagem_exibicao }}" loading="lazy" referrerpolicy="no-referrer" alt="{{ item.produto.nome }}" class="w-full h-full object-cover">
         {% else %}
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.2" stroke="currentColor" class="w-8 h-8 text-slate-300"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 9h.008M6 21h12a2.25 2.25 0 0 0 2.25-2.25V5.25A2.25 2.25 0 0 0 18 3H6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6 21Z"/></svg>
         {% endif %}

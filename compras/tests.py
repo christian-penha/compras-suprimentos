@@ -294,3 +294,78 @@ class AlcadaPorFilialNaCotacaoTest(BaseComprasTest):
         com_regra_propria = self.cotar(item, "100.00")
         self.assertEqual(com_regra_propria.alcada.filial, self.filial)
         self.assertEqual(com_regra_propria.status, StatusCotacao.APROVADA)  # automática até R$ 1.000
+
+
+class ComparacaoDeFornecedoresTest(BaseComprasTest):
+    def setUp(self):
+        super().setUp()
+        self.outro = Fornecedor.objects.create(razao_social="Distribuidora X", cnpj="55.666.777/0001-88")
+        _, self.item = self.pedido_sem_estoque("5")
+
+    def rodada(self, preco_a="20.00", preco_b="15.00"):
+        from .rodadas import criar_rodada
+
+        return criar_rodada(comprador=self.comprador, propostas=[
+            {"fornecedor": self.fornecedor, "precos": {self.item.pk: Decimal(preco_a)}, "frete": Decimal("0")},
+            {"fornecedor": self.outro, "precos": {self.item.pk: Decimal(preco_b)}, "frete": Decimal("10")},
+        ])
+
+    def test_rodada_prende_o_item_e_nao_tem_alcada_nem_numero(self):
+        rodada = self.rodada()
+        propostas = Cotacao.objects.filter(rodada=rodada)
+        self.assertEqual(propostas.count(), 2)
+        self.assertTrue(all(c.status == StatusCotacao.EM_COMPARACAO and not c.numero for c in propostas))
+        self.assertNotIn(self.item, list(services.itens_para_cotar()))
+
+    def test_fechar_gera_cotacao_so_do_vencedor(self):
+        from .rodadas import fechar_rodada
+
+        rodada = self.rodada()
+        vencedora = Cotacao.objects.get(rodada=rodada, fornecedor=self.outro)
+        resultado = fechar_rodada(rodada, self.comprador, {self.item.pk: vencedora.pk})
+        self.assertEqual([c.pk for c in resultado], [vencedora.pk])
+        vencedora.refresh_from_db()
+        self.assertEqual(vencedora.valor_total, Decimal("85.00"))  # 5 x 15 + 10
+        self.assertEqual(vencedora.status, StatusCotacao.APROVADA)
+        self.assertTrue(vencedora.numero)
+        perdedora = Cotacao.objects.get(rodada=rodada, fornecedor=self.fornecedor)
+        self.assertEqual(perdedora.status, StatusCotacao.CANCELADA)
+
+    def test_escolha_de_fornecedor_que_nao_cotou_e_rejeitada(self):
+        from .rodadas import criar_rodada, fechar_rodada
+
+        cola = Produto.objects.create(nome="Cola", especificacao="frasco", categoria=self.categoria)
+        outro_item = ItemPedido.objects.create(pedido=self.item.pedido, produto=cola, quantidade=Decimal("1"))
+        outro_item.origem_atendimento = OrigemAtendimento.COMPRA
+        outro_item.save()
+        rodada = criar_rodada(comprador=self.comprador, propostas=[
+            {"fornecedor": self.fornecedor, "precos": {self.item.pk: Decimal("20")}, "frete": Decimal("0")},
+            {"fornecedor": self.outro, "precos": {outro_item.pk: Decimal("9")}, "frete": Decimal("0")},
+        ])
+        a = Cotacao.objects.get(rodada=rodada, fornecedor=self.fornecedor)
+        with self.assertRaises(TransicaoInvalida):
+            fechar_rodada(rodada, self.comprador, {self.item.pk: a.pk, outro_item.pk: a.pk})
+
+    def test_telas_de_fila_e_lista_agrupam_por_pedido_e_produto(self):
+        self.client.force_login(self.comprador)
+        for por in ("fornecedor", "pedido", "produto"):
+            self.assertEqual(self.client.get(reverse("fila_compras"), {"agrupar": por}).status_code, 200)
+        self.rodada()
+        for por in ("cotacao", "pedido", "produto"):
+            self.assertEqual(self.client.get(reverse("cotacao_lista"), {"agrupar": por}).status_code, 200)
+        rodada = Cotacao.objects.exclude(rodada=None).first().rodada
+        self.assertContains(self.client.get(reverse("rodada_comparar", args=[rodada])), "Comparar fornecedores")
+
+
+class VisoesDaAreaDeComprasTest(BaseComprasTest):
+    def test_cotacoes_e_ordens_abrem_em_cards_lista_e_kanban(self):
+        _, item = self.pedido_sem_estoque("5")
+        cotacao = self.cotar(item, "20.00")
+        services.gerar_ordem_compra(cotacao, self.comprador)
+        self.client.force_login(self.comprador)
+        for nome in ("cotacao_lista", "ordem_lista"):
+            for visao in ("cards", "lista", "kanban", "invalida"):
+                resposta = self.client.get(reverse(nome), {"visao": visao})
+                self.assertEqual(resposta.status_code, 200, (nome, visao))
+        kanban = self.client.get(reverse("cotacao_lista"), {"visao": "kanban"})
+        self.assertContains(kanban, "Aguardando alçada")

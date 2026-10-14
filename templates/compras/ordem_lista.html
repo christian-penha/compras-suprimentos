@@ -3,13 +3,68 @@
 {% block titulo %}Ordens de compra{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <h1 class="text-2xl font-semibold">Ordens de compra</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Compras aprovadas aguardando nota fiscal e recebimento.</p>
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Ordens de compra</h1>
+    <p class="text-sm text-[#9a9a9a] mt-1">Compras aprovadas aguardando nota fiscal e recebimento.</p>
+  </div>
+  {% include "compras/_visao.html" %}
 </div>
 {% endblock %}
 
 {% block conteudo %}
+{% if visao == "lista" %}
+<div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto dark:bg-slate-800 dark:border-slate-700">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+      <tr>
+        <th class="px-6 py-3 font-medium">OC</th>
+        <th class="px-4 py-3 font-medium">Fornecedor</th>
+        <th class="px-4 py-3 font-medium">Pedido(s)</th>
+        <th class="px-4 py-3 font-medium">Situação</th>
+        <th class="px-4 py-3 font-medium text-right">Total</th>
+        <th class="px-6 py-3 font-medium">Emitida em</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+      {% for o in ordens %}
+      <tr class="dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/60">
+        <td class="px-6 py-3"><a href="{% url 'ordem_detalhe' o.pk %}" class="font-medium">#{{ o.numero }}</a></td>
+        <td class="px-4 py-3">{{ o.cotacao.fornecedor }}</td>
+        <td class="px-4 py-3 text-slate-500 dark:text-slate-400">#{{ o.cotacao.pedidos_origem }}</td>
+        <td class="px-4 py-3"><span class="text-xs font-semibold px-2.5 py-1 rounded-full {{ o.status|badge_status }}">{{ o.get_status_display }}</span></td>
+        <td class="px-4 py-3 text-right font-semibold">R$ {{ o.cotacao.valor_total|floatformat:2 }}</td>
+        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ o.criada_em|date:"d/m/Y" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="6" class="px-6 py-14 text-center text-slate-500 dark:text-slate-400">Nenhuma ordem de compra ainda.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% elif visao == "kanban" %}
+<div class="flex gap-4 overflow-x-auto pb-4">
+  {% for col in colunas %}
+  <section class="w-72 shrink-0 rounded-2xl bg-slate-100 p-3 dark:bg-slate-900/40">
+    <h2 class="px-1 pb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ col.titulo }} <span class="ml-1 text-slate-400">{{ col.ordens|length }}</span></h2>
+    <div class="space-y-3">
+      {% for o in col.ordens %}
+      <a href="{% url 'ordem_detalhe' o.pk %}" class="block bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition dark:bg-slate-800 dark:border-slate-700">
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">OC #{{ o.numero }} · Pedido(s) #{{ o.cotacao.pedidos_origem }}</p>
+        <p class="font-semibold text-slate-900 dark:text-slate-100">{{ o.cotacao.fornecedor }}</p>
+        <p class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">R$ {{ o.cotacao.valor_total|floatformat:2 }}</p>
+        <p class="text-xs text-slate-400">{{ o.criada_em|date:"d/m/Y" }}</p>
+      </a>
+      {% empty %}
+      <p class="px-1 py-4 text-center text-xs text-slate-400">Vazio</p>
+      {% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+</div>
+
+{% else %}
 <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
   {% for o in ordens %}
   <a href="{% url 'ordem_detalhe' o.pk %}" class="block bg-white rounded-2xl border border-slate-200 p-5 hover:shadow-lg hover:-translate-y-0.5 transition dark:bg-slate-800 dark:border-slate-700">
@@ -31,4 +86,5 @@
   </div>
   {% endfor %}
 </div>
+{% endif %}
 {% endblock %}

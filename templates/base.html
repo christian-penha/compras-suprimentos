@@ -29,6 +29,8 @@
         {% url 'aprovacoes' as u_aprovacoes %}
         {% url 'fila_suprimentos' as u_fila %}
         {% url 'entrada_planilha' as u_entrada %}
+        {% url 'produto_lista' as u_produtos %}
+        {% url 'sugestoes_lista' as u_sugestoes %}
         {% url 'posicao_estoque' as u_estoque %}
         {% url 'config_painel' as u_config %}
         {% url 'config_usuario_lista' as u_config_usuarios %}
@@ -120,6 +122,14 @@
             <a href="{{ u_fila }}" title="Fila de suprimentos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_fila %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5 12 3 3.75 7.5m16.5 0-8.25 4.5m8.25-4.5v9l-8.25 4.5m0-9L3.75 7.5m8.25 4.5v9m-8.25-9v9l8.25 4.5"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Fila de suprimentos</span>
+            </a>
+            <a href="{{ u_produtos }}" title="Produtos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_produtos %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Produtos</span>
+            </a>
+            <a href="{{ u_sugestoes }}" title="Sugestões de produto" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_sugestoes %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z"/></svg>
+              <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Sugestões de produto</span>
             </a>
             <a href="{{ u_entrada }}" title="Entrada" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_entrada %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m-6 3 3-3m0 0 3 3m-3-3v10.5"/></svg>
@@ -281,5 +291,12 @@
       });
     })();
   </script>
+<script>
+  document.querySelectorAll('a[data-param]').forEach(function (a) {
+    var q = new URLSearchParams(location.search);
+    q.set(a.dataset.param, a.dataset.valor); q.delete('pagina');
+    a.href = '?' + q.toString();
+  });
+</script>
 </body>
 </html>

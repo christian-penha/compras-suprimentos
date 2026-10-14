@@ -1,19 +1,80 @@
 {% extends "base.html" %}
 {% load ui %}
 {% block titulo %}Fila de suprimentos{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Fila de suprimentos</h1>
+    <p class="text-sm text-[#9a9a9a] mt-1">Pedidos aprovados para separar e entregar.</p>
+  </div>
+  {% include "compras/_visao.html" %}
+  {% include "_filtros.html" with placeholder="Buscar por nº, requisitante ou descrição…" %}
+</div>
+{% endblock %}
+
 {% block conteudo %}
-<h1 class="text-2xl font-semibold mb-6">Fila de suprimentos</h1>
-<div class="bg-white rounded-3xl border border-slate-200 divide-y divide-slate-100">
-  {% for p in pedidos %}
-  <a href="{% url 'pedido_detalhe' p.pk %}" class="flex items-center justify-between px-6 py-4 hover:bg-slate-50 transition">
-    <div>
-      <p class="font-medium">Pedido #{{ p.pk }} — {{ p.requisitante }}</p>
-      <p class="text-sm text-slate-500">{{ p.almoxarifado_destino }} · aprovado em {{ p.atualizado_em|date:"d/m H:i" }}</p>
+{% if visao == "lista" %}
+<div class="bg-white rounded-2xl border border-slate-200 overflow-x-auto dark:bg-slate-800 dark:border-slate-700">
+  <table class="w-full text-sm">
+    <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+      <tr>
+        <th class="px-6 py-3 font-medium">Pedido</th>
+        <th class="px-4 py-3 font-medium">Requisitante</th>
+        <th class="px-4 py-3 font-medium">Destino</th>
+        <th class="px-4 py-3 font-medium">Situação</th>
+        <th class="px-6 py-3 font-medium">Atualizado em</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+      {% for p in pedidos %}
+      <tr class="dark:text-slate-100 hover:bg-slate-50 dark:hover:bg-slate-700/60">
+        <td class="px-6 py-3"><a href="{% url 'pedido_detalhe' p.pk %}" class="font-medium">#{{ p.pk }}</a></td>
+        <td class="px-4 py-3">{{ p.requisitante }}</td>
+        <td class="px-4 py-3 text-slate-500 dark:text-slate-400">{{ p.almoxarifado_destino }}</td>
+        <td class="px-4 py-3"><span class="text-xs font-medium px-2.5 py-1 rounded-full {{ p.status|badge_status }}">{{ p.get_status_display }}</span></td>
+        <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ p.atualizado_em|date:"d/m H:i" }}</td>
+      </tr>
+      {% empty %}
+      <tr><td colspan="5" class="px-6 py-14 text-center text-slate-500 dark:text-slate-400">Fila vazia — nada para separar.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+{% elif visao == "kanban" %}
+<div class="flex gap-4 overflow-x-auto pb-4">
+  {% for col in colunas %}
+  <section class="w-72 shrink-0 rounded-2xl bg-slate-100 p-3 dark:bg-slate-900/40">
+    <h2 class="px-1 pb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ col.titulo }} <span class="ml-1 text-slate-400">{{ col.pedidos|length }}</span></h2>
+    <div class="space-y-3">
+      {% for p in col.pedidos %}
+      <a href="{% url 'pedido_detalhe' p.pk %}" class="block bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition dark:bg-slate-800 dark:border-slate-700">
+        <p class="font-semibold text-slate-900 dark:text-slate-100">Pedido #{{ p.pk }}</p>
+        <p class="text-sm text-slate-500 dark:text-slate-400">{{ p.requisitante }}</p>
+        <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">{{ p.almoxarifado_destino }}</p>
+        <p class="text-xs text-slate-400">atualizado em {{ p.atualizado_em|date:"d/m H:i" }}</p>
+      </a>
+      {% empty %}
+      <p class="px-1 py-4 text-center text-xs text-slate-400">Vazio</p>
+      {% endfor %}
     </div>
-    <span class="text-xs font-medium px-3 py-1.5 rounded-full {{ p.status|badge_status }}">{{ p.get_status_display }}</span>
-  </a>
-  {% empty %}
-  <p class="px-6 py-8 text-sm text-slate-400 text-center">Fila vazia — nada para separar.</p>
+  </section>
   {% endfor %}
 </div>
+
+{% else %}
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  {% for p in pedidos %}
+  <a href="{% url 'pedido_detalhe' p.pk %}" class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col dark:bg-slate-800 dark:border-slate-700 hover:shadow-md transition">
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">Pedido #{{ p.pk }}</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400">{{ p.requisitante }}</p>
+    <p class="mt-3 text-sm text-slate-600 dark:text-slate-300">{{ p.almoxarifado_destino }} · atualizado em {{ p.atualizado_em|date:'d/m H:i' }}</p>
+    <div class="mt-3"><span class="text-xs font-medium px-3 py-1.5 rounded-full {{ p.status|badge_status }}">{{ p.get_status_display }}</span></div>
+  </a>
+  {% empty %}
+  <p class="col-span-full text-center py-16 text-sm text-slate-500 dark:text-slate-400">Fila vazia — nada para separar.</p>
+  {% endfor %}
+</div>
+{% endif %}
 {% endblock %}

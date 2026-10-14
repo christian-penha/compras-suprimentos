@@ -6,6 +6,7 @@ from django.urls import include, path
 
 from estoque import views as estoque_views
 from pedidos import views as pedidos_views
+from pedidos import views_produtos as produtos_views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -13,6 +14,12 @@ urlpatterns = [
     path("sair/", auth_views.LogoutView.as_view(), name="logout"),
     path("", pedidos_views.painel, name="painel"),
     path("catalogo/", pedidos_views.catalogo, name="catalogo"),
+    path("catalogo/sugerir/", produtos_views.sugerir_produto, name="sugerir_produto"),
+    path("suprimentos/produtos/", produtos_views.produto_lista, name="produto_lista"),
+    path("suprimentos/produtos/novo/", produtos_views.produto_form, name="produto_novo"),
+    path("suprimentos/produtos/<int:pk>/", produtos_views.produto_form, name="produto_editar"),
+    path("suprimentos/sugestoes/", produtos_views.sugestoes_lista, name="sugestoes_lista"),
+    path("suprimentos/sugestoes/<int:pk>/recusar/", produtos_views.sugestao_recusar, name="sugestao_recusar"),
     path("carrinho/", pedidos_views.carrinho_ver, name="carrinho_ver"),
     path("carrinho/adicionar/", pedidos_views.carrinho_adicionar, name="carrinho_adicionar"),
     path("checkout/", pedidos_views.checkout, name="checkout"),

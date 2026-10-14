@@ -62,7 +62,7 @@ class UnidadeMedida(models.TextChoices):
 
 class Produto(models.Model):
     codigo = models.CharField(
-        max_length=30, unique=True, null=True, blank=True,
+        max_length=50, unique=True, null=True, blank=True,
         help_text="Código interno importado (chave de reimportação)",
     )
     nome = models.CharField(max_length=200)
@@ -76,6 +76,10 @@ class Produto(models.Model):
         max_length=5, choices=UnidadeMedida.choices, default=UnidadeMedida.UNIDADE
     )
     imagem = models.ImageField(upload_to="produtos/", null=True, blank=True)
+    imagem_url = models.URLField(
+        "link da imagem", max_length=500, blank=True,
+        help_text="Exibida enquanto não há arquivo anexado (origem: Glide)",
+    )
     reutilizavel = models.BooleanField(
         default=False, help_text="Exige devolução ao término do projeto"
     )
@@ -103,6 +107,11 @@ class Produto(models.Model):
 
     def __str__(self):
         return f"{self.nome} — {self.especificacao}" if self.especificacao else self.nome
+
+    @property
+    def imagem_exibicao(self):
+        """Arquivo anexado, se houver; senão o link externo."""
+        return self.imagem.url if self.imagem else self.imagem_url
 
 
 class Feriado(models.Model):

@@ -13,8 +13,9 @@ from contas.permissoes import requer_papel
 from pedidos.services import SemPermissao, TransicaoInvalida
 from estoque.services import EstoqueInsuficiente
 
-from .models import Cotacao, NotaFiscal, OrdemCompra, StatusCotacao
+from .models import Cotacao, ItemCotacao, NotaFiscal, OrdemCompra, StatusCotacao, StatusOrdem
 from .nfe import NFeInvalida
+from .rodadas import criar_rodada, fechar_rodada, propostas_da_rodada
 from .services import (
     aprovadores_da_cotacao,
     cancelar_cotacao,
@@ -52,15 +53,85 @@ def _decimal(texto, padrao=None):
 
 # ------------------------------------------------------------------ fila e cotação
 
+def _visao(request):
+    """Modo de exibição das listas da área de compras: cards (padrão), lista ou kanban."""
+    visao = request.GET.get("visao", "cards")
+    return visao if visao in ("cards", "lista", "kanban") else "cards"
+
+
+def _agrupar_itens(itens, por):
+    """Agrupa itens (da fila ou de cotações) por fornecedor, pedido ou produto.
+    Devolve [{"titulo", "subtitulo", "itens"}]."""
+    grupos = {}
+    for item in itens:
+        pedido_item = getattr(item, "item_pedido", item)
+        if por == "pedido":
+            chave = pedido_item.pedido_id
+            titulo = f"Pedido #{pedido_item.pedido_id}"
+            sub = f"{pedido_item.pedido.requisitante} · {pedido_item.pedido.almoxarifado_destino.filial.sigla}"
+        elif por == "produto":
+            chave = pedido_item.produto_id
+            titulo = pedido_item.produto.nome
+            sub = pedido_item.produto.especificacao
+        else:
+            fornecedor = pedido_item.produto.fornecedor_padrao
+            chave = fornecedor.pk if fornecedor else 0
+            titulo = str(fornecedor) if fornecedor else "Sem fornecedor definido"
+            sub = "Fornecedor padrão"
+        grupos.setdefault(chave, {"titulo": titulo, "subtitulo": sub, "itens": []})["itens"].append(item)
+    return sorted(grupos.values(), key=lambda g: g["titulo"])
+
+
 @comprador
 def fila_compras(request):
-    grupos = {}
-    for item in itens_para_cotar():
-        fornecedor = item.produto.fornecedor_padrao
-        chave = fornecedor.pk if fornecedor else 0
-        grupos.setdefault(chave, {"fornecedor": fornecedor, "itens": []})["itens"].append(item)
-    ordenados = sorted(grupos.values(), key=lambda g: (g["fornecedor"] is None, str(g["fornecedor"])))
-    return render(request, "compras/fila.html", {"grupos": ordenados})
+    por = request.GET.get("agrupar", "fornecedor")
+    if por not in ("fornecedor", "pedido", "produto"):
+        por = "fornecedor"
+    busca = request.GET.get("q", "").strip()
+    itens = itens_para_cotar()
+    if busca:
+        itens = itens.filter(
+            Q(produto__nome__icontains=busca) | Q(pedido__requisitante__nome_completo__icontains=busca)
+        )
+    return render(request, "compras/fila.html", {
+        "grupos": _agrupar_itens(itens, por), "agrupar": por, "busca": busca,
+        "opcoes": [("fornecedor", "Por fornecedor"), ("pedido", "Por pedido"), ("produto", "Por produto")],
+    })
+
+
+def _propostas_do_post(request, itens, fornecedores):
+    """Lê as colunas de fornecedor do formulário: listas paralelas `fornecedor`, `frete` e
+    `preco_<item>`. Coluna sem fornecedor é ignorada; preço vazio = não cotou."""
+    escolhidos = request.POST.getlist("fornecedor")
+    fretes = request.POST.getlist("frete")
+    propostas, erro = [], None
+    for n, fid in enumerate(escolhidos):
+        if not fid:
+            continue
+        fornecedor = fornecedores.filter(pk=fid if fid.isdigit() else 0).first()
+        frete = _decimal(fretes[n] if n < len(fretes) else "", Decimal("0"))
+        if fornecedor is None or frete is None:
+            return None, "Fornecedor ou frete inválido."
+        precos = {}
+        for item in itens:
+            lista = request.POST.getlist(f"preco_{item.pk}")
+            texto = lista[n] if n < len(lista) else ""
+            if not texto.strip():
+                continue
+            valor = _decimal(texto)
+            if valor is None or valor <= 0:
+                return None, f"Valor inválido para {item.produto.nome} em {fornecedor}."
+            precos[item.pk] = valor
+        propostas.append({"fornecedor": fornecedor, "precos": precos, "frete": frete})
+    if not propostas:
+        erro = "Escolha ao menos um fornecedor."
+    elif any(not p["precos"] for p in propostas):
+        erro = "Todo fornecedor escolhido precisa ter preço em ao menos um item."
+    else:
+        sem_preco = [i for i in itens if not any(i.pk in p["precos"] for p in propostas)]
+        if sem_preco:
+            erro = f"Nenhum fornecedor cotou {sem_preco[0].produto.nome}."
+    return propostas, erro
 
 
 @comprador
@@ -73,42 +144,85 @@ def cotacao_nova(request):
 
     fornecedores = Fornecedor.objects.filter(ativo=True).order_by("razao_social")
     padrao = {i.produto.fornecedor_padrao_id for i in itens if i.produto.fornecedor_padrao_id}
-    contexto = {
-        "itens": itens,
-        "fornecedores": fornecedores,
-        "fornecedor_id": str(padrao.pop()) if len(padrao) == 1 else "",
-    }
+    # Cada coluna é um fornecedor; começa com o padrão (se houver um só) ou uma coluna vazia.
+    colunas = [{"fornecedor_id": str(padrao.pop()) if len(padrao) == 1 else "", "frete": "", "precos": {}}]
+    contexto = {"itens": itens, "fornecedores": fornecedores, "colunas": colunas}
 
     if request.method == "POST" and "enviar" in request.POST:
-        fornecedor = fornecedores.filter(pk=request.POST.get("fornecedor") or 0).first()
-        frete = _decimal(request.POST.get("frete"), Decimal("0"))
-        precos, erro = {}, None
-        for item in itens:
-            valor = _decimal(request.POST.get(f"preco_{item.pk}"))
-            if valor is None or valor <= 0:
-                erro = f"Informe o valor unitário de {item.produto.nome}."
-                break
-            precos[item.pk] = valor
-        if fornecedor is None:
-            erro = erro or "Escolha o fornecedor."
-        if frete is None:
-            erro = erro or "Frete inválido."
+        propostas, erro = _propostas_do_post(request, itens, fornecedores)
+        observacao = request.POST.get("observacao", "")[:300]
         if not erro:
             try:
-                cotacao = criar_cotacao(
-                    comprador=request.user, fornecedor=fornecedor, precos=precos,
-                    valor_frete=frete, observacao=request.POST.get("observacao", "")[:300],
-                )
+                completa = len(propostas) == 1 and len(propostas[0]["precos"]) == len(itens)
+                if len(propostas) == 1 and not completa:
+                    erro = "Com um só fornecedor, todos os itens precisam de preço."
+                elif completa:
+                    p = propostas[0]
+                    cotacao = criar_cotacao(
+                        comprador=request.user, fornecedor=p["fornecedor"], precos=p["precos"],
+                        valor_frete=p["frete"], observacao=observacao,
+                    )
+                    messages.success(request, f"Cotação #{cotacao.numero} registrada.")
+                    return redirect("cotacao_detalhe", pk=cotacao.pk)
+                else:
+                    rodada = criar_rodada(comprador=request.user, propostas=propostas, observacao=observacao)
+                    messages.success(request, "Propostas registradas — escolha o vencedor de cada item.")
+                    return redirect("rodada_comparar", rodada=rodada)
             except ERROS_DE_NEGOCIO as e:
                 erro = str(e)
-            else:
-                messages.success(request, f"Cotação #{cotacao.numero} registrada.")
-                return redirect("cotacao_detalhe", pk=cotacao.pk)
         messages.error(request, erro)
-        contexto["fornecedor_id"] = request.POST.get("fornecedor", "")
-        contexto["precos"] = {i.pk: request.POST.get(f"preco_{i.pk}", "") for i in itens}
-        contexto["frete"] = request.POST.get("frete", "")
+        ids_f, fretes = request.POST.getlist("fornecedor"), request.POST.getlist("frete")
+        contexto["colunas"] = [
+            {
+                "fornecedor_id": fid, "frete": fretes[n] if n < len(fretes) else "",
+                "precos": {
+                    i.pk: (request.POST.getlist(f"preco_{i.pk}") + [""] * len(ids_f))[n] for i in itens
+                },
+            }
+            for n, fid in enumerate(ids_f)
+        ] or colunas
     return render(request, "compras/cotacao_nova.html", contexto)
+
+
+@comprador
+def rodada_comparar(request, rodada):
+    propostas = propostas_da_rodada(rodada)
+    if not propostas:
+        messages.error(request, "Esta comparação já foi encerrada.")
+        return redirect("cotacao_lista")
+
+    # item -> {cotacao_id: ItemCotacao}; o mais barato é a sugestão inicial.
+    linhas = {}
+    for c in propostas:
+        for ic in c.itens.all():
+            linha = linhas.setdefault(ic.item_pedido_id, {"item": ic.item_pedido, "qtd": ic.quantidade, "ofertas": {}})
+            linha["ofertas"][c.pk] = ic
+    for linha in linhas.values():
+        linha["barato"] = min(linha["ofertas"], key=lambda cid: linha["ofertas"][cid].valor_unitario)
+        linha["celulas"] = [linha["ofertas"].get(c.pk) for c in propostas]
+
+    if request.method == "POST":
+        if request.POST.get("acao") == "cancelar":
+            for c in propostas:
+                cancelar_cotacao(c, request.user)
+            messages.success(request, "Comparação cancelada — itens voltaram à fila.")
+            return redirect("fila_compras")
+        escolhas = {}
+        for item_id in linhas:
+            valor = request.POST.get(f"vencedor_{item_id}", "")
+            if valor.isdigit():
+                escolhas[item_id] = int(valor)
+        try:
+            vencedoras = fechar_rodada(rodada, request.user, escolhas)
+        except ERROS_DE_NEGOCIO as e:
+            messages.error(request, str(e))
+        else:
+            messages.success(
+                request, "Comparação encerrada: " + ", ".join(f"#{c.numero} ({c.fornecedor})" for c in vencedoras)
+            )
+            return redirect("cotacao_lista")
+
+    return render(request, "compras/rodada.html", {"propostas": propostas, "linhas": list(linhas.values())})
 
 
 @login_required
@@ -117,18 +231,47 @@ def cotacao_lista(request):
         raise PermissionDenied
     status = request.GET.get("status", "")
     busca = request.GET.get("q", "").strip()
-    cotacoes = Cotacao.objects.select_related("fornecedor", "comprador", "alcada").prefetch_related(
+    por = request.GET.get("agrupar", "cotacao")
+    if por not in ("cotacao", "pedido", "produto"):
+        por = "cotacao"
+    base = Cotacao.objects.select_related("fornecedor", "comprador", "alcada").prefetch_related(
         "itens__item_pedido__produto"
     )
     if status:
-        cotacoes = cotacoes.filter(status=status)
+        base = base.filter(status=status)
     if busca:
-        cotacoes = cotacoes.filter(
+        base = base.filter(
             Q(fornecedor__razao_social__icontains=busca) | Q(fornecedor__nome_fantasia__icontains=busca)
             | Q(itens__item_pedido__produto__nome__icontains=busca)
         ).distinct()
+
+    # Propostas em comparação aparecem como um cartão por rodada, não por fornecedor.
+    rodadas = {}
+    for c in base.filter(status=StatusCotacao.EM_COMPARACAO):
+        r = rodadas.setdefault(c.rodada, {"rodada": c.rodada, "propostas": [], "itens": set()})
+        r["propostas"].append(c)
+        r["itens"].update(i.item_pedido.produto.nome for i in c.itens.all())
+    cotacoes = base.exclude(status=StatusCotacao.EM_COMPARACAO)
+
+    grupos = []
+    if por != "cotacao":
+        itens = ItemCotacao.objects.filter(cotacao__in=cotacoes).select_related(
+            "cotacao__fornecedor", "item_pedido__produto", "item_pedido__pedido__requisitante",
+            "item_pedido__pedido__almoxarifado_destino__filial",
+        ).order_by("-cotacao__criada_em")
+        grupos = _agrupar_itens(itens, por)
+    cotacoes = list(cotacoes)
+    colunas = [{"titulo": "Em comparação", "rodadas": list(rodadas.values()), "cotacoes": []}] + [
+        {"titulo": rotulo, "rodadas": [], "cotacoes": [c for c in cotacoes if c.status == valor]}
+        for valor, rotulo in StatusCotacao.choices if valor != StatusCotacao.EM_COMPARACAO
+    ]
+    for col in colunas:
+        col["total"] = len(col["rodadas"]) + len(col["cotacoes"])
     return render(request, "compras/cotacao_lista.html", {
-        "cotacoes": cotacoes, "status": status, "busca": busca,
+        "visao": _visao(request), "colunas": colunas,
+        "cotacoes": cotacoes, "rodadas": list(rodadas.values()), "grupos": grupos,
+        "status": status, "busca": busca, "agrupar": por,
+        "opcoes": [("cotacao", "Por cotação"), ("pedido", "Por pedido"), ("produto", "Por produto")],
         "status_opcoes": StatusCotacao.choices,
     })
 
@@ -138,6 +281,8 @@ def cotacao_detalhe(request, pk):
     cotacao = get_object_or_404(
         Cotacao.objects.select_related("fornecedor", "comprador", "alcada", "decidida_por"), pk=pk
     )
+    if cotacao.status == StatusCotacao.EM_COMPARACAO:
+        return redirect("rodada_comparar", rodada=cotacao.rodada)
     usuario = request.user
     pode_decidir = pode_decidir_cotacao(usuario, cotacao)
     e_comprador = _e_papel(usuario, Modulo.COMPRAS)
@@ -200,7 +345,14 @@ def ordem_lista(request):
     )
     if status:
         ordens = ordens.filter(status=status)
-    return render(request, "compras/ordem_lista.html", {"ordens": ordens, "status": status})
+    ordens = list(ordens)
+    colunas = [
+        {"titulo": rotulo, "ordens": [o for o in ordens if o.status == valor]}
+        for valor, rotulo in StatusOrdem.choices
+    ]
+    return render(request, "compras/ordem_lista.html", {
+        "ordens": ordens, "status": status, "visao": _visao(request), "colunas": colunas,
+    })
 
 
 @login_required

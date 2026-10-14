@@ -1,0 +1,6 @@
+{# Seletor Cards / Lista / Kanban. Os links preservam os demais parâmetros da URL. #}
+<div class="flex gap-1 rounded-xl bg-[#1c1c1c] border border-[#2c2c2c] p-1 text-sm">
+  <a href="?visao=cards" data-param="visao" data-valor="cards" class="rounded-lg px-3.5 py-2 font-medium transition {% if visao == 'cards' %}bg-white text-[#0a0a0a]{% else %}text-[#9a9a9a] hover:text-white{% endif %}">Cards</a>
+  <a href="?visao=lista" data-param="visao" data-valor="lista" class="rounded-lg px-3.5 py-2 font-medium transition {% if visao == 'lista' %}bg-white text-[#0a0a0a]{% else %}text-[#9a9a9a] hover:text-white{% endif %}">Lista</a>
+  <a href="?visao=kanban" data-param="visao" data-valor="kanban" class="rounded-lg px-3.5 py-2 font-medium transition {% if visao == 'kanban' %}bg-white text-[#0a0a0a]{% else %}text-[#9a9a9a] hover:text-white{% endif %}">Kanban</a>
+</div>

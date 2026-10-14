@@ -2,7 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from cadastros.models import Produto
-from tenancy.models import Almoxarifado, CentroCusto, Evento, MotivoRequisicao, Subcentro
+from tenancy.models import Almoxarifado, CentroCusto, Evento, MotivoRequisicao, Subcentro, TenantModel
 
 
 class StatusPedido(models.TextChoices):
@@ -144,3 +144,39 @@ class AprovacaoLider(models.Model):
 
     def __str__(self):
         return f"#{self.pedido_id} aprovado por {self.lider}"
+
+
+class StatusSugestao(models.TextChoices):
+    PENDENTE = "PENDENTE", "Pendente"
+    CADASTRADO = "CADASTRADO", "Cadastrado"
+    RECUSADO = "RECUSADO", "Recusado"
+
+
+class SugestaoProduto(TenantModel):
+    """Produto que o requisitante não encontrou no catálogo; suprimentos decide cadastrar."""
+
+    solicitante = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sugestoes_de_produto"
+    )
+    nome = models.CharField(max_length=200)
+    especificacao = models.CharField(max_length=300, blank=True)
+    justificativa = models.CharField("para que serve", max_length=300, blank=True)
+    categoria = models.ForeignKey(
+        "cadastros.Categoria", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    status = models.CharField(max_length=12, choices=StatusSugestao.choices, default=StatusSugestao.PENDENTE)
+    produto = models.ForeignKey(Produto, on_delete=models.SET_NULL, null=True, blank=True, related_name="+")
+    motivo_recusa = models.CharField(max_length=300, blank=True)
+    tratada_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    tratada_em = models.DateTimeField(null=True, blank=True)
+    criada_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "sugestão de produto"
+        verbose_name_plural = "sugestões de produto"
+        ordering = ["-criada_em"]
+
+    def __str__(self):
+        return self.nome

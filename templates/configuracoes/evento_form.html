@@ -1,8 +1,15 @@
 {% extends "base.html" %}
 {% block titulo %}{% if instancia %}Editar evento{% else %}Novo evento{% endif %}{% endblock %}
-{% block conteudo %}
-<h1 class="text-2xl font-semibold mb-6 dark:text-slate-100">{% if instancia %}Editar evento{% else %}Novo evento{% endif %}</h1>
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
+  <div>
+  <a href="{% url 'config_evento_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Voltar</a>
+    <h1 class="text-2xl font-semibold mt-2">{% if instancia %}Editar evento{% else %}Novo evento{% endif %}</h1>
+  </div>
+</div>
+{% endblock %}
 
+{% block conteudo %}
 <form method="post" class="max-w-2xl">
   {% csrf_token %}
   <div class="bg-white rounded-2xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">

@@ -7,7 +7,7 @@ from django.utils import timezone
 from django.contrib.sessions.backends.db import SessionStore
 
 from cadastros.models import Categoria, Produto
-from contas.models import ModoAprovacaoSetor, RegraAprovacaoEmpresa, Setor
+from contas.models import Modulo, ModoAprovacaoSetor, Papel, PapelUsuario, RegraAprovacaoEmpresa, Setor
 from estoque.models import DebitoAlmoxarifado, SaldoEstoque
 from estoque.services import EstoqueInsuficiente, registrar_entrada, registrar_saida, transferir
 from tenancy.models import Almoxarifado, CentroCusto, Evento, Filial, MotivoRequisicao
@@ -476,3 +476,41 @@ class PedidoComItemDeCompraTest(BaseFluxoTest):
         self.assertEqual(pedido.status, StatusPedido.ENTREGA_PARCIAL)
         with self.assertRaises(TransicaoInvalida):  # nada mais do estoque para entregar
             entregar(pedido, self.suprimentos)
+
+
+class SugestaoDeProdutoTest(BaseFluxoTest):
+    def test_sugestao_vira_produto_cadastrado(self):
+        from django.urls import reverse
+
+        from .models import StatusSugestao, SugestaoProduto
+
+        self.client.force_login(self.requisitante)
+        resposta = self.client.post(reverse("sugerir_produto"), {"nome": "Giz de cera 24 cores", "especificacao": "Acrilex"})
+        self.assertEqual(resposta.status_code, 302)
+        sugestao = SugestaoProduto.objects.get()
+        self.assertEqual(sugestao.status, StatusSugestao.PENDENTE)
+        # quem não é de suprimentos não acessa o cadastro
+        self.assertEqual(self.client.get(reverse("produto_lista")).status_code, 403)
+
+        estoquista = Usuario.objects.create_user("suprimentista", tenant=self.tenant, password=None)
+        PapelUsuario.objects.create(usuario=estoquista, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.client.force_login(estoquista)
+        pagina = self.client.get(reverse("produto_novo"), {"sugestao": sugestao.pk})
+        self.assertContains(pagina, "Giz de cera 24 cores")
+        self.client.post(reverse("produto_novo"), {
+            "sugestao": sugestao.pk, "nome": "Giz de cera 24 cores", "especificacao": "Acrilex",
+            "categoria": self.categoria.pk, "grupo": "MATERIAL", "unidade_medida": "UN", "ativo": "on",
+        })
+        sugestao.refresh_from_db()
+        self.assertEqual(sugestao.status, StatusSugestao.CADASTRADO)
+        self.assertEqual(sugestao.produto.nome, "Giz de cera 24 cores")
+
+
+class FilaDeSuprimentosVisoesTest(BaseFluxoTest):
+    def test_fila_abre_em_cards_lista_e_kanban(self):
+        estoquista = Usuario.objects.create_user("filista", tenant=self.tenant, password=None)
+        PapelUsuario.objects.create(usuario=estoquista, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.client.force_login(estoquista)
+        for visao in ("cards", "lista", "kanban", "x"):
+            self.assertEqual(self.client.get(reverse("fila_suprimentos"), {"visao": visao}).status_code, 200)
+        self.assertContains(self.client.get(reverse("fila_suprimentos"), {"visao": "kanban"}), "Em separação")

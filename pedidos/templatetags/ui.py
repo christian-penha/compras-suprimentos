@@ -12,6 +12,7 @@ BADGES = {
     "ENTREGA_PARCIAL": "bg-sky-50 text-sky-700 border border-sky-200",
     "ENTREGUE": "bg-emerald-50 text-emerald-700 border border-emerald-200",
     "CONCLUIDO": "bg-emerald-100 text-emerald-800",
+    "EM_COMPARACAO": "bg-violet-50 text-violet-700 border border-violet-200",
     "AGUARDANDO_ALCADA": "bg-amber-50 text-amber-700 border border-amber-200",
     "APROVADA": "bg-emerald-50 text-emerald-700 border border-emerald-200",
     "RECUSADA": "bg-red-50 text-red-700 border border-red-200",

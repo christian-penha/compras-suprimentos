@@ -1,0 +1,7 @@
+{# Alternador de visualização. Recebe `opcoes` (lista de pares valor/rótulo) e `agrupar`. #}
+<div class="flex gap-1 rounded-xl bg-[#1c1c1c] border border-[#2c2c2c] p-1 text-sm">
+  {% for o in opcoes %}
+  <a href="?agrupar={{ o.0 }}" data-param="agrupar" data-valor="{{ o.0 }}"
+     class="rounded-lg px-3.5 py-2 font-medium transition {% if agrupar == o.0 %}bg-white text-[#0a0a0a]{% else %}text-[#9a9a9a] hover:text-white{% endif %}">{{ o.1 }}</a>
+  {% endfor %}
+</div>

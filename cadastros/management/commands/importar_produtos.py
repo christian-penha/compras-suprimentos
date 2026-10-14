@@ -11,6 +11,10 @@ MAPA_UNIDADES = {
     "UN": UnidadeMedida.UNIDADE,
     "CX": UnidadeMedida.CAIXA,
     "PC": UnidadeMedida.PACOTE,
+    "PCT": UnidadeMedida.PACOTE,
+    "PCT100": UnidadeMedida.PACOTE,  # pacote com 100; a quantidade já vem no nome
+    "LTA": UnidadeMedida.UNIDADE,  # lata
+    "SC": UnidadeMedida.UNIDADE,  # saco
     "RM": UnidadeMedida.RESMA,
     "KG": UnidadeMedida.KILO,
     "G": UnidadeMedida.GRAMA,
@@ -50,12 +54,22 @@ class Command(BaseCommand):
         col_codigo = coluna("código", "codigo")
         col_nome = coluna("produto", "nome")
         col_unidade = coluna("unidade")
+        col_categoria = coluna("categoria")
         col_ativo = coluna("ativo")
         col_estoque = coluna("estoque")
         if col_codigo is None or col_nome is None:
             raise CommandError(f"Colunas de código/produto não encontradas. Cabeçalho: {cabecalho}")
 
         categoria_padrao, _ = Categoria.objects.get_or_create(nome="A classificar")
+        categorias = {}
+
+        def categoria_de(valor):
+            nome = str(valor or "").strip()
+            if not nome:
+                return categoria_padrao
+            if nome.lower() not in categorias:
+                categorias[nome.lower()] = Categoria.objects.get_or_create(nome=nome)[0]
+            return categorias[nome.lower()]
 
         criados, atualizados, erros, avisos = 0, 0, [], []
         nomes_vistos = {}
@@ -106,7 +120,7 @@ class Command(BaseCommand):
                     defaults={
                         "nome": nome,
                         "especificacao": especificacao,
-                        "categoria": categoria_padrao,
+                        "categoria": categoria_de(linha[col_categoria]) if col_categoria is not None else categoria_padrao,
                         "unidade_medida": unidade,
                         "ativo": ativo,
                     },

@@ -2,8 +2,10 @@ from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
+from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Count
+from django.utils.http import urlencode
+from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from cadastros.models import Categoria, Produto
@@ -70,7 +72,8 @@ def catalogo(request):
         SaldoEstoque.objects.filter(almoxarifado__central=True)
         .values_list("produto_id", "quantidade")
     )
-    produtos = produtos.order_by("nome")[:60]
+    pagina = Paginator(produtos.order_by("nome"), 48).get_page(request.GET.get("pagina"))
+    produtos = list(pagina)
     for p in produtos:
         p.saldo_central = saldos.get(p.pk, 0)
 
@@ -78,6 +81,8 @@ def catalogo(request):
         request, "pedidos/catalogo.html",
         {
             "produtos": produtos,
+            "pagina": pagina,
+            "qs": urlencode({k: v for k, v in request.GET.items() if v and k != "pagina"}),
             "categorias": Categoria.objects.filter(ativo=True),
             "busca": busca,
             "categoria_id": categoria_id,
@@ -167,12 +172,28 @@ def checkout(request):
     return render(request, "pedidos/checkout.html", {"form": form, "itens": itens_carrinho})
 
 
+def _filtrar_pedidos(request, pedidos):
+    """Busca por número ou requisitante e filtro da unidade de destino."""
+    busca = request.GET.get("q", "").strip()
+    filial_id = request.GET.get("filial", "")
+    filial_id = filial_id if filial_id.isdigit() else ""
+    if busca:
+        filtro = (Q(requisitante__nome_completo__icontains=busca) | Q(requisitante__username__icontains=busca)
+                  | Q(observacao__icontains=busca))
+        pedidos = pedidos.filter(filtro | Q(pk=busca)) if busca.isdigit() else pedidos.filter(filtro)
+    if filial_id:
+        pedidos = pedidos.filter(almoxarifado_destino__filial_id=filial_id)
+    filiais = Filial.objects.filter(ativo=True).order_by("nome")
+    return pedidos, {"busca": busca, "filial_id": filial_id, "filiais": filiais}
+
+
 @login_required
 def pedido_lista(request):
     pedidos = Pedido.objects.filter(requisitante=request.user, ativo=True).select_related(
         "almoxarifado_destino__filial", "motivo"
     )
-    return render(request, "pedidos/lista.html", {"pedidos": pedidos})
+    pedidos, ctx = _filtrar_pedidos(request, pedidos)
+    return render(request, "pedidos/lista.html", {"pedidos": pedidos, **ctx})
 
 
 @login_required
@@ -256,7 +277,8 @@ def aprovacoes(request):
         pedidos = pedidos.filter(
             requisitante__setor_id__in=request.user.setores_liderados.values_list("id", flat=True)
         ).exclude(requisitante=request.user)
-    return render(request, "pedidos/aprovacoes.html", {"pedidos": pedidos})
+    pedidos, ctx = _filtrar_pedidos(request, pedidos)
+    return render(request, "pedidos/aprovacoes.html", {"pedidos": pedidos, **ctx})
 
 
 @requer_papel(Papel.ADMINISTRADOR)
@@ -264,7 +286,17 @@ def fila_suprimentos(request):
     pedidos = Pedido.objects.filter(
         status__in=FILA_SUPRIMENTOS, ativo=True
     ).select_related("requisitante", "almoxarifado_destino__filial")
-    return render(request, "estoque/fila.html", {"pedidos": pedidos})
+    pedidos, ctx = _filtrar_pedidos(request, pedidos)
+    pedidos = list(pedidos)
+    visao = request.GET.get("visao", "cards")
+    colunas = [
+        {"titulo": StatusPedido(st).label, "pedidos": [p for p in pedidos if p.status == st]}
+        for st in FILA_SUPRIMENTOS
+    ]
+    return render(request, "estoque/fila.html", {
+        "pedidos": pedidos, "colunas": colunas,
+        "visao": visao if visao in ("cards", "lista", "kanban") else "cards", **ctx,
+    })
 
 
 @requer_papel(Papel.ADMINISTRADOR)

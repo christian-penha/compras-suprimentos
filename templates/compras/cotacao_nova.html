@@ -5,99 +5,128 @@
 <div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
   <a href="{% url 'fila_compras' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Fila de compras</a>
   <h1 class="text-2xl font-semibold mt-2">Nova cotação</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Informe o valor unitário de cada item e o frete. A alçada é calculada sobre o total com frete.</p>
+  <p class="text-sm text-[#9a9a9a] mt-1">Adicione um ou mais fornecedores e informe o valor unitário de cada item (deixe em branco o que o fornecedor não cotou). Com mais de um fornecedor, você compara e escolhe o vencedor de cada item.</p>
 </div>
 {% endblock %}
 
 {% block conteudo %}
-<form method="post" class="grid gap-6 lg:grid-cols-[1fr_340px] items-start">
+<form method="post">
   {% csrf_token %}
   {% for item in itens %}<input type="hidden" name="item" value="{{ item.pk }}">{% endfor %}
 
-  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
-    <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+  <section class="bg-white rounded-2xl border border-slate-200 overflow-x-auto dark:bg-slate-800 dark:border-slate-700">
+    <table class="w-full text-sm" id="matriz">
+      <thead class="bg-slate-50 text-slate-500 text-left align-top dark:bg-slate-900/40 dark:text-slate-400">
         <tr>
           <th class="px-6 py-3 font-medium">Produto</th>
           <th class="px-4 py-3 font-medium text-right">Qtd</th>
-          <th class="px-4 py-3 font-medium text-right">Valor unitário (R$)</th>
-          <th class="px-6 py-3 font-medium text-right">Subtotal</th>
+          {% for c in colunas %}
+          <th class="coluna px-3 py-3 font-medium min-w-[210px]">
+            <div class="flex items-center gap-2">
+              <select name="fornecedor" aria-label="Fornecedor" class="forn w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+                <option value="">Fornecedor…</option>
+                {% for f in fornecedores %}<option value="{{ f.pk }}" {% if c.fornecedor_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f }}</option>{% endfor %}
+              </select>
+              <button type="button" class="remover-col text-slate-300 hover:text-red-600 text-xl leading-none" aria-label="Remover fornecedor">×</button>
+            </div>
+            <input name="frete" value="{{ c.frete }}" inputmode="decimal" placeholder="Frete (R$)" aria-label="Frete"
+                   class="frete mt-2 w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-right dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          </th>
+          {% endfor %}
+          <th class="px-3 py-3 w-12">
+            <button type="button" id="add-col" class="rounded-xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-slate-900 hover:text-slate-900 text-xs font-semibold px-3 py-6 whitespace-nowrap dark:border-slate-600 dark:text-slate-400 dark:hover:border-white dark:hover:text-white">+ Fornecedor</button>
+          </th>
         </tr>
       </thead>
       <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
         {% for item in itens %}
-        <tr class="dark:text-slate-100">
+        <tr class="dark:text-slate-100" data-qtd="{{ item.pendente|stringformat:'f' }}">
           <td class="px-6 py-3.5">
             <p class="font-medium">{{ item.produto.nome }}</p>
             <p class="text-xs text-slate-500 dark:text-slate-400">Pedido #{{ item.pedido_id }} · {{ item.pedido.almoxarifado_destino.filial.sigla }}{% if item.pedido.evento %} · {{ item.pedido.evento.nome }}{% endif %}</p>
           </td>
-          <td class="px-4 py-3.5 text-right font-medium" data-qtd="{{ item.pendente|stringformat:'f' }}">{{ item.pendente|floatformat:"-3" }}</td>
-          <td class="px-4 py-3.5 text-right">
-            <input name="preco_{{ item.pk }}" value="{% for pk, v in precos.items %}{% if pk == item.pk %}{{ v }}{% endif %}{% endfor %}" inputmode="decimal" placeholder="0,00" aria-label="Valor unitário de {{ item.produto.nome }}"
-                   class="preco w-28 rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          <td class="px-4 py-3.5 text-right font-medium">{{ item.pendente|floatformat:"-3" }}</td>
+          {% for c in colunas %}
+          <td class="px-3 py-3.5">
+            <input name="preco_{{ item.pk }}" value="{% for pk, v in c.precos.items %}{% if pk == item.pk %}{{ v }}{% endif %}{% endfor %}" inputmode="decimal" placeholder="0,00" aria-label="Valor unitário de {{ item.produto.nome }}"
+                   class="preco w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
           </td>
-          <td class="subtotal px-6 py-3.5 text-right font-semibold">R$ 0,00</td>
+          {% endfor %}
+          <td></td>
         </tr>
         {% endfor %}
       </tbody>
+      <tfoot class="bg-slate-50 dark:bg-slate-900/40">
+        <tr class="dark:text-slate-100">
+          <td colspan="2" class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">Total com frete (base da alçada)</td>
+          {% for c in colunas %}<td class="total px-3 py-3 text-right font-bold">R$ 0,00</td>{% endfor %}
+          <td></td>
+        </tr>
+      </tfoot>
     </table>
   </section>
 
-  <aside class="space-y-5 lg:sticky lg:top-6">
-    <section class="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 dark:bg-slate-800 dark:border-slate-700">
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Fornecedor <span class="text-red-500">*</span></label>
-        <select name="fornecedor" class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
-          <option value="">Selecione o fornecedor</option>
-          {% for f in fornecedores %}<option value="{{ f.pk }}" {% if fornecedor_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f }}</option>{% endfor %}
-        </select>
-        {% if not fornecedores %}<p class="text-xs text-amber-700 mt-1.5">Nenhum fornecedor cadastrado — cadastre em Configurações → Fornecedores.</p>{% endif %}
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Frete estimado (R$)</label>
-        <input id="frete" name="frete" value="{{ frete }}" inputmode="decimal" placeholder="0,00"
-               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm text-right focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
-      </div>
-      <div>
-        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Observação</label>
-        <input name="observacao" maxlength="300" placeholder="Prazo, condição de pagamento…"
-               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
-      </div>
-    </section>
-
-    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
-      <dl class="space-y-2 text-sm">
-        <div class="flex justify-between"><dt class="text-slate-500 dark:text-slate-400">Itens</dt><dd id="total-itens" class="font-semibold dark:text-slate-100">R$ 0,00</dd></div>
-        <div class="flex justify-between"><dt class="text-slate-500 dark:text-slate-400">Frete</dt><dd id="total-frete" class="font-semibold dark:text-slate-100">R$ 0,00</dd></div>
-        <div class="flex justify-between border-t border-slate-100 pt-2 text-base dark:border-slate-700"><dt class="font-semibold dark:text-slate-100">Total (base da alçada)</dt><dd id="total-geral" class="font-bold dark:text-white">R$ 0,00</dd></div>
-      </dl>
-      <button name="enviar" value="1" class="mt-5 w-full rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Registrar cotação</button>
-    </section>
-  </aside>
+  <div class="mt-6 flex flex-wrap items-end gap-4">
+    <div class="flex-1 min-w-[260px]">
+      <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Observação</label>
+      <input name="observacao" maxlength="300" placeholder="Prazo, condição de pagamento…"
+             class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+    </div>
+    <button name="enviar" value="1" class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Registrar cotação</button>
+  </div>
+  {% if not fornecedores %}<p class="text-xs text-amber-700 mt-3">Nenhum fornecedor cadastrado — cadastre em Configurações → Fornecedores.</p>{% endif %}
 </form>
 
 <script>
   (function () {
-    function num(txt) {
-      txt = String(txt || '').trim();
-      if (txt.indexOf(',') !== -1) txt = txt.replace(/\./g, '').replace(',', '.');
-      var n = parseFloat(txt);
+    var tabela = document.getElementById('matriz');
+    function num(t) {
+      t = String(t || '').trim();
+      if (t.indexOf(',') !== -1) t = t.replace(/\./g, '').replace(',', '.');
+      var n = parseFloat(t);
       return isNaN(n) ? 0 : n;
     }
     function brl(n) { return 'R$ ' + n.toLocaleString('pt-BR', {minimumFractionDigits: 2, maximumFractionDigits: 2}); }
     function recalcular() {
-      var itens = 0;
-      document.querySelectorAll('tbody tr').forEach(function (tr) {
-        var qtd = parseFloat(tr.querySelector('[data-qtd]').dataset.qtd) || 0;
-        var sub = qtd * num(tr.querySelector('.preco').value);
-        tr.querySelector('.subtotal').textContent = brl(sub);
-        itens += sub;
+      var cols = tabela.querySelectorAll('thead .coluna').length, totais = [];
+      for (var c = 0; c < cols; c++) totais.push(0);
+      tabela.querySelectorAll('tbody tr').forEach(function (tr) {
+        var qtd = parseFloat(tr.dataset.qtd) || 0;
+        tr.querySelectorAll('.preco').forEach(function (p, c) { totais[c] += qtd * num(p.value); });
       });
-      var frete = num(document.getElementById('frete').value);
-      document.getElementById('total-itens').textContent = brl(itens);
-      document.getElementById('total-frete').textContent = brl(frete);
-      document.getElementById('total-geral').textContent = brl(itens + frete);
+      var fretes = tabela.querySelectorAll('thead .frete');
+      tabela.querySelectorAll('tfoot .total').forEach(function (td, c) {
+        td.textContent = brl(totais[c] + num(fretes[c] && fretes[c].value));
+      });
     }
+    document.getElementById('add-col').addEventListener('click', function () {
+      var cab = tabela.querySelector('thead tr'), cols = cab.querySelectorAll('.coluna'), ultima = cols[cols.length - 1];
+      function novo(ref, antes) {
+        var n = ref.cloneNode(true);
+        n.querySelectorAll('input').forEach(function (i) { i.value = ''; });
+        n.querySelectorAll('select').forEach(function (s) { s.selectedIndex = 0; });
+        antes.parentNode.insertBefore(n, antes);
+      }
+      novo(ultima, cab.lastElementChild);
+      tabela.querySelectorAll('tbody tr').forEach(function (tr) {
+        novo(tr.querySelector('td:nth-last-child(2)'), tr.lastElementChild);
+      });
+      var rodape = tabela.querySelector('tfoot tr');
+      var totais = rodape.querySelectorAll('.total');
+      novo(totais[totais.length - 1], rodape.lastElementChild);
+      recalcular();
+    });
+    tabela.addEventListener('click', function (e) {
+      var b = e.target.closest('.remover-col');
+      if (!b) return;
+      var cabs = tabela.querySelectorAll('thead .coluna');
+      if (cabs.length < 2) return;
+      var idx = Array.prototype.indexOf.call(cabs, b.closest('.coluna'));
+      b.closest('.coluna').remove();
+      tabela.querySelectorAll('tbody tr').forEach(function (tr) { tr.querySelectorAll('.preco')[idx].closest('td').remove(); });
+      tabela.querySelectorAll('tfoot .total')[idx].remove();
+      recalcular();
+    });
     document.addEventListener('input', recalcular);
     recalcular();
   })();

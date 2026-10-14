@@ -3,7 +3,9 @@ from django.utils import timezone
 
 from tenancy.models import Evento, Filial, MotivoRequisicao
 
-from .models import Pedido, PrioridadePedido
+from cadastros.models import Produto
+
+from .models import Pedido, PrioridadePedido, SugestaoProduto
 
 CAMPO = (
     "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm "
@@ -101,4 +103,37 @@ class PedidoForm(forms.ModelForm):
             "evento_filial": {
                 str(e.pk): e.filial_id for e in self.fields["evento"].queryset
             },
+        }
+
+
+class SugestaoProdutoForm(forms.ModelForm):
+    class Meta:
+        model = SugestaoProduto
+        fields = ["nome", "especificacao", "categoria", "justificativa"]
+        labels = {"nome": "Nome do produto", "especificacao": "Especificação (marca, cor, tamanho…)",
+                  "categoria": "Categoria (se souber)"}
+        widgets = {f: forms.TextInput(attrs={"class": CAMPO}) for f in ("nome", "especificacao", "justificativa")}
+        widgets["categoria"] = forms.Select(attrs={"class": CAMPO})
+
+
+class ProdutoForm(forms.ModelForm):
+    class Meta:
+        model = Produto
+        fields = [
+            "nome", "especificacao", "codigo", "categoria", "grupo", "tipo", "unidade_medida",
+            "fornecedor_padrao", "imagem", "imagem_url", "reutilizavel", "ativo",
+        ]
+        labels = {"especificacao": "Especificação", "codigo": "Código interno", "grupo": "Grupo",
+                  "unidade_medida": "Unidade de medida", "fornecedor_padrao": "Fornecedor padrão",
+                  "reutilizavel": "Reutilizável (exige devolução)"}
+        widgets = {
+            "nome": forms.TextInput(attrs={"class": CAMPO}),
+            "especificacao": forms.TextInput(attrs={"class": CAMPO}),
+            "codigo": forms.TextInput(attrs={"class": CAMPO}),
+            "tipo": forms.TextInput(attrs={"class": CAMPO}),
+            "categoria": forms.Select(attrs={"class": CAMPO}),
+            "grupo": forms.Select(attrs={"class": CAMPO}),
+            "unidade_medida": forms.Select(attrs={"class": CAMPO}),
+            "fornecedor_padrao": forms.Select(attrs={"class": CAMPO}),
+            "imagem_url": forms.URLInput(attrs={"class": CAMPO}),
         }

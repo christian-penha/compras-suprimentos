@@ -16,6 +16,16 @@ from .forms import EmpresaForm, EventoForm, FilialForm, FornecedorForm, SetorFor
 Usuario = get_user_model()
 
 
+def _filtros(request):
+    """Busca por nome e filtro de unidade, comuns às telas de lista."""
+    filial_id = request.GET.get("filial", "")
+    return request.GET.get("q", "").strip(), filial_id if filial_id.isdigit() else ""
+
+
+def _ctx(busca, filial_id):
+    return {"busca": busca, "filial_id": filial_id, "filiais": Filial.objects.filter(ativo=True).order_by("nome")}
+
+
 @requer_papel(Papel.SUPERADMIN)
 def painel(request):
     return render(
@@ -31,8 +41,16 @@ def painel(request):
 
 @requer_papel(Papel.SUPERADMIN)
 def usuario_lista(request):
-    usuarios = Usuario.objects.all().prefetch_related("papeis").order_by("nome_completo", "username")
-    return render(request, "configuracoes/usuario_lista.html", {"usuarios": usuarios})
+    usuarios = Usuario.objects.all().select_related("filial", "setor").prefetch_related("papeis")
+    usuarios = usuarios.order_by("nome_completo", "username")
+    busca, filial_id = _filtros(request)
+    if busca:
+        usuarios = usuarios.filter(
+            Q(nome_completo__icontains=busca) | Q(username__icontains=busca) | Q(cargo__icontains=busca)
+        )
+    if filial_id:
+        usuarios = usuarios.filter(filial_id=filial_id)
+    return render(request, "configuracoes/usuario_lista.html", {"usuarios": usuarios, **_ctx(busca, filial_id)})
 
 
 @requer_papel(Papel.SUPERADMIN)
@@ -49,7 +67,12 @@ def usuario_form(request, pk=None):
 @requer_papel(Papel.SUPERADMIN)
 def empresa_lista(request):
     empresas = Empresa.objects.all().order_by("razao_social")
-    return render(request, "configuracoes/empresa_lista.html", {"empresas": empresas})
+    busca, _ = _filtros(request)
+    if busca:
+        empresas = empresas.filter(
+            Q(razao_social__icontains=busca) | Q(nome_fantasia__icontains=busca) | Q(cnpj__icontains=busca)
+        )
+    return render(request, "configuracoes/empresa_lista.html", {"empresas": empresas, "busca": busca})
 
 
 @requer_papel(Papel.SUPERADMIN)
@@ -112,7 +135,12 @@ def setor_form(request, pk=None):
 @requer_papel(Papel.SUPERADMIN)
 def filial_lista(request):
     filiais = Filial.objects.select_related("empresa").order_by("nome")
-    return render(request, "configuracoes/filial_lista.html", {"filiais": filiais})
+    busca, filial_id = _filtros(request)
+    if busca:
+        filiais = filiais.filter(Q(nome__icontains=busca) | Q(sigla__icontains=busca))
+    if filial_id:
+        filiais = filiais.filter(pk=filial_id)
+    return render(request, "configuracoes/filial_lista.html", {"filiais": filiais, **_ctx(busca, filial_id)})
 
 
 @requer_papel(Papel.SUPERADMIN)
@@ -132,7 +160,12 @@ def filial_form(request, pk=None):
 @requer_papel(Papel.SUPERADMIN)
 def evento_lista(request):
     eventos = Evento.objects.select_related("filial").order_by("filial", "nome")
-    return render(request, "configuracoes/evento_lista.html", {"eventos": eventos})
+    busca, filial_id = _filtros(request)
+    if busca:
+        eventos = eventos.filter(nome__icontains=busca)
+    if filial_id:
+        eventos = eventos.filter(filial_id=filial_id)
+    return render(request, "configuracoes/evento_lista.html", {"eventos": eventos, **_ctx(busca, filial_id)})
 
 
 @requer_papel(Papel.SUPERADMIN)
