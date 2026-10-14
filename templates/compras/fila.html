@@ -53,7 +53,8 @@
     {% endfor %}
   </div>
 
-  <div class="sticky bottom-4 mt-6 flex justify-end">
+  <div class="sticky bottom-4 mt-6 flex flex-wrap justify-end gap-3">
+    <button formaction="{% url 'solicitacao_cotacao' %}" class="rounded-xl bg-white border border-slate-200 text-slate-900 font-semibold px-6 py-3 shadow-xl hover:bg-slate-50 transition dark:bg-slate-800 dark:border-slate-700 dark:text-white">Gerar pedido ao fornecedor</button>
     <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-3 shadow-xl transition dark:bg-white dark:text-black">Cotar itens selecionados</button>
   </div>
 </form>

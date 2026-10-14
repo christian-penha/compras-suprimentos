@@ -32,7 +32,7 @@
         <td class="px-6 py-3"><a href="{% url 'ordem_detalhe' o.pk %}" class="font-medium">#{{ o.numero }}</a></td>
         <td class="px-4 py-3">{{ o.cotacao.fornecedor }}</td>
         <td class="px-4 py-3 text-slate-500 dark:text-slate-400">#{{ o.cotacao.pedidos_origem }}</td>
-        <td class="px-4 py-3"><span class="text-xs font-semibold px-2.5 py-1 rounded-full {{ o.status|badge_status }}">{{ o.get_status_display }}</span></td>
+        <td class="px-4 py-3"><span class="text-xs font-semibold px-2.5 py-1 rounded-full {{ o.andamento|badge_status }}">{{ o.get_andamento_display }}</span></td>
         <td class="px-4 py-3 text-right font-semibold">R$ {{ o.cotacao.valor_total|floatformat:2 }}</td>
         <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ o.criada_em|date:"d/m/Y" }}</td>
       </tr>
@@ -54,7 +54,8 @@
         <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">OC #{{ o.numero }} · Pedido(s) #{{ o.cotacao.pedidos_origem }}</p>
         <p class="font-semibold text-slate-900 dark:text-slate-100">{{ o.cotacao.fornecedor }}</p>
         <p class="mt-2 text-lg font-semibold text-slate-900 dark:text-white">R$ {{ o.cotacao.valor_total|floatformat:2 }}</p>
-        <p class="text-xs text-slate-400">{{ o.criada_em|date:"d/m/Y" }}</p>
+        <span class="mt-1 inline-block text-xs font-semibold px-2.5 py-1 rounded-full {{ o.andamento|badge_status }}">{{ o.get_andamento_display }}</span>
+        <p class="text-xs text-slate-400 mt-1">{{ o.criada_em|date:"d/m/Y" }}</p>
       </a>
       {% empty %}
       <p class="px-1 py-4 text-center text-xs text-slate-400">Vazio</p>
@@ -73,7 +74,7 @@
         <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">OC #{{ o.numero }}</p>
         <h2 class="text-lg font-semibold text-slate-900 mt-0.5 dark:text-slate-100">{{ o.cotacao.fornecedor }}</h2>
       </div>
-      <span class="text-xs font-semibold px-3 py-1.5 rounded-full {{ o.status|badge_status }}">{{ o.get_status_display }}</span>
+      <span class="text-xs font-semibold px-3 py-1.5 rounded-full {{ o.andamento|badge_status }}">{{ o.get_andamento_display }}</span>
     </div>
     <p class="mt-4 text-2xl font-semibold text-slate-900 dark:text-white">R$ {{ o.cotacao.valor_total|floatformat:2 }}</p>
     <p class="mt-2 text-xs text-slate-500 dark:text-slate-400">Cotação #{{ o.numero }} · Pedido(s) #{{ o.cotacao.pedidos_origem }}</p>

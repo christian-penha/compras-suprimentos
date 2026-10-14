@@ -20,7 +20,7 @@
   </div>
   <div>
     <label class="block text-sm font-medium text-slate-600 mb-1.5">Almoxarifado de destino</label>
-    <select name="almoxarifado" required class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+    <select name="almoxarifado" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
       {% for a in almoxarifados %}
       <option value="{{ a.pk }}" {% if a.central %}selected{% endif %}>{{ a }}{% if a.central %} (central){% endif %}</option>
       {% endfor %}
@@ -29,7 +29,7 @@
   <div>
     <label class="block text-sm font-medium text-slate-600 mb-1.5">Observação</label>
     <input name="observacao" placeholder="Ex.: doação lista de material 2026, carga inicial Glide…"
-           class="w-full rounded-xl border-slate-200 px-4 py-2.5 text-sm focus:border-blue-400 focus:ring-blue-400">
+           class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
   </div>
   <button class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-medium px-6 py-2.5 transition">Gerar prévia</button>
 </form>

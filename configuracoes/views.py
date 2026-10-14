@@ -9,9 +9,9 @@ from contas.alcadas import (
     TabelaInvalida, criar_tabela_propria, ler_linhas, salvar_tabela, tabela_ativa, voltar_ao_padrao,
 )
 from contas.permissoes import requer_papel
-from tenancy.models import Empresa, Evento, Filial
+from tenancy.models import CentroCusto, Empresa, Evento, Filial
 
-from .forms import EmpresaForm, EventoForm, FilialForm, FornecedorForm, SetorForm, UsuarioForm
+from .forms import CentroCustoForm, EmpresaForm, EventoForm, FilialForm, FornecedorForm, SetorForm, UsuarioForm
 
 Usuario = get_user_model()
 
@@ -56,7 +56,7 @@ def usuario_lista(request):
 @requer_papel(Papel.SUPERADMIN)
 def usuario_form(request, pk=None):
     instancia = get_object_or_404(Usuario, pk=pk) if pk else None
-    form = UsuarioForm(request.POST or None, instance=instancia)
+    form = UsuarioForm(request.POST or None, instance=instancia, editor=request.user)
     if request.method == "POST" and form.is_valid():
         form.save(tenant=request.user.tenant)
         messages.success(request, "Usuário salvo com sucesso.")
@@ -166,6 +166,30 @@ def evento_lista(request):
     if filial_id:
         eventos = eventos.filter(filial_id=filial_id)
     return render(request, "configuracoes/evento_lista.html", {"eventos": eventos, **_ctx(busca, filial_id)})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def centro_lista(request):
+    centros = CentroCusto.objects.select_related("filial").order_by("filial__nome", "nome")
+    busca, filial_id = _filtros(request)
+    if busca:
+        centros = centros.filter(nome__icontains=busca)
+    if filial_id:
+        centros = centros.filter(filial_id=filial_id)
+    return render(request, "configuracoes/centro_lista.html", {"centros": centros, **_ctx(busca, filial_id)})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def centro_form(request, pk=None):
+    instancia = get_object_or_404(CentroCusto, pk=pk) if pk else None
+    form = CentroCustoForm(request.POST or None, instance=instancia)
+    if request.method == "POST" and form.is_valid():
+        if not form.instance.tenant_id:
+            form.instance.tenant = request.user.tenant
+        form.save()
+        messages.success(request, "Centro de custo salvo.")
+        return redirect("config_centro_lista")
+    return render(request, "configuracoes/centro_form.html", {"form": form, "instancia": instancia})
 
 
 @requer_papel(Papel.SUPERADMIN)

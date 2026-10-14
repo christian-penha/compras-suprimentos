@@ -6,7 +6,7 @@ from django.urls import reverse
 from cadastros.models import Fornecedor, Produto
 from contas.models import Alcada, AprovadorAlcada, Modulo, Papel, PapelAlcada, PapelUsuario
 from estoque.models import SaldoEstoque
-from pedidos.models import ItemPedido, OrigemAtendimento, StatusPedido
+from pedidos.models import ItemPedido, OrigemAtendimento, Pedido, StatusPedido
 from pedidos.services import SemPermissao, TransicaoInvalida, aprovar_como_lider, transicionar
 from pedidos.tests import BaseFluxoTest
 from tenancy.models import Almoxarifado, Empresa, Evento
@@ -369,3 +369,173 @@ class VisoesDaAreaDeComprasTest(BaseComprasTest):
                 self.assertEqual(resposta.status_code, 200, (nome, visao))
         kanban = self.client.get(reverse("cotacao_lista"), {"visao": "kanban"})
         self.assertContains(kanban, "Aguardando alçada")
+
+
+class CentroDeCustoTest(BaseComprasTest):
+    def test_ordem_exige_centro_de_custo_em_todos_os_itens(self):
+        pedido, item = self.pedido_sem_estoque("5")
+        Pedido.objects.filter(pk=pedido.pk).update(centro_custo=None)
+        cotacao = self.cotar(item, "20.00")
+        self.assertFalse(hasattr(Cotacao.objects.get(pk=cotacao.pk), "ordem"))  # sem centro, sem OC automática
+        with self.assertRaises(TransicaoInvalida):
+            services.gerar_ordem_compra(cotacao, self.comprador)
+        services.definir_centros(cotacao, {cotacao.itens.get().pk: self.centro}, self.comprador)
+        self.assertEqual(services.gerar_ordem_compra(cotacao, self.comprador).cotacao_id, cotacao.pk)
+
+    def test_cotacao_herda_centro_do_pedido(self):
+        _, item = self.pedido_sem_estoque("5")
+        self.assertEqual(self.cotar(item).itens.get().centro_custo, self.centro)
+
+    def test_desembolso_distribui_o_valor_da_nota_pelos_centros(self):
+        _, item = self.pedido_sem_estoque("5")
+        cotacao = self.cotar(item, "20.00")
+        ordem = services.gerar_ordem_compra(cotacao, self.comprador)
+        ordem.notas.create(
+            tenant=self.tenant, valor_total=Decimal("100.00"), registrada_por=self.comprador,
+        )
+        self.assertEqual(services.desembolso_por_centro(), {self.centro: Decimal("100.00")})
+
+    def test_relatorio_de_centros_abre(self):
+        self.client.force_login(self.comprador)
+        self.assertEqual(self.client.get(reverse("relatorio_centros")).status_code, 200)
+
+
+class SolicitacaoAoFornecedorTest(BaseComprasTest):
+    def test_gera_texto_padronizado_com_total_por_produto(self):
+        _, a = self.pedido_sem_estoque("5")
+        self.client.force_login(self.comprador)
+        resposta = self.client.get(reverse("solicitacao_cotacao"), {"item": [a.pk], "fornecedor": self.fornecedor.pk})
+        self.assertEqual(resposta.status_code, 200)
+        self.assertContains(resposta, "SOLICITAÇÃO DE COTAÇÃO")
+        self.assertContains(resposta, "Papelaria Ltda")
+        self.assertContains(resposta, "1. Papel crepom")
+        # sem seleção volta para a fila
+        self.assertEqual(self.client.get(reverse("solicitacao_cotacao")).status_code, 302)
+
+
+class IsolamentoDeModulosTest(BaseComprasTest):
+    def test_administrador_de_compras_nao_ve_suprimentos(self):
+        self.client.force_login(self.comprador)
+        for nome in ("fila_suprimentos", "posicao_estoque", "entrada_planilha", "produto_lista", "sugestoes_lista"):
+            self.assertEqual(self.client.get(reverse(nome)).status_code, 403, nome)
+        for nome in ("fila_compras", "cotacao_lista", "ordem_lista", "relatorio_centros"):
+            self.assertEqual(self.client.get(reverse(nome)).status_code, 200, nome)
+        pagina = self.client.get(reverse("painel"))
+        self.assertNotContains(pagina, "Fila de suprimentos")
+        self.assertContains(pagina, "Fila de compras")
+
+    def test_administrador_de_estoque_nao_ve_compras(self):
+        estoquista = Usuario.objects.create_user("so_estoque", tenant=self.tenant, password=None)
+        PapelUsuario.objects.create(usuario=estoquista, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.client.force_login(estoquista)
+        self.assertEqual(self.client.get(reverse("fila_compras")).status_code, 403)
+        self.assertEqual(self.client.get(reverse("posicao_estoque")).status_code, 200)
+        self.assertNotContains(self.client.get(reverse("painel")), "Fila de compras")
+
+
+class AprovacaoParcialTest(BaseComprasTest):
+    def setUp(self):
+        super().setUp()
+        self.pedido_a, self.item_a = self.pedido_sem_estoque("5")
+        self.pedido_b, self.item_b = self.pedido_sem_estoque("5")
+        self.cotacao = services.criar_cotacao(
+            comprador=self.comprador, fornecedor=self.fornecedor,
+            precos={self.item_a.pk: Decimal("100.00"), self.item_b.pk: Decimal("100.00")},
+        )
+        self.ic_a = self.cotacao.itens.get(item_pedido=self.item_a)
+        self.ic_b = self.cotacao.itens.get(item_pedido=self.item_b)
+
+    def decidir(self, dec_b, motivo="Fora do orçamento"):
+        return services.decidir_cotacao_por_item(
+            self.cotacao, self.diretor, {self.ic_a.pk: "APROVAR", self.ic_b.pk: dec_b}, motivo
+        )
+
+    def test_item_eliminado_sai_do_pedido_e_a_cotacao_segue_com_o_resto(self):
+        cotacao = self.decidir("ELIMINAR")
+        self.assertEqual(cotacao.status, StatusCotacao.APROVADA)
+        self.assertEqual(cotacao.valor_total, Decimal("500.00"))
+        self.assertEqual(cotacao.itens.count(), 1)
+        self.item_b.refresh_from_db()
+        self.assertTrue(self.item_b.cancelado)
+        self.assertNotIn(self.item_b, list(services.itens_para_cotar()))
+        self.pedido_b.refresh_from_db()
+        self.assertEqual(self.pedido_b.status, StatusPedido.RECUSADO)  # nada mais a entregar
+        self.pedido_a.refresh_from_db()
+        self.assertEqual(self.pedido_a.status, StatusPedido.AGUARDANDO_COMPRA)
+
+    def test_item_recotar_volta_para_a_fila(self):
+        cotacao = self.decidir("RECOTAR")
+        self.assertEqual(cotacao.valor_total, Decimal("500.00"))
+        self.item_b.refresh_from_db()
+        self.assertFalse(self.item_b.cancelado)
+        self.assertIn(self.item_b, list(services.itens_para_cotar()))
+
+    def test_item_nao_aprovado_exige_motivo(self):
+        with self.assertRaises(TransicaoInvalida):
+            self.decidir("RECOTAR", motivo="")
+
+    def test_nenhum_aprovado_recusa_a_cotacao(self):
+        cotacao = services.decidir_cotacao_por_item(
+            self.cotacao, self.diretor, {self.ic_a.pk: "RECOTAR", self.ic_b.pk: "RECOTAR"}, "Preço alto"
+        )
+        self.assertEqual(cotacao.status, StatusCotacao.RECUSADA)
+        self.assertIn(self.item_a, list(services.itens_para_cotar()))
+
+    def test_so_o_aprovador_da_faixa_decide(self):
+        with self.assertRaises(SemPermissao):
+            services.decidir_cotacao_por_item(
+                self.cotacao, self.estranho, {self.ic_a.pk: "APROVAR", self.ic_b.pk: "APROVAR"}
+            )
+
+
+class OrdemAutomaticaTest(BaseComprasTest):
+    def test_faixa_automatica_ja_gera_a_ordem(self):
+        _, item = self.pedido_sem_estoque("5")
+        cotacao = self.cotar(item, "20.00")  # 100: abaixo do teto
+        self.assertEqual(cotacao.status, StatusCotacao.APROVADA)
+        self.assertEqual(cotacao.ordem.criada_por, self.comprador)
+
+    def test_aprovacao_da_alcada_gera_a_ordem(self):
+        _, item = self.pedido_sem_estoque("5")
+        cotacao = self.cotar(item, "100.00")  # 500: precisa da diretoria
+        self.assertFalse(hasattr(Cotacao.objects.get(pk=cotacao.pk), "ordem"))
+        services.decidir_cotacao(cotacao, self.diretor, True)
+        self.assertTrue(Cotacao.objects.get(pk=cotacao.pk).ordem)
+
+    def test_gerar_ordem_e_idempotente(self):
+        _, item = self.pedido_sem_estoque("5")
+        cotacao = self.cotar(item, "20.00")
+        self.assertEqual(services.gerar_ordem_compra(cotacao, self.comprador).pk, cotacao.ordem.pk)
+
+
+class AndamentoDaOrdemTest(BaseComprasTest):
+    def test_comprador_atualiza_andamento_e_requisitante_ve(self):
+        from datetime import date
+
+        pedido, item = self.pedido_sem_estoque("5")
+        ordem = self.cotar(item, "20.00").ordem
+        self.assertEqual(ordem.andamento, "EMITIDA")
+        services.atualizar_andamento(ordem, self.comprador, "EM_TRANSITO", "Transportadora X", date(2026, 11, 3))
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.andamento, "EM_TRANSITO")
+        self.assertEqual(ordem.previsao_entrega, date(2026, 11, 3))
+        self.assertEqual(ordem.historico.count(), 2)
+        self.client.force_login(pedido.requisitante)
+        self.assertContains(self.client.get(reverse("pedido_detalhe", args=[pedido.pk])), "Em trânsito")
+
+    def test_recebida_so_pelo_recebimento(self):
+        _, item = self.pedido_sem_estoque("5")
+        ordem = self.cotar(item, "20.00").ordem
+        with self.assertRaises(TransicaoInvalida):
+            services.atualizar_andamento(ordem, self.comprador, "RECEBIDA")
+
+    def test_tela_da_ordem_aceita_a_atualizacao(self):
+        _, item = self.pedido_sem_estoque("5")
+        ordem = self.cotar(item, "20.00").ordem
+        self.client.force_login(self.comprador)
+        r = self.client.post(reverse("ordem_detalhe", args=[ordem.pk]), {
+            "acao": "andamento", "andamento": "COMPRA_EFETUADA", "previsao": "2026-11-10", "observacao": "Pedido 123",
+        })
+        self.assertEqual(r.status_code, 302)
+        ordem.refresh_from_db()
+        self.assertEqual(ordem.andamento, "COMPRA_EFETUADA")

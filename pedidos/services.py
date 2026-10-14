@@ -147,6 +147,33 @@ def liberar_itens_comprados(pedido, usuario, observacao):
         )
 
 
+def reavaliar_pedido(pedido, usuario):
+    """Depois que itens saem do pedido (eliminados na alçada de compra): encerra o pedido se
+    não sobrou nada a entregar, ou o libera para separação se só restam itens de estoque."""
+    pedido.refresh_from_db()
+    itens = list(pedido.itens.all())
+    abertos = [i for i in itens if i.pendente > 0]
+    if not abertos:
+        if any(i.quantidade_entregue > 0 for i in itens):
+            if pedido.status in (StatusPedido.EM_SEPARACAO, StatusPedido.ENTREGA_PARCIAL):
+                _aplicar_transicao(
+                    pedido, StatusPedido.ENTREGUE, usuario,
+                    "Itens restantes eliminados da compra — pedido entregue.", classificar=False,
+                )
+        elif pedido.status in (StatusPedido.AGUARDANDO_COMPRA, StatusPedido.APROVADO_UNIDADE):
+            _aplicar_transicao(
+                pedido, StatusPedido.RECUSADO, usuario,
+                "Todos os itens foram eliminados na compra — pedido encerrado.", classificar=False,
+            )
+    elif pedido.status == StatusPedido.AGUARDANDO_COMPRA and not any(
+        i.origem_atendimento == OrigemAtendimento.COMPRA for i in abertos
+    ):
+        _aplicar_transicao(
+            pedido, StatusPedido.APROVADO_UNIDADE, usuario,
+            "Itens de compra eliminados — o restante segue para separação.", classificar=False,
+        )
+
+
 def _aplicar_transicao(pedido, novo_status, usuario, observacao, classificar=True):
     EventoPedido.objects.create(
         pedido=pedido, de_status=pedido.status, para_status=novo_status,
@@ -209,6 +236,10 @@ def entregar(pedido, usuario, quantidades=None):
     if pedido.status not in (StatusPedido.EM_SEPARACAO, StatusPedido.ENTREGA_PARCIAL):
         raise TransicaoInvalida("Só é possível entregar pedidos em separação.")
 
+    if pedido.centro_custo_id is None:
+        raise TransicaoInvalida(
+            "Defina o centro de custo do pedido antes de entregar (eixo de consumo)."
+        )
     central = Almoxarifado.objects.get(central=True)
     itens = list(
         pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE)
@@ -233,6 +264,7 @@ def entregar(pedido, usuario, quantidades=None):
         transferir(
             produto=item.produto, origem=central, destino=pedido.almoxarifado_destino,
             quantidade=qtd, responsavel=usuario, pedido=pedido,
+            centro_custo=pedido.centro_custo,
         )
         item.quantidade_entregue += qtd
         item.save(update_fields=["quantidade_entregue"])

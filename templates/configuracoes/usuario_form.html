@@ -1,77 +1,174 @@
 {% extends "base.html" %}
 {% block titulo %}{% if instancia %}Editar usuário{% else %}Novo usuário{% endif %}{% endblock %}
+
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
-  <div>
-  <a href="{% url 'config_usuario_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Voltar</a>
-    <h1 class="text-2xl font-semibold mt-2">{% if instancia %}Editar usuário{% else %}Novo usuário{% endif %}</h1>
-  </div>
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+  <a href="{% url 'config_usuario_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Usuários</a>
+  <h1 class="text-2xl font-semibold mt-2">{% if instancia %}{{ instancia.nome_completo|default:instancia.username }}{% else %}Novo usuário{% endif %}</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">Dados de acesso, onde a pessoa atua e o que ela pode acessar no sistema.</p>
 </div>
 {% endblock %}
 
 {% block conteudo %}
-<form method="post" class="max-w-2xl">
+{% if form.errors %}
+<div class="mb-5 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-800 dark:bg-red-950 dark:border-red-900 dark:text-red-200">
+  Revise os campos destacados antes de salvar.
+  {% for erro in form.non_field_errors %}<p>{{ erro }}</p>{% endfor %}
+</div>
+{% endif %}
+
+<form method="post" class="pb-24">
   {% csrf_token %}
-  <div class="bg-white rounded-2xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Usuário</label>
-      {{ form.username }}
-      {% for erro in form.username.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+  <div class="grid gap-6 lg:grid-cols-[1fr_380px] items-start">
+
+    <div class="space-y-6">
+      {# ------------------------------------------------ acesso #}
+      <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+        <h2 class="font-semibold text-slate-900 dark:text-slate-100">Dados de acesso</h2>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Usuário</label>
+            {{ form.username }}
+            {% for erro in form.username.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Nome completo</label>
+            {{ form.nome_completo }}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">E-mail</label>
+            {{ form.email }}
+            {% for erro in form.email.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Telefone</label>
+            {{ form.telefone }}
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Senha</label>
+            {{ form.senha }}
+            <p class="text-xs text-slate-400 mt-1">{% if instancia %}Deixe em branco para manter a senha atual.{% else %}Defina a senha inicial do usuário.{% endif %}</p>
+            {% for erro in form.senha.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+          </div>
+        </div>
+      </section>
+
+      {# ------------------------------------------------ organização #}
+      <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+        <h2 class="font-semibold text-slate-900 dark:text-slate-100">Onde atua</h2>
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Filial/unidade</label>
+            {{ form.filial }}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Setor</label>
+            {{ form.setor }}
+            <p class="text-xs text-slate-400 mt-1">Quem aprova os pedidos da pessoa é o líder do setor.</p>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Cargo</label>
+            {{ form.cargo }}
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Ciclo/segmento</label>
+            {{ form.ciclo }}
+          </div>
+        </div>
+      </section>
+
+      {# ------------------------------------------------ unidades #}
+      <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="font-semibold text-slate-900 dark:text-slate-100">Unidades onde pode fazer pedidos</h2>
+            <p class="text-sm text-slate-500 mt-0.5 dark:text-slate-400">Opções de "unidade de destino" no checkout. Sem nenhuma marcada, vale só a filial do usuário.</p>
+          </div>
+          <div class="flex gap-3 text-sm shrink-0">
+            <button type="button" data-marcar="todas" class="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Todas</button>
+            <button type="button" data-marcar="nenhuma" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Limpar</button>
+          </div>
+        </div>
+        <div id="unidades" class="mt-4 grid gap-2 sm:grid-cols-2">
+          {% for opcao in form.filiais_permitidas %}
+          <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm cursor-pointer transition hover:border-slate-400 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60 dark:text-slate-100">
+            <input type="checkbox" name="{{ opcao.data.name }}" value="{{ opcao.data.value }}" {% if opcao.data.selected %}checked{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900">
+            <span class="font-medium">{{ opcao.choice_label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </section>
     </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Nome completo</label>
-      {{ form.nome_completo }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">E-mail</label>
-      {{ form.email }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Telefone</label>
-      {{ form.telefone }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Filial/unidade</label>
-      {{ form.filial }}
-    </div>
-    <div class="sm:col-span-2">
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Unidades onde pode fazer pedidos</label>
-      {{ form.filiais_permitidas }}
-      <p class="text-xs text-slate-400 mt-1">Define as opções de "Unidade de destino" no checkout. Sem nenhuma marcada, vale só a filial do usuário. Ctrl/Cmd para marcar mais de uma.</p>
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Setor</label>
-      {{ form.setor }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Cargo</label>
-      {{ form.cargo }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Ciclo/segmento</label>
-      {{ form.ciclo }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Papel</label>
-      {{ form.papel }}
-    </div>
-    <div>
-      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Senha</label>
-      {{ form.senha }}
-      <p class="text-xs text-slate-400 mt-1">{{ form.senha.help_text }}</p>
-    </div>
-    <div class="sm:col-span-2 flex items-center gap-6 pt-2">
-      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-        {{ form.is_staff }} Acesso ao admin do Django
-      </label>
-      <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-        {{ form.ativo_no_sistema }} Ativo
-      </label>
-    </div>
+
+    {# ================================================ permissões #}
+    <aside class="space-y-6 lg:sticky lg:top-6">
+      <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+        <h2 class="font-semibold text-slate-900 dark:text-slate-100">Permissões</h2>
+        <p class="text-sm text-slate-500 mt-0.5 dark:text-slate-400">O que a pessoa enxerga e pode fazer no sistema.</p>
+
+        <div class="mt-4 rounded-xl bg-slate-50 px-4 py-3 text-sm dark:bg-slate-900/40">
+          <p class="font-medium text-slate-900 dark:text-slate-100">Requisitante</p>
+          <p class="text-slate-500 dark:text-slate-400">Todos fazem pedidos e acompanham os seus. Sempre ativo.</p>
+        </div>
+
+        <label class="mt-3 flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer transition hover:border-slate-400 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:border-slate-700 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60">
+          {{ form.eh_aprovador }}
+          <span class="text-sm">
+            <span class="block font-medium text-slate-900 dark:text-slate-100">Aprovador</span>
+            <span class="text-slate-500 dark:text-slate-400">Pode ser incluído nas alçadas de compra. Ser líder de setor é configurado no setor.</span>
+          </span>
+        </label>
+
+        <p class="mt-5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Módulos que administra</p>
+        <div class="mt-2 space-y-2">
+          {% for opcao in form.modulos %}
+          <label class="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer transition hover:border-slate-400 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60">
+            <input type="checkbox" name="{{ opcao.data.name }}" value="{{ opcao.data.value }}" {% if opcao.data.selected %}checked{% endif %} class="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900">
+            <span class="text-sm">
+              <span class="block font-medium text-slate-900 dark:text-slate-100">{{ opcao.choice_label }}</span>
+              <span class="text-slate-500 dark:text-slate-400">
+                {% if opcao.data.value == "ESTOQUE" %}Fila de suprimentos, estoque, entrada por planilha, produtos e recebimento.
+                {% elif opcao.data.value == "COMPRAS" %}Fila de compras, cotações, comparação de fornecedores e ordens de compra.
+                {% else %}Reservado — as telas financeiras ainda não existem.{% endif %}
+              </span>
+            </span>
+          </label>
+          {% endfor %}
+        </div>
+
+        <label class="mt-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 cursor-pointer dark:border-amber-900 dark:bg-amber-950">
+          {{ form.eh_superadmin }}
+          <span class="text-sm">
+            <span class="block font-medium text-amber-900 dark:text-amber-200">Superadmin</span>
+            <span class="text-amber-800 dark:text-amber-300">Acesso total: configurações, usuários, alçadas e todos os módulos.</span>
+          </span>
+        </label>
+        {% for erro in form.eh_superadmin.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      </section>
+
+      <section class="bg-white rounded-2xl border border-slate-200 p-6 space-y-3 dark:bg-slate-800 dark:border-slate-700">
+        <h2 class="font-semibold text-slate-900 dark:text-slate-100">Situação</h2>
+        <label class="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">{{ form.ativo_no_sistema }} Usuário ativo</label>
+        {% for erro in form.ativo_no_sistema.errors %}<p class="text-xs text-red-600">{{ erro }}</p>{% endfor %}
+        <label class="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">{{ form.is_staff }} Acesso ao admin do Django</label>
+      </section>
+    </aside>
   </div>
-  <div class="flex items-center gap-3 mt-6">
-    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-medium px-5 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar</button>
-    <a href="{% url 'config_usuario_lista' %}" class="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">cancelar</a>
+
+  <div class="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 px-4 sm:px-8 py-3 backdrop-blur dark:bg-slate-900/95 dark:border-slate-700">
+    <div class="flex items-center gap-3 lg:pl-64">
+      <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar usuário</button>
+      <a href="{% url 'config_usuario_lista' %}" class="text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">Cancelar</a>
+    </div>
   </div>
 </form>
+
+<script>
+  document.querySelectorAll('[data-marcar]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var marcar = b.dataset.marcar === 'todas';
+      document.querySelectorAll('#unidades input[type=checkbox]').forEach(function (c) { c.checked = marcar; });
+    });
+  });
+</script>
 {% endblock %}

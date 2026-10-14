@@ -2,6 +2,7 @@ from django import forms
 from django.contrib.auth import get_user_model
 
 from contas.models import (
+    Modulo,
     ModoAprovacaoSetor,
     Papel,
     PapelUsuario,
@@ -9,13 +10,15 @@ from contas.models import (
     Setor,
 )
 from cadastros.models import Fornecedor
-from tenancy.models import Empresa, Evento, Filial
+from tenancy.models import CentroCusto, Empresa, Evento, Filial
 
 Usuario = get_user_model()
 
 CAMPO = (
-    "w-full rounded-xl border-slate-200 bg-white px-4 py-2.5 text-sm "
-    "focus:border-blue-400 focus:ring-blue-400 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
+    "w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm "
+    "placeholder:text-slate-400 hover:border-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 "
+    "focus:outline-none dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 "
+    "dark:hover:border-slate-500 dark:focus:border-white dark:focus:ring-white/20"
 )
 CAMPO_CHECK = "rounded border-slate-300 text-slate-900 focus:ring-slate-900"
 
@@ -25,14 +28,26 @@ class UsuarioForm(forms.ModelForm):
         label="Senha", widget=forms.PasswordInput(attrs={"class": CAMPO}),
         required=False, help_text="Deixe em branco para manter a senha atual.",
     )
-    papel = forms.ChoiceField(label="Papel", choices=Papel.choices, widget=forms.Select(attrs={"class": CAMPO}))
+    # Permissões: cada caixa vira um PapelUsuario. Solicitante é sempre concedido.
+    eh_aprovador = forms.BooleanField(
+        label="Aprovador", required=False,
+        widget=forms.CheckboxInput(attrs={"class": CAMPO_CHECK + " mt-0.5 h-4 w-4"}),
+    )
+    eh_superadmin = forms.BooleanField(
+        label="Superadmin", required=False,
+        widget=forms.CheckboxInput(attrs={"class": CAMPO_CHECK + " mt-0.5 h-4 w-4"}),
+    )
+    modulos = forms.MultipleChoiceField(
+        label="Módulos que administra", choices=Modulo.choices, required=False,
+        widget=forms.CheckboxSelectMultiple,
+    )
 
     class Meta:
         model = Usuario
         fields = [
             "username", "nome_completo", "email", "telefone",
             "filial", "filiais_permitidas", "setor", "cargo", "ciclo",
-            "papel", "senha", "is_staff", "ativo_no_sistema",
+            "senha", "is_staff", "ativo_no_sistema",
         ]
         labels = {
             "username": "Usuário",
@@ -54,15 +69,16 @@ class UsuarioForm(forms.ModelForm):
             "telefone": forms.TextInput(attrs={"class": CAMPO}),
             "filial": forms.Select(attrs={"class": CAMPO}),
             "setor": forms.Select(attrs={"class": CAMPO}),
-            "filiais_permitidas": forms.SelectMultiple(attrs={"class": CAMPO + " h-32"}),
+            "filiais_permitidas": forms.CheckboxSelectMultiple,
             "cargo": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Coordenadora Pedagógica"}),
             "ciclo": forms.Select(attrs={"class": CAMPO}),
             "is_staff": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
             "ativo_no_sistema": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, editor=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.editor = editor
         self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
         self.fields["filial"].required = False
         self.fields["filial"].empty_label = "— sem filial definida —"
@@ -73,9 +89,22 @@ class UsuarioForm(forms.ModelForm):
         self.fields["setor"].empty_label = "— sem setor definido —"
         self.fields["ciclo"].required = False
         if self.instance.pk:
-            papel_atual = self.instance.papeis.first()
-            if papel_atual:
-                self.fields["papel"].initial = papel_atual.papel
+            papeis = list(self.instance.papeis.all())
+            self.initial["eh_aprovador"] = any(p.papel == Papel.APROVADOR for p in papeis)
+            self.initial["eh_superadmin"] = any(p.papel == Papel.SUPERADMIN for p in papeis)
+            self.initial["modulos"] = [p.modulo for p in papeis if p.papel == Papel.ADMINISTRADOR]
+
+    def clean(self):
+        dados = super().clean()
+        if not self.instance.pk and not dados.get("senha"):
+            self.add_error("senha", "Defina a senha inicial do usuário.")
+        # evita o administrador se trancar para fora do sistema
+        if self.editor is not None and self.instance.pk == self.editor.pk:
+            if not dados.get("eh_superadmin") and self.instance.papeis.filter(papel=Papel.SUPERADMIN).exists():
+                self.add_error("eh_superadmin", "Você não pode remover o seu próprio acesso de superadmin.")
+            if dados.get("ativo_no_sistema") is False:
+                self.add_error("ativo_no_sistema", "Você não pode desativar o seu próprio usuário.")
+        return dados
 
     def save(self, commit=True, tenant=None):
         usuario = super().save(commit=False)
@@ -87,9 +116,17 @@ class UsuarioForm(forms.ModelForm):
         if commit:
             usuario.save()
             self.save_m2m()
-            papel = self.cleaned_data["papel"]
-            PapelUsuario.objects.filter(usuario=usuario).exclude(papel=papel).delete()
-            PapelUsuario.objects.get_or_create(usuario=usuario, papel=papel)
+            desejados = {(Papel.SOLICITANTE, None)}
+            if self.cleaned_data["eh_aprovador"]:
+                desejados.add((Papel.APROVADOR, None))
+            if self.cleaned_data["eh_superadmin"]:
+                desejados.add((Papel.SUPERADMIN, None))
+            desejados |= {(Papel.ADMINISTRADOR, m) for m in self.cleaned_data["modulos"]}
+            for p in usuario.papeis.all():
+                if (p.papel, p.modulo) not in desejados:
+                    p.delete()
+            for papel, modulo in desejados:
+                PapelUsuario.objects.get_or_create(usuario=usuario, papel=papel, modulo=modulo)
         return usuario
 
 
@@ -216,6 +253,22 @@ class EventoForm(forms.ModelForm):
         widgets = {
             "filial": forms.Select(attrs={"class": CAMPO}),
             "nome": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Festa Junina 2026"}),
+            "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
+
+
+class CentroCustoForm(forms.ModelForm):
+    class Meta:
+        model = CentroCusto
+        fields = ["filial", "nome", "ativo"]
+        labels = {"filial": "Filial", "nome": "Nome do centro de custo", "ativo": "Ativo"}
+        widgets = {
+            "filial": forms.Select(attrs={"class": CAMPO}),
+            "nome": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Pedagógico, Manutenção"}),
             "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
         }
 

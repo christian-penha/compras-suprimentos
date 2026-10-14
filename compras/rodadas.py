@@ -9,11 +9,13 @@ from contas.models import Alcada, PapelAlcada
 from pedidos.services import TransicaoInvalida
 
 from .models import Cotacao, ItemCotacao, StatusCotacao
-from .services import CENTAVOS, _registrar_nos_pedidos, itens_para_cotar, proximo_numero_cotacao
+from .services import (
+    CENTAVOS, _registrar_nos_pedidos, gerar_ordem_automatica, itens_para_cotar, proximo_numero_cotacao,
+)
 
 
 @transaction.atomic
-def criar_rodada(*, comprador, propostas, observacao=""):
+def criar_rodada(*, comprador, propostas, observacao="", centros=None):
     """`propostas`: lista de {"fornecedor", "precos": {item_pedido_id: valor}, "frete"}.
     Item sem preço = o fornecedor não cotou. Cada proposta nasce EM_COMPARACAO, sem alçada
     nem número, e prende os itens fora da fila até `fechar_rodada`."""
@@ -48,7 +50,10 @@ def criar_rodada(*, comprador, propostas, observacao=""):
             rodada = cotacao.rodada = cotacao.pk
             cotacao.save(update_fields=["rodada"])
         ItemCotacao.objects.bulk_create([
-            ItemCotacao(cotacao=cotacao, item_pedido=itens[pk], quantidade=itens[pk].pendente, valor_unitario=v)
+            ItemCotacao(
+                cotacao=cotacao, item_pedido=itens[pk], quantidade=itens[pk].pendente, valor_unitario=v,
+                centro_custo=(centros or {}).get(pk) or itens[pk].pedido.centro_custo,
+            )
             for pk, v in p["precos"].items()
         ])
     _registrar_nos_pedidos(
@@ -109,6 +114,8 @@ def fechar_rodada(rodada, comprador, escolhas):
         cotacao.decidida_em = timezone.now() if automatica else None
         cotacao.save()
         vencedoras.append(cotacao)
+        if automatica:
+            gerar_ordem_automatica(cotacao)
         _registrar_nos_pedidos(
             pedidos, comprador,
             f"Cotação #{cotacao.numero} com {cotacao.fornecedor}: R$ {total} — "

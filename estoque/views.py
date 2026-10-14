@@ -9,7 +9,7 @@ from django.utils.http import urlencode
 from openpyxl import load_workbook
 
 from cadastros.models import Produto
-from contas.models import Papel
+from contas.models import Modulo, Papel
 from contas.permissoes import requer_papel
 from tenancy.models import Filial
 
@@ -67,7 +67,7 @@ def _parse_planilha(arquivo):
     return validas, erros
 
 
-@requer_papel(Papel.ADMINISTRADOR)
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def entrada_planilha(request):
     almoxarifados = Almoxarifado.objects.filter(ativo=True).select_related("filial")
 
@@ -141,7 +141,7 @@ def _situacao(saldo):
     return "ok"
 
 
-@requer_papel(Papel.ADMINISTRADOR)
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def posicao_estoque(request):
     filial_id = request.GET.get("filial", "")
     almoxarifado_id = request.GET.get("almoxarifado", "")

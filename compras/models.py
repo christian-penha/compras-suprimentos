@@ -87,6 +87,10 @@ class ItemCotacao(models.Model):
     quantidade = models.DecimalField(max_digits=12, decimal_places=3)
     valor_unitario = models.DecimalField(max_digits=12, decimal_places=2)
     quantidade_recebida = models.DecimalField(max_digits=12, decimal_places=3, default=Decimal("0"))
+    # Eixo desembolso (RN-17): definido por compras; obrigatório para gerar a OC.
+    centro_custo = models.ForeignKey(
+        "tenancy.CentroCusto", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
 
     class Meta:
         verbose_name = "item da cotação"
@@ -118,9 +122,22 @@ class StatusOrdem(models.TextChoices):
     CANCELADA = "CANCELADA", "Cancelada"
 
 
+class AndamentoOrdem(models.TextChoices):
+    """Acompanhamento logístico da compra, atualizado pelo comprador (o status da OC segue o
+    recebimento). RECEBIDA é automático, na conclusão do recebimento."""
+    EMITIDA = "EMITIDA", "Ordem emitida"
+    COMPRA_EFETUADA = "COMPRA_EFETUADA", "Compra efetuada"
+    EM_TRANSITO = "EM_TRANSITO", "Em trânsito"
+    RECEBIDA = "RECEBIDA", "Recebida"
+
+
 class OrdemCompra(TenantModel):
     cotacao = models.OneToOneField(Cotacao, on_delete=models.PROTECT, related_name="ordem")
     status = models.CharField(max_length=24, choices=StatusOrdem.choices, default=StatusOrdem.ABERTA)
+    andamento = models.CharField(
+        max_length=20, choices=AndamentoOrdem.choices, default=AndamentoOrdem.EMITIDA
+    )
+    previsao_entrega = models.DateField(null=True, blank=True)
     criada_por = models.ForeignKey(
         settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+"
     )
@@ -142,6 +159,22 @@ class OrdemCompra(TenantModel):
     @property
     def aberta(self):
         return self.status in (StatusOrdem.ABERTA, StatusOrdem.PARCIALMENTE_RECEBIDA)
+
+
+class HistoricoAndamento(TenantModel):
+    ordem = models.ForeignKey(OrdemCompra, on_delete=models.CASCADE, related_name="historico")
+    andamento = models.CharField(max_length=20, choices=AndamentoOrdem.choices)
+    observacao = models.CharField(max_length=300, blank=True)
+    previsao_entrega = models.DateField(null=True, blank=True)
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "andamento da ordem"
+        verbose_name_plural = "andamentos da ordem"
+        ordering = ["-criado_em", "-pk"]
 
 
 class NotaFiscal(TenantModel):

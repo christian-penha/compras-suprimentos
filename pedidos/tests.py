@@ -514,3 +514,68 @@ class FilaDeSuprimentosVisoesTest(BaseFluxoTest):
         for visao in ("cards", "lista", "kanban", "x"):
             self.assertEqual(self.client.get(reverse("fila_suprimentos"), {"visao": visao}).status_code, 200)
         self.assertContains(self.client.get(reverse("fila_suprimentos"), {"visao": "kanban"}), "Em separação")
+
+
+class CatalogoFiltroDeEstoqueTest(BaseFluxoTest):
+    def test_filtra_com_e_sem_estoque_central(self):
+        self.client.force_login(self.requisitante)
+        todos = self.client.get(reverse("catalogo")).context["produtos"]
+        com = self.client.get(reverse("catalogo"), {"estoque": "com"}).context["produtos"]
+        sem = self.client.get(reverse("catalogo"), {"estoque": "sem"}).context["produtos"]
+        self.assertEqual(len(com) + len(sem), len(todos))
+        self.assertTrue(all(p.saldo_central > 0 for p in com))
+        self.assertTrue(all(p.saldo_central <= 0 for p in sem))
+
+
+class CentroNaEntregaTest(BaseFluxoTest):
+    def test_entrega_exige_centro_e_grava_na_movimentacao(self):
+        from estoque.models import Movimentacao
+
+        pedido = self.novo_pedido("1")
+        registrar_entrada(produto=self.papel_produto if hasattr(self, "papel_produto") else self.produto,
+                          destino=Almoxarifado.objects.get(central=True), quantidade=Decimal("10"),
+                          valor_unitario=Decimal("2"), responsavel=self.requisitante)
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        aprovar_como_lider(pedido, self.aprovador)
+        transicionar(pedido, StatusPedido.EM_SEPARACAO, self.suprimentos)
+        Pedido.objects.filter(pk=pedido.pk).update(centro_custo=None)
+        pedido.refresh_from_db()
+        with self.assertRaises(TransicaoInvalida):
+            entregar(pedido, self.suprimentos)
+        Pedido.objects.filter(pk=pedido.pk).update(centro_custo=self.centro)
+        pedido.refresh_from_db()
+        entregar(pedido, self.suprimentos)
+        self.assertEqual(Movimentacao.objects.filter(pedido=pedido).first().centro_custo, self.centro)
+
+
+class CadastroDeCentroDeCustoTest(BaseFluxoTest):
+    def test_superadmin_cria_e_edita_centro_por_filial(self):
+        from tenancy.models import CentroCusto
+
+        admin = Usuario.objects.create_superuser("root_cc", tenant=self.tenant, password=None)
+        self.client.force_login(admin)
+        filial = Filial.objects.get(sigla="VC")
+        resposta = self.client.post(reverse("config_centro_novo"), {"filial": filial.pk, "nome": "Cantina", "ativo": "on"})
+        self.assertEqual(resposta.status_code, 302)
+        centro = CentroCusto.objects.get(filial=filial, nome="Cantina")
+        self.client.post(reverse("config_centro_editar", args=[centro.pk]), {"filial": filial.pk, "nome": "Cantina Central", "ativo": "on"})
+        centro.refresh_from_db()
+        self.assertEqual(centro.nome, "Cantina Central")
+        self.assertContains(self.client.get(reverse("config_centro_lista"), {"filial": filial.pk}), "Cantina Central")
+
+
+class CarrinhoSemRecarregarTest(BaseFluxoTest):
+    def test_adicionar_via_fetch_devolve_json_e_nao_redireciona(self):
+        self.client.force_login(self.requisitante)
+        r = self.client.post(
+            reverse("carrinho_adicionar"), {"produto": self.produto.pk, "quantidade": "2"},
+            headers={"x-requested-with": "fetch"},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()["qtd"], 1)
+        self.assertTrue(r.json()["ok"])
+        r = self.client.post(
+            reverse("carrinho_adicionar"), {"produto": self.produto.pk, "quantidade": "abc"},
+            headers={"x-requested-with": "fetch"},
+        )
+        self.assertEqual(r.status_code, 400)

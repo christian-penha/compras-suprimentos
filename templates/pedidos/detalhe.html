@@ -80,7 +80,7 @@
         <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
           {% for item in itens %}
           <tr class="dark:text-slate-100">
-            <td class="px-6 py-3.5">{{ item.produto }}</td>
+            <td class="px-6 py-3.5{% if item.cancelado %} line-through text-slate-400{% endif %}">{{ item.produto }}{% if item.cancelado %} <span class="no-underline text-xs font-medium text-red-600">eliminado: {{ item.motivo_cancelamento }}</span>{% endif %}</td>
             <td class="px-6 py-3.5 text-right font-medium">{{ item.quantidade|floatformat:"-3" }}</td>
             <td class="px-6 py-3.5 text-right {% if item.quantidade_entregue and item.pendente > 0 %}text-sky-700 dark:text-sky-400{% endif %}">
               {% if item.quantidade_entregue %}{{ item.quantidade_entregue|floatformat:"-3" }}{% else %}<span class="text-slate-300">—</span>{% endif %}
@@ -116,10 +116,35 @@
     </section>
     {% endif %}
 
+    {% for o in compras_do_pedido %}
+    <section class="rounded-2xl border border-slate-200 bg-white px-6 py-4 flex flex-wrap items-center justify-between gap-3 dark:bg-slate-800 dark:border-slate-700">
+      <div>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Compra · OC #{{ o.numero }}</p>
+        <p class="font-medium text-slate-900 dark:text-slate-100">{{ o.cotacao.fornecedor }}</p>
+        {% if o.previsao_entrega %}<p class="text-sm text-slate-500 dark:text-slate-400">Previsão de entrega: {{ o.previsao_entrega|date:"d/m/Y" }}</p>{% endif %}
+      </div>
+      <span class="text-xs font-semibold px-3 py-1.5 rounded-full {{ o.andamento|badge_status }}">{{ o.get_andamento_display }}</span>
+    </section>
+    {% endfor %}
+
     {% if pedido.status == 'AGUARDANDO_COMPRA' or pedido.status == 'ENTREGA_PARCIAL' and tem_item_de_compra %}
     <section class="rounded-2xl border border-orange-200 bg-orange-50 px-6 py-5 text-sm text-orange-800 dark:bg-orange-950 dark:border-orange-900 dark:text-orange-200">
       <p class="font-semibold">Itens aguardando compra</p>
       <p class="mt-1">Alguns itens deste pedido não têm estoque suficiente e dependem de compra. O pedido só é concluído quando tudo for entregue.</p>
+    </section>
+    {% endif %}
+
+    {% if e_gestor and pedido.status != 'RASCUNHO' and pedido.status != 'ENVIADO' and pedido.status != 'RECUSADO' and pedido.status != 'ENTREGUE' and pedido.status != 'CONCLUIDO' %}
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Centro de custo (consumo)</h2>
+      <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Onde o custo desta entrega será apropriado. É obrigatório para entregar.</p>
+      <form method="post" class="flex flex-wrap gap-3">{% csrf_token %}
+        <select name="centro_custo" class="flex-1 min-w-[220px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          <option value="">Selecione…</option>
+          {% for c in centros %}<option value="{{ c.pk }}" {% if pedido.centro_custo_id == c.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+        <button name="acao" value="definir_centro" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Salvar centro</button>
+      </form>
     </section>
     {% endif %}
 

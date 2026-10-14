@@ -84,6 +84,9 @@ class ItemPedido(models.Model):
     )
     quantidade_entregue = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     observacao = models.CharField(max_length=300, blank=True)
+    # Eliminado na alçada de compra: sai do pedido sem ser entregue nem recotado.
+    cancelado = models.BooleanField(default=False)
+    motivo_cancelamento = models.CharField(max_length=300, blank=True)
 
     class Meta:
         verbose_name = "item do pedido"
@@ -100,6 +103,8 @@ class ItemPedido(models.Model):
 
     @property
     def pendente(self):
+        if self.cancelado:
+            return 0
         return self.quantidade - self.quantidade_entregue
 
 

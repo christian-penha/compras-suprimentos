@@ -151,3 +151,52 @@ class TelaDeAlcadasTest(TenantTestCase):
         })
         self.assertEqual(resposta.status_code, 200)  # reexibe a tela com a mensagem
         self.assertEqual(Alcada.objects.filter(ativo=True).count(), antes)
+
+
+class FormularioDeUsuarioTest(TenantTestCase):
+    def setUp(self):
+        super().setUp()
+        from tenancy.models import Filial
+
+        self.root = Usuario.objects.create_superuser("root_u", tenant=self.tenant, password=None)
+        PapelUsuario.objects.create(usuario=self.root, papel=Papel.SUPERADMIN)
+        self.client.force_login(self.root)
+        self.cp = Filial.objects.get(sigla="CP")
+        self.vc = Filial.objects.get(sigla="VC")
+
+    def dados(self, **extra):
+        base = {"username": "novo", "senha": "senha-forte-123", "ativo_no_sistema": "on"}
+        base.update(extra)
+        return base
+
+    def test_cria_usuario_com_modulos_e_varias_unidades(self):
+        resposta = self.client.post("/configuracoes/usuarios/novo/", self.dados(
+            modulos=["ESTOQUE", "COMPRAS"], eh_aprovador="on", filiais_permitidas=[self.cp.pk, self.vc.pk],
+        ))
+        self.assertEqual(resposta.status_code, 302)
+        u = Usuario.objects.get(username="novo")
+        self.assertTrue(u.tem_papel(Papel.ADMINISTRADOR, Modulo.ESTOQUE))
+        self.assertTrue(u.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS))
+        self.assertFalse(u.tem_papel(Papel.ADMINISTRADOR, Modulo.FINANCEIRO))
+        self.assertTrue(u.tem_papel(Papel.APROVADOR))
+        self.assertTrue(u.tem_papel(Papel.SOLICITANTE))
+        self.assertEqual(u.filiais_permitidas.count(), 2)
+
+    def test_editar_remove_o_que_foi_desmarcado(self):
+        self.client.post("/configuracoes/usuarios/novo/", self.dados(modulos=["ESTOQUE", "COMPRAS"]))
+        u = Usuario.objects.get(username="novo")
+        self.client.post(f"/configuracoes/usuarios/{u.pk}/editar/", self.dados(modulos=["COMPRAS"]))
+        self.assertFalse(u.tem_papel(Papel.ADMINISTRADOR, Modulo.ESTOQUE))
+        self.assertTrue(u.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS))
+
+    def test_novo_usuario_exige_senha(self):
+        resposta = self.client.post("/configuracoes/usuarios/novo/", self.dados(senha=""))
+        self.assertEqual(resposta.status_code, 200)
+        self.assertFalse(Usuario.objects.filter(username="novo").exists())
+
+    def test_nao_remove_o_proprio_superadmin(self):
+        resposta = self.client.post(f"/configuracoes/usuarios/{self.root.pk}/editar/", {
+            "username": "root_u", "ativo_no_sistema": "on",
+        })
+        self.assertEqual(resposta.status_code, 200)
+        self.assertTrue(self.root.tem_papel(Papel.SUPERADMIN))

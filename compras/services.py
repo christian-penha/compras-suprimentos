@@ -9,12 +9,14 @@ from django.utils import timezone
 from contas.models import Alcada, AprovadorAlcada, PapelAlcada, Usuario
 from estoque.services import registrar_entrada
 from pedidos.models import EventoPedido, ItemPedido, OrigemAtendimento, StatusPedido
-from pedidos.services import SemPermissao, TransicaoInvalida, liberar_itens_comprados
+from pedidos.services import SemPermissao, TransicaoInvalida, liberar_itens_comprados, reavaliar_pedido
 from tenancy.context import obter_tenant_atual_id
 from tenancy.models import Almoxarifado, Empresa
 
 from .models import (
+    AndamentoOrdem,
     CorrespondenciaProdutoFornecedor,
+    HistoricoAndamento,
     Cotacao,
     ItemCotacao,
     ItemRecebimento,
@@ -58,6 +60,7 @@ def itens_para_cotar():
     return (
         ItemPedido.objects.filter(
             origem_atendimento=OrigemAtendimento.COMPRA,
+            cancelado=False,
             pedido__ativo=True,
             pedido__status__in=PEDIDO_AGUARDA_ITEM_DE_COMPRA,
             pedido__requisitante__tenant_id=obter_tenant_atual_id(),
@@ -81,7 +84,7 @@ def proximo_numero_cotacao(tenant, pedido_ids):
 
 
 @transaction.atomic
-def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), observacao=""):
+def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), observacao="", centros=None):
     """`precos` é {item_pedido_id: valor_unitario}. Criar já envia: a faixa de alçada é
     aplicada sobre o total com frete e a cotação nasce aprovada (faixa automática) ou
     aguardando a alçada."""
@@ -119,7 +122,8 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
     )
     ItemCotacao.objects.bulk_create([
         ItemCotacao(
-            cotacao=cotacao, item_pedido=i, quantidade=i.pendente, valor_unitario=precos[i.pk]
+            cotacao=cotacao, item_pedido=i, quantidade=i.pendente, valor_unitario=precos[i.pk],
+            centro_custo=(centros or {}).get(i.pk) or i.pedido.centro_custo,
         )
         for i in itens
     ])
@@ -131,6 +135,8 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
         {i.pedido for i in itens}, comprador,
         f"Cotação #{cotacao.numero} com {fornecedor}: R$ {total} — {situacao}.",
     )
+    if automatica:
+        gerar_ordem_automatica(cotacao)
     return cotacao
 
 
@@ -178,6 +184,67 @@ def decidir_cotacao(cotacao, usuario, aprovar, motivo=""):
     else:
         texto = f"Cotação #{cotacao.numero} recusada pela alçada: {cotacao.motivo_recusa}. Item volta à fila de compras."
     _registrar_nos_pedidos(pedidos, usuario, texto)
+    if aprovar:
+        gerar_ordem_automatica(cotacao)
+    return cotacao
+
+
+APROVAR, RECOTAR, ELIMINAR = "APROVAR", "RECOTAR", "ELIMINAR"
+
+
+@transaction.atomic
+def decidir_cotacao_por_item(cotacao, usuario, decisoes, motivo=""):
+    """Aprovação parcial na alçada. `decisoes` é {item_cotacao_id: APROVAR | RECOTAR | ELIMINAR}:
+    APROVAR mantém o item na compra; RECOTAR devolve o item à fila para nova cotação;
+    ELIMINAR tira o item do pedido. Sem nenhum item aprovado a cotação é recusada."""
+    cotacao = Cotacao.objects.select_for_update().get(pk=cotacao.pk)
+    if cotacao.status != StatusCotacao.AGUARDANDO_ALCADA:
+        raise TransicaoInvalida("Esta cotação não está aguardando aprovação.")
+    if usuario == cotacao.comprador:
+        raise SemPermissao("Quem fez a cotação não pode aprová-la.")
+    if not pode_decidir_cotacao(usuario, cotacao):
+        raise SemPermissao("Você não é aprovador desta faixa de alçada.")
+
+    itens = list(cotacao.itens.select_related("item_pedido__pedido", "item_pedido__produto"))
+    if {i.pk for i in itens} != set(decisoes):
+        raise TransicaoInvalida("Informe a decisão de cada item da cotação.")
+    if any(d not in (APROVAR, RECOTAR, ELIMINAR) for d in decisoes.values()):
+        raise TransicaoInvalida("Decisão inválida para um dos itens.")
+    aprovados = [i for i in itens if decisoes[i.pk] == APROVAR]
+    fora = [i for i in itens if decisoes[i.pk] != APROVAR]
+    if fora and not motivo.strip():
+        raise TransicaoInvalida("Informe o motivo dos itens não aprovados.")
+    motivo = motivo.strip()[:300]
+
+    pedidos = {i.item_pedido.pedido for i in itens}
+    for i in fora:
+        pedido, produto = i.item_pedido.pedido, i.item_pedido.produto
+        if decisoes[i.pk] == ELIMINAR:
+            ItemPedido.objects.filter(pk=i.item_pedido_id).update(cancelado=True, motivo_cancelamento=motivo)
+            texto = f"{produto.nome} eliminado do pedido na alçada: {motivo}."
+        else:
+            texto = f"{produto.nome} não aprovado na alçada e devolvido à fila para nova cotação: {motivo}."
+        _registrar_nos_pedidos([pedido], usuario, texto)
+
+    cotacao.decidida_por, cotacao.decidida_em = usuario, timezone.now()
+    if aprovados:
+        for i in fora:
+            i.delete()
+        total = sum((i.subtotal for i in aprovados), Decimal("0")) + cotacao.valor_frete
+        cotacao.valor_total = total.quantize(CENTAVOS)
+        cotacao.status = StatusCotacao.APROVADA
+        cotacao.motivo_recusa = motivo if fora else ""
+        resumo = "aprovada parcialmente" if fora else "aprovada pela alçada"
+    else:
+        cotacao.status = StatusCotacao.RECUSADA
+        cotacao.motivo_recusa = motivo
+        resumo = "recusada pela alçada"
+    cotacao.save()
+    _registrar_nos_pedidos(pedidos, usuario, f"Cotação #{cotacao.numero} {resumo}.")
+    for pedido in pedidos:
+        reavaliar_pedido(pedido, usuario)
+    if aprovados:
+        gerar_ordem_automatica(cotacao)
     return cotacao
 
 
@@ -196,13 +263,46 @@ def cancelar_cotacao(cotacao, usuario):
 # ---------------------------------------------------------------- ordem e nota
 
 @transaction.atomic
+def definir_centros(cotacao, escolhas, usuario):
+    """`escolhas` é {item_cotacao_id: CentroCusto}. Só antes da ordem de compra."""
+    cotacao = Cotacao.objects.select_for_update().get(pk=cotacao.pk)
+    if not cotacao.ativa or hasattr(cotacao, "ordem"):
+        raise TransicaoInvalida("O centro de custo só pode ser alterado antes da ordem de compra.")
+    for item in cotacao.itens.filter(pk__in=list(escolhas)):
+        item.centro_custo = escolhas[item.pk]
+        item.save(update_fields=["centro_custo"])
+    pedidos = {i.item_pedido.pedido for i in cotacao.itens.select_related("item_pedido__pedido")}
+    _registrar_nos_pedidos(pedidos, usuario, f"Centro de custo da cotação #{cotacao.numero or cotacao.pk} definido por compras.")
+    if cotacao.status == StatusCotacao.APROVADA:
+        gerar_ordem_automatica(cotacao)
+    return cotacao
+
+
+def gerar_ordem_automatica(cotacao):
+    """Cotação aprovada gera a ordem de compra sozinha, em nome do comprador. Se faltar algo
+    (centro de custo), ela segue aprovada e o comprador completa e gera pela tela."""
+    try:
+        return gerar_ordem_compra(cotacao, cotacao.comprador)
+    except TransicaoInvalida:
+        return None
+
+
+@transaction.atomic
 def gerar_ordem_compra(cotacao, usuario):
     cotacao = Cotacao.objects.select_for_update().get(pk=cotacao.pk)
     if cotacao.status != StatusCotacao.APROVADA:
         raise TransicaoInvalida("A ordem de compra só sai de uma cotação aprovada.")
     if hasattr(cotacao, "ordem"):
-        raise TransicaoInvalida("Esta cotação já tem ordem de compra.")
+        return cotacao.ordem  # idempotente: a OC pode ter saído automaticamente na aprovação
+    if cotacao.itens.filter(centro_custo__isnull=True).exists():
+        raise TransicaoInvalida(
+            "Defina o centro de custo de todos os itens antes de gerar a ordem de compra."
+        )
     ordem = OrdemCompra.objects.create(tenant=cotacao.tenant, cotacao=cotacao, criada_por=usuario)
+    HistoricoAndamento.objects.create(
+        tenant=ordem.tenant, ordem=ordem, andamento=AndamentoOrdem.EMITIDA, usuario=usuario,
+        observacao="Ordem de compra emitida.",
+    )
     pedidos = {i.item_pedido.pedido for i in cotacao.itens.select_related("item_pedido__pedido")}
     _registrar_nos_pedidos(pedidos, usuario, f"Ordem de compra #{ordem.numero} emitida para {cotacao.fornecedor}.")
     return ordem
@@ -347,9 +447,63 @@ def confirmar_recebimento(ordem, usuario, conferencias, nota=None, observacao=""
         else StatusOrdem.PARCIALMENTE_RECEBIDA
     )
     ordem.save(update_fields=["status"])
+    if ordem.status == StatusOrdem.CONCLUIDA and ordem.andamento != AndamentoOrdem.RECEBIDA:
+        ordem.andamento = AndamentoOrdem.RECEBIDA
+        ordem.save(update_fields=["andamento"])
+        HistoricoAndamento.objects.create(
+            tenant=ordem.tenant, ordem=ordem, andamento=AndamentoOrdem.RECEBIDA,
+            observacao="Recebimento conferido e entrada no estoque.", usuario=usuario,
+        )
 
     for pedido in pedidos.values():
         liberar_itens_comprados(
             pedido, usuario, f"Recebimento da OC #{ordem.numero} confirmado — material entrou no estoque."
         )
     return recebimento
+
+
+@transaction.atomic
+def atualizar_andamento(ordem, usuario, andamento, observacao="", previsao=None):
+    """O comprador informa em que pé está a compra (efetuada, em trânsito…). Fica no histórico
+    e aparece para o requisitante no pedido."""
+    ordem = OrdemCompra.objects.select_for_update().get(pk=ordem.pk)
+    if not ordem.aberta:
+        raise TransicaoInvalida("A ordem de compra não está mais aberta.")
+    manuais = (AndamentoOrdem.EMITIDA, AndamentoOrdem.COMPRA_EFETUADA, AndamentoOrdem.EM_TRANSITO)
+    if andamento not in manuais:
+        raise TransicaoInvalida("Situação inválida: a conclusão do recebimento é automática.")
+    ordem.andamento = andamento
+    if previsao is not None:
+        ordem.previsao_entrega = previsao
+    ordem.save(update_fields=["andamento", "previsao_entrega"])
+    HistoricoAndamento.objects.create(
+        tenant=ordem.tenant, ordem=ordem, andamento=andamento, observacao=observacao.strip()[:300],
+        previsao_entrega=previsao, usuario=usuario,
+    )
+    pedidos = {i.item_pedido.pedido for i in ordem.cotacao.itens.select_related("item_pedido__pedido")}
+    texto = f"Compra (OC #{ordem.numero}): {ordem.get_andamento_display().lower()}"
+    if ordem.previsao_entrega:
+        texto += f", previsão de entrega {ordem.previsao_entrega:%d/%m/%Y}"
+    _registrar_nos_pedidos(pedidos, usuario, texto + ".")
+    return ordem
+
+
+def desembolso_por_centro(inicio=None, fim=None):
+    """Eixo desembolso (RN-17): valor das notas no período distribuído pelos centros de custo
+    dos itens da cotação, proporcionalmente ao subtotal de cada centro. {CentroCusto|None: valor}"""
+    notas = NotaFiscal.objects.select_related("ordem__cotacao")
+    if inicio:
+        notas = notas.filter(data_emissao__gte=inicio)
+    if fim:
+        notas = notas.filter(data_emissao__lte=fim)
+    totais = {}
+    for nota in notas:
+        itens = list(nota.ordem.cotacao.itens.select_related("centro_custo"))
+        base = sum((i.subtotal for i in itens), Decimal("0"))
+        if not itens or base == 0:
+            totais[None] = totais.get(None, Decimal("0")) + nota.valor_total
+            continue
+        for i in itens:
+            parte = (nota.valor_total * i.subtotal / base).quantize(CENTAVOS)
+            totais[i.centro_custo] = totais.get(i.centro_custo, Decimal("0")) + parte
+    return totais

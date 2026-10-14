@@ -14,6 +14,22 @@
   {% csrf_token %}
   {% for item in itens %}<input type="hidden" name="item" value="{{ item.pk }}">{% endfor %}
 
+  <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 dark:text-slate-100">Centro de custo (desembolso)</h2>
+    <p class="text-sm text-slate-500 mb-3 dark:text-slate-400">Um centro por pedido: vale para todos os itens dele.</p>
+    <div class="grid gap-3 sm:grid-cols-2">
+      {% for pc in pedidos_cotados %}
+      <label class="flex items-center gap-3 text-sm dark:text-slate-100">
+        <span class="w-40 shrink-0">Pedido #{{ pc.pedido.pk }} <span class="block text-xs text-slate-500 dark:text-slate-400">{{ pc.itens|join:", "|truncatechars:40 }}</span></span>
+        <select name="centro_pedido_{{ pc.pedido.pk }}" required class="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          <option value="">Selecione…</option>
+          {% for c in centros %}<option value="{{ c.pk }}" {% if pc.centro_id == c.pk|stringformat:"s" %}selected{% endif %}>{{ c }}</option>{% endfor %}
+        </select>
+      </label>
+      {% endfor %}
+    </div>
+  </section>
+
   <section class="bg-white rounded-2xl border border-slate-200 overflow-x-auto dark:bg-slate-800 dark:border-slate-700">
     <table class="w-full text-sm" id="matriz">
       <thead class="bg-slate-50 text-slate-500 text-left align-top dark:bg-slate-900/40 dark:text-slate-400">

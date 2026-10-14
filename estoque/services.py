@@ -36,7 +36,7 @@ def registrar_entrada(*, produto, destino, quantidade, responsavel, valor_unitar
 
 
 @transaction.atomic
-def registrar_saida(*, produto, origem, quantidade, responsavel, pedido=None, observacao=""):
+def registrar_saida(*, produto, origem, quantidade, responsavel, pedido=None, observacao="", centro_custo=None):
     quantidade = Decimal(quantidade)
     saldo = _saldo(produto, origem)
     if saldo.quantidade < quantidade:
@@ -48,12 +48,12 @@ def registrar_saida(*, produto, origem, quantidade, responsavel, pedido=None, ob
     return Movimentacao.objects.create(
         tipo=TipoMovimentacao.SAIDA, produto=produto, origem=origem, quantidade=quantidade,
         valor_unitario=saldo.custo_medio, pedido=pedido, responsavel=responsavel,
-        observacao=observacao,
+        observacao=observacao, centro_custo=centro_custo,
     )
 
 
 @transaction.atomic
-def transferir(*, produto, origem, destino, quantidade, responsavel, pedido=None, observacao=""):
+def transferir(*, produto, origem, destino, quantidade, responsavel, pedido=None, observacao="", centro_custo=None):
     quantidade = Decimal(quantidade)
     saldo_origem = _saldo(produto, origem)
     if saldo_origem.quantidade < quantidade:
@@ -83,5 +83,5 @@ def transferir(*, produto, origem, destino, quantidade, responsavel, pedido=None
     return Movimentacao.objects.create(
         tipo=TipoMovimentacao.TRANSFERENCIA, produto=produto, origem=origem, destino=destino,
         quantidade=quantidade, valor_unitario=custo, pedido=pedido, responsavel=responsavel,
-        observacao=observacao,
+        observacao=observacao, centro_custo=centro_custo,
     )

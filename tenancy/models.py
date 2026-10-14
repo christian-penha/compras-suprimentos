@@ -114,9 +114,17 @@ class Almoxarifado(TenantModel):
         return f"{self.filial.sigla} — {self.nome}"
 
 
+class TipoCentroCusto(models.TextChoices):
+    OPERACIONAL = "OPERACIONAL", "Operacional"
+    ESTOQUE_CENTRAL = "ESTOQUE_CENTRAL", "Estoque central (reposição)"
+
+
 class CentroCusto(TenantModel):
     filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name="centros_custo")
     nome = models.CharField(max_length=100)
+    tipo = models.CharField(
+        max_length=20, choices=TipoCentroCusto.choices, default=TipoCentroCusto.OPERACIONAL
+    )
     ativo = models.BooleanField(default=True)
 
     class Meta:

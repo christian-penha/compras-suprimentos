@@ -6,18 +6,19 @@ from django.core.paginator import Paginator
 from django.db import transaction
 from django.utils.http import urlencode
 from django.db.models import Count, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from cadastros.models import Categoria, Produto
-from contas.models import Papel
+from contas.models import Modulo, Papel
 from contas.permissoes import requer_papel
 from estoque.models import Movimentacao, SaldoEstoque, TipoMovimentacao
 from estoque.services import EstoqueInsuficiente
-from tenancy.models import Evento, Filial
+from tenancy.models import CentroCusto, Evento, Filial
 
 from . import cart
 from .forms import PedidoForm
-from .models import ItemPedido, OrigemAtendimento, Pedido, StatusPedido
+from .models import EventoPedido, ItemPedido, OrigemAtendimento, Pedido, StatusPedido
 from .services import (
     SemPermissao,
     TransicaoInvalida,
@@ -51,7 +52,7 @@ def painel(request):
                 requisitante__setor_id__in=setores_liderados
             ).exclude(requisitante=usuario)
         contexto["qtd_aprovacoes"] = pedidos_para_aprovar.count()
-    if usuario.tem_papel(Papel.ADMINISTRADOR) or usuario.is_superuser:
+    if usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.ESTOQUE) or usuario.is_superuser:
         contexto["qtd_fila"] = Pedido.objects.filter(
             status__in=FILA_SUPRIMENTOS, ativo=True
         ).count()
@@ -72,6 +73,14 @@ def catalogo(request):
         SaldoEstoque.objects.filter(almoxarifado__central=True)
         .values_list("produto_id", "quantidade")
     )
+    estoque = request.GET.get("estoque", "")
+    com_saldo = [pk for pk, q in saldos.items() if q > 0]
+    if estoque == "com":
+        produtos = produtos.filter(pk__in=com_saldo)
+    elif estoque == "sem":
+        produtos = produtos.exclude(pk__in=com_saldo)
+    else:
+        estoque = ""
     pagina = Paginator(produtos.order_by("nome"), 48).get_page(request.GET.get("pagina"))
     produtos = list(pagina)
     for p in produtos:
@@ -86,6 +95,8 @@ def catalogo(request):
             "categorias": Categoria.objects.filter(ativo=True),
             "busca": busca,
             "categoria_id": categoria_id,
+            "estoque": estoque,
+            "qs_estoque": urlencode({k: v for k, v in request.GET.items() if v and k not in ("pagina", "estoque")}),
         },
     )
 
@@ -95,7 +106,15 @@ def carrinho_adicionar(request):
     if request.method == "POST":
         produto_id = request.POST.get("produto", "")
         quantidade = request.POST.get("quantidade", "1")
-        if cart.adicionar(request.session, produto_id, quantidade):
+        adicionado = cart.adicionar(request.session, produto_id, quantidade)
+        if request.headers.get("x-requested-with") == "fetch":
+            # o catálogo envia sem recarregar a página (mantém a posição de rolagem)
+            return JsonResponse({
+                "ok": bool(adicionado),
+                "mensagem": "Item adicionado ao carrinho." if adicionado else "Quantidade inválida.",
+                "qtd": cart.quantidade_total(request.session),
+            }, status=200 if adicionado else 400)
+        if adicionado:
             messages.success(request, "Item adicionado ao carrinho.")
         else:
             messages.error(request, "Quantidade inválida.")
@@ -196,6 +215,16 @@ def pedido_lista(request):
     return render(request, "pedidos/lista.html", {"pedidos": pedidos, **ctx})
 
 
+def _compras_do_pedido(pedido):
+    """Ordens de compra que atendem itens deste pedido, com o andamento informado pelo comprador."""
+    from compras.models import OrdemCompra
+
+    return list(
+        OrdemCompra.objects.filter(cotacao__itens__item_pedido__pedido=pedido)
+        .select_related("cotacao__fornecedor").distinct()
+    )
+
+
 @login_required
 def pedido_detalhe(request, pk):
     pedido = get_object_or_404(
@@ -203,8 +232,13 @@ def pedido_detalhe(request, pk):
         pk=pk, ativo=True,
     )
     usuario = request.user
-    e_gestor = usuario.is_superuser or usuario.tem_papel(Papel.SUPERADMIN) or usuario.tem_papel(Papel.ADMINISTRADOR)
-    if not (usuario == pedido.requisitante or pode_aprovar(usuario, pedido) or e_gestor):
+    # separar, entregar e definir o centro de consumo são do módulo Estoque; compras só consulta
+    e_gestor = (
+        usuario.is_superuser or usuario.tem_papel(Papel.SUPERADMIN)
+        or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.ESTOQUE)
+    )
+    pode_consultar = e_gestor or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS)
+    if not (usuario == pedido.requisitante or pode_aprovar(usuario, pedido) or pode_consultar):
         messages.error(request, "Você não tem acesso a esse pedido.")
         return redirect("painel")
 
@@ -240,6 +274,20 @@ def pedido_detalhe(request, pk):
                     messages.success(request, f"Pedido #{pedido.pk} entregue por completo — baixa registrada.")
                 else:
                     messages.success(request, f"Entrega parcial registrada no pedido #{pedido.pk}.")
+            elif acao == "definir_centro" and e_gestor:
+                if pedido.status in (StatusPedido.ENTREGUE, StatusPedido.CONCLUIDO):
+                    raise TransicaoInvalida("O pedido já foi entregue; o centro de custo não pode mais mudar.")
+                centro = CentroCusto.objects.filter(pk=request.POST.get("centro_custo") or 0, ativo=True).first()
+                if centro is None:
+                    raise TransicaoInvalida("Escolha o centro de custo.")
+                antes = pedido.centro_custo
+                pedido.centro_custo = centro
+                pedido.save(update_fields=["centro_custo"])
+                EventoPedido.objects.create(
+                    pedido=pedido, de_status=pedido.status, para_status=pedido.status, usuario=usuario,
+                    observacao=f"Centro de custo (consumo): {antes or 'sem centro'} → {centro}.",
+                )
+                messages.success(request, "Centro de custo do pedido definido.")
             elif acao == "concluir":
                 transicionar(pedido, StatusPedido.CONCLUIDO, usuario)
                 messages.success(request, "Recebimento confirmado. Pedido concluído.")
@@ -263,7 +311,9 @@ def pedido_detalhe(request, pk):
             ],
             "eventos": pedido.eventos.select_related("usuario"),
             "pode_aprovar": pode_aprovar(usuario, pedido),
+            "compras_do_pedido": _compras_do_pedido(pedido),
             "e_gestor": e_gestor,
+            "centros": CentroCusto.objects.filter(ativo=True).select_related("filial") if e_gestor else [],
         },
     )
 
@@ -281,7 +331,7 @@ def aprovacoes(request):
     return render(request, "pedidos/aprovacoes.html", {"pedidos": pedidos, **ctx})
 
 
-@requer_papel(Papel.ADMINISTRADOR)
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def fila_suprimentos(request):
     pedidos = Pedido.objects.filter(
         status__in=FILA_SUPRIMENTOS, ativo=True
@@ -299,7 +349,7 @@ def fila_suprimentos(request):
     })
 
 
-@requer_papel(Papel.ADMINISTRADOR)
+@requer_papel(Papel.ADMINISTRADOR, modulo=(Modulo.ESTOQUE, Modulo.COMPRAS))
 def relatorio_eventos(request):
     filial_id = request.GET.get("filial", "")
     eventos = Evento.objects.select_related("filial").order_by("filial", "nome")
@@ -371,3 +421,51 @@ def relatorio_eventos(request):
             "alguma_sem_custo": any(l["sem_custo"] for l in linhas),
         },
     )
+
+
+@requer_papel(Papel.ADMINISTRADOR, modulo=(Modulo.ESTOQUE, Modulo.COMPRAS))
+def relatorio_centros(request):
+    """Desembolso (notas) e consumo (baixas) por centro de custo — eixos que não se somam."""
+    from datetime import date
+
+    from compras.services import desembolso_por_centro
+
+    def _data(nome):
+        try:
+            return date.fromisoformat(request.GET.get(nome, ""))
+        except ValueError:
+            return None
+
+    inicio, fim = _data("de"), _data("ate")
+    filial_id = request.GET.get("filial", "")
+    filial_id = filial_id if filial_id.isdigit() else ""
+
+    movs = Movimentacao.objects.filter(
+        pedido__isnull=False, tipo__in=[TipoMovimentacao.SAIDA, TipoMovimentacao.TRANSFERENCIA]
+    ).select_related("centro_custo__filial")
+    if inicio:
+        movs = movs.filter(criado_em__date__gte=inicio)
+    if fim:
+        movs = movs.filter(criado_em__date__lte=fim)
+    consumo = {}
+    for m in movs:
+        consumo[m.centro_custo] = consumo.get(m.centro_custo, Decimal("0")) + m.quantidade * m.valor_unitario
+    desembolso = desembolso_por_centro(inicio, fim)
+
+    def _linhas(dados):
+        linhas = [
+            {"centro": c, "valor": v} for c, v in dados.items()
+            if not filial_id or (c is not None and str(c.filial_id) == filial_id)
+        ]
+        linhas.sort(key=lambda x: -x["valor"])
+        return linhas, sum((x["valor"] for x in linhas), Decimal("0"))
+
+    linhas_consumo, total_consumo = _linhas(consumo)
+    linhas_desembolso, total_desembolso = _linhas(desembolso)
+    return render(request, "pedidos/relatorio_centros.html", {
+        "consumo": linhas_consumo, "total_consumo": total_consumo,
+        "desembolso": linhas_desembolso, "total_desembolso": total_desembolso,
+        "filiais": Filial.objects.filter(ativo=True).order_by("nome"),
+        "filial_id": filial_id,
+        "de": request.GET.get("de", ""), "ate": request.GET.get("ate", ""),
+    })

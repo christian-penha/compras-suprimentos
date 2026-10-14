@@ -33,7 +33,7 @@
         <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
           {% for i in itens %}
           <tr class="dark:text-slate-100">
-            <td class="px-6 py-3.5">{{ i.item_pedido.produto }}</td>
+            <td class="px-6 py-3.5">{{ i.item_pedido.produto }}{% if i.centro_custo %}<span class="block text-xs text-slate-500 dark:text-slate-400">{{ i.centro_custo }}</span>{% else %}<span class="block text-xs text-amber-700 dark:text-amber-400">sem centro de custo</span>{% endif %}</td>
             <td class="px-4 py-3.5"><a href="{% url 'pedido_detalhe' i.item_pedido.pedido_id %}" class="underline decoration-slate-300">#{{ i.item_pedido.pedido_id }}</a> <span class="text-slate-500 dark:text-slate-400">{{ i.item_pedido.pedido.requisitante }}</span></td>
             <td class="px-4 py-3.5 text-right">{{ i.quantidade|floatformat:"-3" }}</td>
             <td class="px-4 py-3.5 text-right">R$ {{ i.valor_unitario|floatformat:2 }}</td>
@@ -48,6 +48,25 @@
       </table>
     </section>
 
+    {% if e_comprador and cotacao.ativa and not ordem %}
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Centro de custo (desembolso)</h2>
+      <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Onde o valor desta compra será apropriado. Um centro por pedido; todos precisam estar definidos para gerar a ordem de compra.</p>
+      <form method="post" class="space-y-3">{% csrf_token %}
+        {% for pc in pedidos_cotacao %}
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="flex-1 min-w-[200px] text-sm text-slate-700 dark:text-slate-200">Pedido #{{ pc.pedido.pk }}</span>
+          <select name="centro_pedido_{{ pc.pedido.pk }}" class="min-w-[240px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+            <option value="">Selecione…</option>
+            {% for c in centros %}<option value="{{ c.pk }}" {% if pc.centro_id == c.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}
+          </select>
+        </div>
+        {% endfor %}
+        <button name="acao" value="definir_centros" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Salvar centros de custo</button>
+      </form>
+    </section>
+    {% endif %}
+
     {% if cotacao.status == 'RECUSADA' %}
     <section class="rounded-2xl border border-red-200 bg-red-50 px-6 py-5 text-sm text-red-800 dark:bg-red-950 dark:border-red-900 dark:text-red-200">
       <p class="font-semibold">Recusada por {{ cotacao.decidida_por }} em {{ cotacao.decidida_em|date:"d/m H:i" }}</p>
@@ -60,13 +79,29 @@
     <section class="bg-white rounded-2xl border-2 border-slate-900 p-6 dark:bg-slate-800 dark:border-white">
       <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Decisão da alçada</h2>
       <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Você é aprovador da faixa {{ cotacao.alcada.get_papel_aprovador_display }}.</p>
-      <form method="post" class="space-y-3">
+      <form method="post" class="space-y-4">
         {% csrf_token %}
-        <input name="motivo" placeholder="Motivo (obrigatório para recusar)"
-               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
-        <div class="flex gap-3">
-          <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-2.5 transition">Aprovar cotação</button>
-          <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold px-6 py-2.5 transition dark:bg-red-950 dark:text-red-300">Recusar</button>
+        <div class="rounded-xl border border-slate-200 divide-y divide-slate-100 dark:border-slate-700 dark:divide-slate-700">
+          {% for i in itens %}
+          <div class="flex flex-wrap items-center gap-3 px-4 py-3">
+            <div class="flex-1 min-w-[200px] text-sm dark:text-slate-100">
+              <p class="font-medium">{{ i.item_pedido.produto }}</p>
+              <p class="text-xs text-slate-500 dark:text-slate-400">{{ i.quantidade|floatformat:"-3" }} × R$ {{ i.valor_unitario|floatformat:2 }} = R$ {{ i.subtotal|floatformat:2 }} · Pedido #{{ i.item_pedido.pedido_id }}</p>
+            </div>
+            <select name="decisao_{{ i.pk }}" aria-label="Decisão para {{ i.item_pedido.produto.nome }}" class="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
+              <option value="APROVAR">Aprovar</option>
+              <option value="RECOTAR">Não aprovar — recotar (volta à fila)</option>
+              <option value="ELIMINAR">Não aprovar — eliminar do pedido</option>
+            </select>
+          </div>
+          {% endfor %}
+        </div>
+        <input name="motivo" placeholder="Motivo (obrigatório para itens não aprovados)"
+               class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
+        <div class="flex flex-wrap gap-3">
+          <button name="acao" value="decidir_itens" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Confirmar decisão por item</button>
+          <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-2.5 transition">Aprovar tudo</button>
+          <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold px-6 py-2.5 transition dark:bg-red-950 dark:text-red-300">Recusar tudo</button>
         </div>
       </form>
     </section>

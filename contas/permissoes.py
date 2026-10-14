@@ -14,7 +14,8 @@ def requer_papel(*papeis, modulo=None):
             usuario = request.user
             if usuario.is_superuser or usuario.tem_papel(Papel.SUPERADMIN):
                 return view(request, *args, **kwargs)
-            if any(usuario.tem_papel(p, modulo) for p in papeis):
+            modulos = modulo if isinstance(modulo, (list, tuple)) else [modulo]
+            if any(usuario.tem_papel(p, m) for p in papeis for m in modulos):
                 return view(request, *args, **kwargs)
             raise PermissionDenied
         return interna

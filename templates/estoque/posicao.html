@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load ui %}
 {% block titulo %}Controle de estoque{% endblock %}
 
 {% block cabecalho %}
@@ -114,13 +115,5 @@
   </div>
 </div>
 
-{% if pagina.paginator.num_pages > 1 %}
-<div class="mt-5 flex items-center justify-between text-sm text-slate-500 dark:text-slate-400">
-  <span>{{ total }} registros · página {{ pagina.number }} de {{ pagina.paginator.num_pages }}</span>
-  <div class="flex gap-2">
-    {% if pagina.has_previous %}<a href="?{% if qs_pagina %}{{ qs_pagina }}&{% endif %}pagina={{ pagina.previous_page_number }}" class="rounded-xl border border-slate-200 px-4 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700">← Anterior</a>{% endif %}
-    {% if pagina.has_next %}<a href="?{% if qs_pagina %}{{ qs_pagina }}&{% endif %}pagina={{ pagina.next_page_number }}" class="rounded-xl border border-slate-200 px-4 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700">Próxima →</a>{% endif %}
-  </div>
-</div>
-{% endif %}
+{% paginacao pagina "registros" %}
 {% endblock %}

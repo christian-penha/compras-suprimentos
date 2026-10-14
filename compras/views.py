@@ -1,3 +1,4 @@
+from datetime import date
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
@@ -6,22 +7,27 @@ from django.core.exceptions import PermissionDenied
 from django.db.models import Q
 from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.utils import timezone
 
 from cadastros.models import Fornecedor
 from contas.models import AprovadorAlcada, Modulo, Papel
 from contas.permissoes import requer_papel
 from pedidos.services import SemPermissao, TransicaoInvalida
+from tenancy.models import CentroCusto
 from estoque.services import EstoqueInsuficiente
 
-from .models import Cotacao, ItemCotacao, NotaFiscal, OrdemCompra, StatusCotacao, StatusOrdem
+from .models import AndamentoOrdem, Cotacao, ItemCotacao, NotaFiscal, OrdemCompra, StatusCotacao, StatusOrdem
 from .nfe import NFeInvalida
 from .rodadas import criar_rodada, fechar_rodada, propostas_da_rodada
 from .services import (
     aprovadores_da_cotacao,
+    atualizar_andamento,
     cancelar_cotacao,
     confirmar_recebimento,
     criar_cotacao,
+    definir_centros,
     decidir_cotacao,
+    decidir_cotacao_por_item,
     gerar_ordem_compra,
     itens_para_cotar,
     pode_decidir_cotacao,
@@ -135,6 +141,54 @@ def _propostas_do_post(request, itens, fornecedores):
 
 
 @comprador
+def solicitacao_cotacao(request):
+    """Pedido padronizado ao fornecedor com os itens selecionados na fila (texto para
+    copiar/imprimir). Ainda sem persistência: o registro e o envio por e-mail vêm depois."""
+    ids = [i for i in request.GET.getlist("item") if i.isdigit()]
+    itens = list(itens_para_cotar().filter(pk__in=ids))
+    if not itens:
+        messages.error(request, "Selecione ao menos um item da fila.")
+        return redirect("fila_compras")
+
+    fornecedores = Fornecedor.objects.filter(ativo=True).order_by("razao_social")
+    padrao = {i.produto.fornecedor_padrao_id for i in itens if i.produto.fornecedor_padrao_id}
+    escolhido = request.GET.get("fornecedor") or (str(padrao.pop()) if len(padrao) == 1 else "")
+    fornecedor = fornecedores.filter(pk=escolhido if escolhido.isdigit() else 0).first()
+
+    # o fornecedor quer o total por produto, não a quantidade de cada pedido
+    produtos = {}
+    for i in itens:
+        linha = produtos.setdefault(i.produto_id, {"produto": i.produto, "quantidade": Decimal("0")})
+        linha["quantidade"] += i.pendente
+    linhas = sorted(produtos.values(), key=lambda l: l["produto"].nome)
+    prazos = [i.pedido.data_desejada for i in itens if i.pedido.data_desejada]
+    prazo = min(prazos) if prazos else None
+
+    usuario = request.user
+    texto = ["SOLICITAÇÃO DE COTAÇÃO", ""]
+    if fornecedor:
+        texto.append(f"Fornecedor: {fornecedor}")
+    texto.append(f"Data: {timezone.localdate():%d/%m/%Y}")
+    if prazo:
+        texto.append(f"Entrega desejada até: {prazo:%d/%m/%Y}")
+    texto += ["", "Itens:"]
+    for n, l in enumerate(linhas, start=1):
+        p = l["produto"]
+        spec = f" — {p.especificacao}" if p.especificacao else ""
+        texto.append(f"{n}. {p.nome}{spec}: {l['quantidade'].normalize():f} {p.get_unidade_medida_display().lower()}")
+    texto += [
+        "", "Por favor, informe o valor unitário de cada item, o frete, o prazo de entrega e as "
+        "condições de pagamento.", "",
+        f"Responsável: {usuario.nome_completo or usuario.username}"
+        + (f" — {usuario.telefone}" if getattr(usuario, "telefone", "") else ""),
+    ]
+    return render(request, "compras/solicitacao.html", {
+        "itens": itens, "linhas": linhas, "fornecedores": fornecedores, "fornecedor": fornecedor,
+        "prazo": prazo, "texto": chr(10).join(texto),
+    })
+
+
+@comprador
 def cotacao_nova(request):
     ids = request.POST.getlist("item") if request.method == "POST" else request.GET.getlist("item")
     itens = list(itens_para_cotar().filter(pk__in=[i for i in ids if i.isdigit()]))
@@ -146,11 +200,29 @@ def cotacao_nova(request):
     padrao = {i.produto.fornecedor_padrao_id for i in itens if i.produto.fornecedor_padrao_id}
     # Cada coluna é um fornecedor; começa com o padrão (se houver um só) ou uma coluna vazia.
     colunas = [{"fornecedor_id": str(padrao.pop()) if len(padrao) == 1 else "", "frete": "", "precos": {}}]
-    contexto = {"itens": itens, "fornecedores": fornecedores, "colunas": colunas}
+    contexto = {
+        "itens": itens, "fornecedores": fornecedores, "colunas": colunas,
+        "centros": CentroCusto.objects.filter(ativo=True).select_related("filial"),
+        "pedidos_cotados": [
+            {
+                "pedido": p,
+                "centro_id": str(request.POST.get(f"centro_pedido_{p.pk}") or p.centro_custo_id or ""),
+                "itens": [i.produto.nome for i in itens if i.pedido_id == p.pk],
+            }
+            for p in {i.pedido_id: i.pedido for i in itens}.values()
+        ],
+    }
 
     if request.method == "POST" and "enviar" in request.POST:
         propostas, erro = _propostas_do_post(request, itens, fornecedores)
         observacao = request.POST.get("observacao", "")[:300]
+        centros_ok = {c.pk: c for c in CentroCusto.objects.filter(ativo=True)}
+        # um centro por pedido: todos os itens do mesmo pedido herdam a escolha
+        escolhidos = {
+            i.pk: centros_ok.get(int(request.POST.get(f"centro_pedido_{i.pedido_id}") or 0)) for i in itens
+        }
+        if not erro and any(c is None for c in escolhidos.values()):
+            erro = "Defina o centro de custo de todos os itens."
         if not erro:
             try:
                 completa = len(propostas) == 1 and len(propostas[0]["precos"]) == len(itens)
@@ -160,12 +232,19 @@ def cotacao_nova(request):
                     p = propostas[0]
                     cotacao = criar_cotacao(
                         comprador=request.user, fornecedor=p["fornecedor"], precos=p["precos"],
-                        valor_frete=p["frete"], observacao=observacao,
+                        valor_frete=p["frete"], observacao=observacao, centros=escolhidos,
                     )
-                    messages.success(request, f"Cotação #{cotacao.numero} registrada.")
+                    ordem = OrdemCompra.objects.filter(cotacao=cotacao).first()
+                    messages.success(
+                        request,
+                        f"Cotação #{cotacao.numero} registrada"
+                        + (f" e ordem de compra #{ordem.numero} gerada." if ordem else "."),
+                    )
                     return redirect("cotacao_detalhe", pk=cotacao.pk)
                 else:
-                    rodada = criar_rodada(comprador=request.user, propostas=propostas, observacao=observacao)
+                    rodada = criar_rodada(
+                        comprador=request.user, propostas=propostas, observacao=observacao, centros=escolhidos,
+                    )
                     messages.success(request, "Propostas registradas — escolha o vencedor de cada item.")
                     return redirect("rodada_comparar", rodada=rodada)
             except ERROS_DE_NEGOCIO as e:
@@ -296,12 +375,30 @@ def cotacao_detalhe(request, pk):
             if acao == "aprovar":
                 decidir_cotacao(cotacao, usuario, True)
                 messages.success(request, f"Cotação #{cotacao.numero} aprovada.")
+            elif acao == "decidir_itens":
+                decisoes = {
+                    ic.pk: request.POST.get(f"decisao_{ic.pk}", "") for ic in cotacao.itens.all()
+                }
+                depois = decidir_cotacao_por_item(cotacao, usuario, decisoes, request.POST.get("motivo", ""))
+                if depois.status == StatusCotacao.RECUSADA:
+                    messages.success(request, f"Cotação #{cotacao.numero} recusada.")
+                else:
+                    messages.success(request, f"Cotação #{cotacao.numero} aprovada (itens não aprovados tratados).")
             elif acao == "recusar":
                 decidir_cotacao(cotacao, usuario, False, request.POST.get("motivo", ""))
                 messages.success(request, f"Cotação #{cotacao.numero} recusada — itens voltaram à fila.")
             elif acao == "cancelar" and e_comprador:
                 cancelar_cotacao(cotacao, usuario)
                 messages.success(request, f"Cotação #{cotacao.numero} cancelada.")
+            elif acao == "definir_centros" and e_comprador:
+                livres = {c.pk: c for c in CentroCusto.objects.filter(ativo=True)}
+                escolhas = {}
+                for ic in cotacao.itens.select_related("item_pedido"):
+                    centro = livres.get(int(request.POST.get(f"centro_pedido_{ic.item_pedido.pedido_id}") or 0))
+                    if centro:
+                        escolhas[ic.pk] = centro
+                definir_centros(cotacao, escolhas, usuario)
+                messages.success(request, "Centros de custo atualizados.")
             elif acao == "gerar_ordem" and e_comprador:
                 ordem = gerar_ordem_compra(cotacao, usuario)
                 messages.success(request, f"Ordem de compra #{ordem.numero} gerada.")
@@ -310,9 +407,17 @@ def cotacao_detalhe(request, pk):
                 raise SemPermissao("Ação não permitida.")
         except ERROS_DE_NEGOCIO as e:
             messages.error(request, str(e))
+        else:
+            if acao in ("aprovar", "decidir_itens"):
+                ordem = OrdemCompra.objects.filter(cotacao=cotacao).first()
+                if ordem:
+                    messages.success(request, f"Ordem de compra #{ordem.numero} gerada automaticamente.")
         return redirect("cotacao_detalhe", pk=cotacao.pk)
 
     ordem = getattr(cotacao, "ordem", None)
+    centros_por_pedido = {
+        i.item_pedido.pedido_id: i.centro_custo_id for i in cotacao.itens.select_related("item_pedido")
+    }
     return render(request, "compras/cotacao_detalhe.html", {
         "cotacao": cotacao,
         "itens": cotacao.itens.select_related("item_pedido__produto", "item_pedido__pedido__requisitante"),
@@ -320,6 +425,11 @@ def cotacao_detalhe(request, pk):
         "pode_decidir": pode_decidir,
         "e_comprador": e_comprador,
         "ordem": ordem,
+        "centros": CentroCusto.objects.filter(ativo=True).select_related("filial"),
+        "pedidos_cotacao": [
+            {"pedido": p, "centro_id": centros_por_pedido.get(p.pk)}
+            for p in {i.item_pedido.pedido_id: i.item_pedido.pedido for i in cotacao.itens.select_related("item_pedido__pedido")}.values()
+        ],
     })
 
 
@@ -375,8 +485,29 @@ def ordem_detalhe(request, pk):
         messages.success(request, f"Nota {nota.numero or nota.chave_acesso} lançada. Confira o recebimento.")
         return redirect("recebimento", pk=ordem.pk, nota_pk=nota.pk)
 
+    if request.method == "POST" and request.POST.get("acao") == "andamento":
+        if not _e_papel(request.user, Modulo.COMPRAS):
+            raise PermissionDenied
+        previsao = None
+        bruto = request.POST.get("previsao", "").strip()
+        try:
+            if bruto:
+                previsao = date.fromisoformat(bruto)
+            atualizar_andamento(
+                ordem, request.user, request.POST.get("andamento", ""),
+                request.POST.get("observacao", ""), previsao,
+            )
+            messages.success(request, "Andamento da compra atualizado.")
+        except ValueError:
+            messages.error(request, "Data de previsão inválida.")
+        except ERROS_DE_NEGOCIO as e:
+            messages.error(request, str(e))
+        return redirect("ordem_detalhe", pk=ordem.pk)
+
     return render(request, "compras/ordem_detalhe.html", {
         "ordem": ordem,
+        "historico": ordem.historico.select_related("usuario"),
+        "andamentos": [(v, r) for v, r in AndamentoOrdem.choices if v != AndamentoOrdem.RECEBIDA],
         "cotacao": ordem.cotacao,
         "itens": ordem.cotacao.itens.select_related("item_pedido__produto", "item_pedido__pedido"),
         "notas": ordem.notas.all(),

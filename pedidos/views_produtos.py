@@ -8,7 +8,7 @@ from django.utils import timezone
 from django.utils.http import urlencode
 
 from cadastros.models import Categoria, Produto
-from contas.models import Papel
+from contas.models import Modulo, Papel
 from contas.permissoes import requer_papel
 
 from .forms import ProdutoForm, SugestaoProdutoForm
@@ -29,7 +29,7 @@ def sugerir_produto(request):
     return render(request, "pedidos/sugerir_produto.html", {"form": form, "minhas": minhas})
 
 
-@requer_papel(Papel.ADMINISTRADOR)
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def sugestoes_lista(request):
     status = request.GET.get("status", StatusSugestao.PENDENTE)
     sugestoes = SugestaoProduto.objects.select_related("solicitante", "categoria", "produto")
@@ -41,7 +41,7 @@ def sugestoes_lista(request):
     })
 
 
-@requer_papel(Papel.ADMINISTRADOR)
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def sugestao_recusar(request, pk):
     sugestao = get_object_or_404(SugestaoProduto, pk=pk, status=StatusSugestao.PENDENTE)
     motivo = request.POST.get("motivo", "").strip()
@@ -56,7 +56,7 @@ def sugestao_recusar(request, pk):
     return redirect("sugestoes_lista")
 
 
-@requer_papel(Papel.ADMINISTRADOR)
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def produto_lista(request):
     busca = request.GET.get("q", "").strip()
     categoria_id = request.GET.get("categoria", "")
@@ -80,7 +80,7 @@ def produto_lista(request):
     })
 
 
-@requer_papel(Papel.ADMINISTRADOR)
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def produto_form(request, pk=None):
     instancia = get_object_or_404(Produto, pk=pk) if pk else None
     sugestao = None

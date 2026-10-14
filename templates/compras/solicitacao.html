@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titulo %}Pedido ao fornecedor{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 print:hidden">
+  <a href="{% url 'fila_compras' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Fila de compras</a>
+  <h1 class="text-2xl font-semibold mt-2">Pedido ao fornecedor</h1>
+  <p class="text-sm text-[#9a9a9a] mt-1">Texto padronizado com os itens selecionados, pronto para copiar, imprimir ou enviar ao fornecedor.</p>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-6 lg:grid-cols-[1fr_380px] items-start">
+  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-700">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Solicitação de cotação</p>
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">{% if fornecedor %}{{ fornecedor }}{% else %}Fornecedor não definido{% endif %}</h2>
+      {% if prazo %}<p class="text-sm text-slate-500 dark:text-slate-400">Entrega desejada até {{ prazo|date:"d/m/Y" }}</p>{% endif %}
+    </header>
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+        <tr><th class="px-6 py-3 font-medium">Produto</th><th class="px-6 py-3 font-medium text-right">Quantidade</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for l in linhas %}
+        <tr class="dark:text-slate-100">
+          <td class="px-6 py-3"><p class="font-medium">{{ l.produto.nome }}</p>{% if l.produto.especificacao %}<p class="text-xs text-slate-500 dark:text-slate-400">{{ l.produto.especificacao }}</p>{% endif %}</td>
+          <td class="px-6 py-3 text-right font-semibold">{{ l.quantidade|floatformat:"-3" }} <span class="text-xs font-normal text-slate-500 dark:text-slate-400">{{ l.produto.get_unidade_medida_display }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
+
+  <aside class="space-y-5 print:hidden">
+    <section class="bg-white rounded-2xl border border-slate-200 p-5 space-y-3 dark:bg-slate-800 dark:border-slate-700">
+      <form method="get" class="space-y-2">
+        {% for i in itens %}<input type="hidden" name="item" value="{{ i.pk }}">{% endfor %}
+        <label class="block text-sm font-medium text-slate-700 dark:text-slate-300">Fornecedor</label>
+        <select name="fornecedor" onchange="this.form.submit()" class="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          <option value="">Selecione…</option>
+          {% for f in fornecedores %}<option value="{{ f.pk }}" {% if fornecedor and fornecedor.pk == f.pk %}selected{% endif %}>{{ f }}</option>{% endfor %}
+        </select>
+      </form>
+      <label class="block text-sm font-medium text-slate-700 dark:text-slate-300" for="texto">Texto para enviar</label>
+      <textarea id="texto" rows="14" class="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-mono dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">{{ texto }}</textarea>
+      <div class="flex flex-wrap gap-2">
+        <button type="button" id="copiar" class="flex-1 rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-4 py-2.5 transition dark:bg-white dark:text-black">Copiar texto</button>
+        <button type="button" onclick="window.print()" class="rounded-xl border border-slate-200 text-sm font-semibold px-4 py-2.5 dark:border-slate-700 dark:text-slate-200">Imprimir</button>
+      </div>
+      <button type="button" disabled title="Em breve" class="w-full rounded-xl border border-dashed border-slate-300 text-slate-400 text-sm px-4 py-2.5 cursor-not-allowed dark:border-slate-600">Enviar por e-mail (em breve)</button>
+    </section>
+
+    <a href="{% url 'cotacao_nova' %}?{% for i in itens %}item={{ i.pk }}{% if not forloop.last %}&{% endif %}{% endfor %}" class="block text-center rounded-xl bg-white border border-slate-200 text-slate-900 font-semibold py-3 hover:bg-slate-50 transition dark:bg-slate-800 dark:border-slate-700 dark:text-white">Registrar a cotação destes itens →</a>
+  </aside>
+</div>
+
+<script>
+  document.getElementById('copiar').addEventListener('click', function () {
+    var campo = document.getElementById('texto'), botao = this;
+    function ok() { botao.textContent = 'Copiado!'; setTimeout(function () { botao.textContent = 'Copiar texto'; }, 1800); }
+    if (navigator.clipboard) { navigator.clipboard.writeText(campo.value).then(ok); }
+    else { campo.select(); document.execCommand('copy'); ok(); }
+  });
+</script>
+{% endblock %}

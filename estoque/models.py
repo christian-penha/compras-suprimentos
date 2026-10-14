@@ -70,6 +70,10 @@ class Movimentacao(models.Model):
     )
     arquivo_origem = models.CharField(max_length=255, blank=True)
     observacao = models.CharField(max_length=300, blank=True)
+    # Eixo consumo (RN-17): definido por suprimentos na entrega do pedido.
+    centro_custo = models.ForeignKey(
+        "tenancy.CentroCusto", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
     criado_em = models.DateTimeField(auto_now_add=True)
 
     class Meta:

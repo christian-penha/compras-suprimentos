@@ -1,0 +1,20 @@
+{% if paginas > 1 %}
+<nav class="mt-6 flex flex-wrap items-center justify-between gap-3 text-sm text-slate-500 dark:text-slate-400" aria-label="Paginação">
+  <span>{{ total }} {{ rotulo }} · página {{ pagina.number }} de {{ paginas }}</span>
+  <div class="flex flex-wrap items-center gap-1.5">
+    {% if pagina.has_previous %}
+    <a href="?{{ prefixo }}pagina=1" class="rounded-xl border border-slate-200 px-3 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700" aria-label="Primeira página">«</a>
+    <a href="?{{ prefixo }}pagina={{ pagina.previous_page_number }}" class="rounded-xl border border-slate-200 px-3 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700">‹</a>
+    {% endif %}
+    {% for i in itens %}
+      {% if i.gap %}<span class="px-1.5">…</span>
+      {% elif i.atual %}<span class="rounded-xl bg-black text-white px-3.5 py-2 font-semibold dark:bg-white dark:text-black" aria-current="page">{{ i.n }}</span>
+      {% else %}<a href="?{{ prefixo }}pagina={{ i.n }}" class="rounded-xl border border-slate-200 px-3.5 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700">{{ i.n }}</a>{% endif %}
+    {% endfor %}
+    {% if pagina.has_next %}
+    <a href="?{{ prefixo }}pagina={{ pagina.next_page_number }}" class="rounded-xl border border-slate-200 px-3 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700">›</a>
+    <a href="?{{ prefixo }}pagina={{ paginas }}" class="rounded-xl border border-slate-200 px-3 py-2 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700" aria-label="Última página">»</a>
+    {% endif %}
+  </div>
+</nav>
+{% endif %}
