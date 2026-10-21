@@ -4,13 +4,17 @@ from django.contrib import admin
 from django.contrib.auth import views as auth_views
 from django.urls import include, path
 
+from contas import views_google
 from estoque import views as estoque_views
 from pedidos import views as pedidos_views
 from pedidos import views_produtos as produtos_views
 
 urlpatterns = [
     path("admin/", admin.site.urls),
-    path("entrar/", auth_views.LoginView.as_view(), name="login"),
+    path("entrar/", views_google.LoginComGoogleOpcional.as_view(), name="login"),
+    # A barra final do callback precisa bater com o URI autorizado no console do Google.
+    path("auth/login/google/", views_google.login_google, name="auth_google_login"),
+    path("auth/authorize/google/", views_google.auth_google_callback, name="auth_google_callback"),
     path("sair/", auth_views.LogoutView.as_view(), name="logout"),
     path("", pedidos_views.painel, name="painel"),
     path("catalogo/", pedidos_views.catalogo, name="catalogo"),

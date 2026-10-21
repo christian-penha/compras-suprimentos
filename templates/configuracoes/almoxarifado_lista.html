@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block titulo %}Almoxarifados{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Almoxarifados</h1>
+    <p class="text-sm text-[#9a9a9a] mt-1">Almoxarifados de cada filial. O central (CSC) abastece os demais e é único no grupo.</p>
+  </div>
+  <a href="{% url 'config_almoxarifado_novo' %}" class="inline-flex items-center rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">+ Novo almoxarifado</a>
+  {% include "_filtros.html" with placeholder="Buscar por nome do almoxarifado…" %}
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  {% for a in almoxarifados %}
+  <article class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col dark:bg-slate-800 dark:border-slate-700{% if not a.ativo %} opacity-60{% endif %}">
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ a.nome }}</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400">{{ a.filial.nome }}</p>
+    <div class="mt-3 flex flex-wrap items-center gap-3">
+      <span class="inline-flex items-center gap-1.5 text-xs font-medium {% if a.ativo %}text-emerald-700 dark:text-emerald-400{% else %}text-red-700 dark:text-red-400{% endif %}"><span class="h-2.5 w-2.5 rounded-full {% if a.ativo %}bg-emerald-500{% else %}bg-red-500{% endif %}"></span>{% if a.ativo %}Ativo{% else %}Inativo{% endif %}</span>
+      {% if a.central %}<span class="text-xs font-semibold text-slate-600 dark:text-slate-300">Estoque central</span>{% endif %}
+    </div>
+    <div class="mt-5 flex gap-2">
+      <a href="{% url 'config_almoxarifado_editar' a.pk %}" class="flex-1 block text-center rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold py-2.5 transition dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700">Editar</a>
+      {% if not a.central %}
+      <form method="post" action="{% url 'config_almoxarifado_excluir' a.pk %}" onsubmit="return confirm('Excluir o almoxarifado {{ a.nome|escapejs }}? Só é possível se ele nunca teve saldo, pedidos ou movimentações.');">
+        {% csrf_token %}
+        <button class="rounded-xl border border-red-200 text-red-700 hover:bg-red-50 text-sm font-semibold px-4 py-2.5 transition dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950">Excluir</button>
+      </form>
+      {% endif %}
+    </div>
+  </article>
+  {% empty %}
+  <p class="col-span-full text-center py-16 text-sm text-slate-500 dark:text-slate-400">Nenhum almoxarifado encontrado.</p>
+  {% endfor %}
+</div>
+{% endblock %}

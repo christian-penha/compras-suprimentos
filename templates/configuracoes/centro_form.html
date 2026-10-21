@@ -27,10 +27,53 @@
     <div class="sm:col-span-2 pt-2">
       <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">{{ form.ativo }} Ativo</label>
     </div>
+    <div class="sm:col-span-2 border-t border-slate-200 pt-4 dark:border-slate-700">
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Orçamento</label>
+      {{ form.orcamento_modo }}
+      <p class="text-xs text-slate-400 mt-1">Pode ser usado nas regras de aprovação (pedido que passa do saldo do mês).</p>
+    </div>
+    <div id="campo-valor">
+      <label id="rotulo-valor" class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Valor (R$)</label>
+      {{ form.orcamento_valor }}
+      {% for erro in form.orcamento_valor.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+    </div>
+    <div id="campo-meses">
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Dividir em quantos meses</label>
+      {{ form.orcamento_meses }}
+      {% for erro in form.orcamento_meses.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+    </div>
+    <div id="campo-inicio">
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Primeiro mês</label>
+      {{ form.orcamento_inicio }}
+      {% for erro in form.orcamento_inicio.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+    </div>
+    <p id="previa-parcela" class="sm:col-span-2 text-sm text-slate-500 dark:text-slate-400"></p>
   </div>
   <div class="flex items-center gap-3 mt-6">
     <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-medium px-5 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar</button>
     <a href="{% url 'config_centro_lista' %}" class="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">cancelar</a>
   </div>
 </form>
+<script>
+(function () {
+  var modo = document.getElementById("id_orcamento_modo");
+  var valor = document.getElementById("id_orcamento_valor");
+  var meses = document.getElementById("id_orcamento_meses");
+  var previa = document.getElementById("previa-parcela");
+  function mostrar(id, sim) { document.getElementById(id).style.display = sim ? "" : "none"; }
+  function atualizar() {
+    var m = modo.value;
+    mostrar("campo-valor", m !== "SEM");
+    mostrar("campo-meses", m === "TOTAL");
+    mostrar("campo-inicio", m === "TOTAL");
+    document.getElementById("rotulo-valor").textContent = m === "TOTAL" ? "Valor total (R$)" : "Valor por mês (R$)";
+    var v = parseFloat(valor.value), n = parseInt(meses.value, 10);
+    previa.textContent = (m === "TOTAL" && v > 0 && n > 0)
+      ? "≈ R$ " + (Math.floor(v / n * 100) / 100).toLocaleString("pt-BR", {minimumFractionDigits: 2}) + " por mês durante " + n + " meses."
+      : "";
+  }
+  [modo, valor, meses].forEach(function (el) { el.addEventListener("input", atualizar); });
+  atualizar();
+})();
+</script>
 {% endblock %}

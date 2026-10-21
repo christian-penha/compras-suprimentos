@@ -27,4 +27,8 @@ urlpatterns = [
     path("filiais/", views.filial_lista, name="config_filial_lista"),
     path("filiais/nova/", views.filial_form, name="config_filial_nova"),
     path("filiais/<int:pk>/editar/", views.filial_form, name="config_filial_editar"),
+    path("almoxarifados/", views.almoxarifado_lista, name="config_almoxarifado_lista"),
+    path("almoxarifados/novo/", views.almoxarifado_form, name="config_almoxarifado_novo"),
+    path("almoxarifados/<int:pk>/editar/", views.almoxarifado_form, name="config_almoxarifado_editar"),
+    path("almoxarifados/<int:pk>/excluir/", views.almoxarifado_excluir, name="config_almoxarifado_excluir"),
 ]

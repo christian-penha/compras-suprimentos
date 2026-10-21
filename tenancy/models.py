@@ -119,6 +119,12 @@ class TipoCentroCusto(models.TextChoices):
     ESTOQUE_CENTRAL = "ESTOQUE_CENTRAL", "Estoque central (reposição)"
 
 
+class ModoOrcamento(models.TextChoices):
+    SEM_ORCAMENTO = "SEM", "Sem orçamento"
+    TOTAL_RATEADO = "TOTAL", "Valor total dividido entre os meses"
+    MENSAL = "MENSAL", "Orçamento mensal fixo"
+
+
 class CentroCusto(TenantModel):
     filial = models.ForeignKey(Filial, on_delete=models.PROTECT, related_name="centros_custo")
     nome = models.CharField(max_length=100)
@@ -126,6 +132,18 @@ class CentroCusto(TenantModel):
         max_length=20, choices=TipoCentroCusto.choices, default=TipoCentroCusto.OPERACIONAL
     )
     ativo = models.BooleanField(default=True)
+    # Orçamento (ver tenancy/orcamento.py): TOTAL = `orcamento_valor` dividido em
+    # `orcamento_meses` meses a partir de `orcamento_inicio`; MENSAL = `orcamento_valor` por mês.
+    orcamento_modo = models.CharField(
+        max_length=6, choices=ModoOrcamento.choices, default=ModoOrcamento.SEM_ORCAMENTO
+    )
+    orcamento_valor = models.DecimalField(max_digits=14, decimal_places=2, null=True, blank=True)
+    orcamento_inicio = models.DateField(
+        null=True, blank=True, help_text="Primeiro mês do orçamento (sempre dia 1)"
+    )
+    orcamento_meses = models.PositiveSmallIntegerField(
+        null=True, blank=True, help_text="Em quantos meses o valor total é dividido"
+    )
 
     class Meta:
         verbose_name = "centro de custo"

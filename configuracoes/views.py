@@ -1,6 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
 
 from cadastros.models import Fornecedor
@@ -9,9 +9,9 @@ from contas.alcadas import (
     TabelaInvalida, criar_tabela_propria, ler_linhas, salvar_tabela, tabela_ativa, voltar_ao_padrao,
 )
 from contas.permissoes import requer_papel
-from tenancy.models import CentroCusto, Empresa, Evento, Filial
+from tenancy.models import Almoxarifado, CentroCusto, Empresa, Evento, Filial
 
-from .forms import CentroCustoForm, EmpresaForm, EventoForm, FilialForm, FornecedorForm, SetorForm, UsuarioForm
+from .forms import AlmoxarifadoForm, CentroCustoForm, EmpresaForm, EventoForm, FilialForm, FornecedorForm, SetorForm, UsuarioForm
 
 Usuario = get_user_model()
 
@@ -176,6 +176,11 @@ def centro_lista(request):
         centros = centros.filter(nome__icontains=busca)
     if filial_id:
         centros = centros.filter(filial_id=filial_id)
+    from tenancy.orcamento import situacao_do_mes
+
+    centros = list(centros)
+    for c in centros:
+        c.situacao = situacao_do_mes(c)
     return render(request, "configuracoes/centro_lista.html", {"centros": centros, **_ctx(busca, filial_id)})
 
 
@@ -302,3 +307,50 @@ def fornecedor_form(request, pk=None):
         messages.success(request, "Fornecedor salvo com sucesso.")
         return redirect("config_fornecedor_lista")
     return render(request, "configuracoes/fornecedor_form.html", {"form": form, "instancia": instancia})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def almoxarifado_lista(request):
+    almoxarifados = Almoxarifado.objects.select_related("filial").order_by("filial__nome", "nome")
+    busca, filial_id = _filtros(request)
+    if busca:
+        almoxarifados = almoxarifados.filter(nome__icontains=busca)
+    if filial_id:
+        almoxarifados = almoxarifados.filter(filial_id=filial_id)
+    return render(
+        request, "configuracoes/almoxarifado_lista.html",
+        {"almoxarifados": almoxarifados, **_ctx(busca, filial_id)},
+    )
+
+
+@requer_papel(Papel.SUPERADMIN)
+def almoxarifado_form(request, pk=None):
+    instancia = get_object_or_404(Almoxarifado, pk=pk) if pk else None
+    form = AlmoxarifadoForm(request.POST or None, instance=instancia)
+    if request.method == "POST" and form.is_valid():
+        if not form.instance.tenant_id:
+            form.instance.tenant = request.user.tenant
+        form.save()
+        messages.success(request, "Almoxarifado salvo com sucesso.")
+        return redirect("config_almoxarifado_lista")
+    return render(request, "configuracoes/almoxarifado_form.html", {"form": form, "instancia": instancia})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def almoxarifado_excluir(request, pk):
+    almoxarifado = get_object_or_404(Almoxarifado, pk=pk)
+    if request.method != "POST":
+        return redirect("config_almoxarifado_lista")
+    if almoxarifado.central:
+        messages.error(request, "O almoxarifado central não pode ser excluído.")
+    else:
+        try:
+            almoxarifado.delete()
+            messages.success(request, "Almoxarifado excluído.")
+        except ProtectedError:
+            messages.error(
+                request,
+                "Este almoxarifado já tem saldo, pedidos ou movimentações e não pode ser excluído. "
+                "Desative-o para tirá-lo de uso.",
+            )
+    return redirect("config_almoxarifado_lista")

@@ -86,6 +86,20 @@ PRIVATE_ROOT = env("PRIVATE_ROOT", default=str(BASE_DIR / "privado"))
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Login com Google (OAuth2/OpenID Connect via Authlib). Sem CLIENT_ID/SECRET o botão
+# não aparece e as rotas respondem com aviso.
+GOOGLE_CLIENT_ID = env("GOOGLE_CLIENT_ID", default="")
+GOOGLE_CLIENT_SECRET = env("GOOGLE_CLIENT_SECRET", default="")
+# Domínios permitidos (ex.: colegioperfil.com.br). Vazio = qualquer conta Google já cadastrada.
+GOOGLE_ALLOWED_DOMAINS = [
+    d.strip().lower() for d in env.list("GOOGLE_ALLOWED_DOMAINS", default=[]) if d.strip()
+]
+
+# Cookies não isolam por porta: sem nomes próprios, outro app Django em localhost
+# (ex.: Diário de Bordo) sobrescreve a sessão e o CSRF deste.
+SESSION_COOKIE_NAME = "compras_sessionid"
+CSRF_COOKIE_NAME = "compras_csrftoken"
+
 LOGIN_URL = "login"
 LOGIN_REDIRECT_URL = "painel"
 LOGOUT_REDIRECT_URL = "login"

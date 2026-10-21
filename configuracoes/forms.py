@@ -1,4 +1,5 @@
 from django import forms
+from django.db.models import Q
 from django.contrib.auth import get_user_model
 
 from contas.models import (
@@ -10,7 +11,7 @@ from contas.models import (
     Setor,
 )
 from cadastros.models import Fornecedor
-from tenancy.models import CentroCusto, Empresa, Evento, Filial
+from tenancy.models import Almoxarifado, CentroCusto, Empresa, Evento, Filial, ModoOrcamento
 
 Usuario = get_user_model()
 
@@ -93,6 +94,16 @@ class UsuarioForm(forms.ModelForm):
             self.initial["eh_aprovador"] = any(p.papel == Papel.APROVADOR for p in papeis)
             self.initial["eh_superadmin"] = any(p.papel == Papel.SUPERADMIN for p in papeis)
             self.initial["modulos"] = [p.modulo for p in papeis if p.papel == Papel.ADMINISTRADOR]
+
+    def clean_email(self):
+        # O login com Google localiza o usuário pelo e-mail: dois usuários com o mesmo
+        # e-mail (ignorando maiúsculas) tornariam o login ambíguo e seria recusado.
+        email = (self.cleaned_data.get("email") or "").strip()
+        if email:
+            repetido = Usuario.objects.filter(email__iexact=email).exclude(pk=self.instance.pk)
+            if repetido.exists():
+                raise forms.ValidationError("Já existe um usuário com este e-mail.")
+        return email
 
     def clean(self):
         dados = super().clean()
@@ -262,19 +273,54 @@ class EventoForm(forms.ModelForm):
 
 
 class CentroCustoForm(forms.ModelForm):
+    orcamento_inicio = forms.DateField(
+        label="Primeiro mês", required=False, input_formats=["%Y-%m", "%Y-%m-%d"],
+        widget=forms.DateInput(attrs={"class": CAMPO, "type": "month"}, format="%Y-%m"),
+    )
+
     class Meta:
         model = CentroCusto
-        fields = ["filial", "nome", "ativo"]
-        labels = {"filial": "Filial", "nome": "Nome do centro de custo", "ativo": "Ativo"}
+        fields = ["filial", "nome", "ativo", "orcamento_modo", "orcamento_valor", "orcamento_meses", "orcamento_inicio"]
+        labels = {
+            "filial": "Filial", "nome": "Nome do centro de custo", "ativo": "Ativo",
+            "orcamento_modo": "Orçamento", "orcamento_valor": "Valor (R$)",
+            "orcamento_meses": "Dividir em quantos meses",
+        }
         widgets = {
             "filial": forms.Select(attrs={"class": CAMPO}),
             "nome": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Pedagógico, Manutenção"}),
             "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
+            "orcamento_modo": forms.Select(attrs={"class": CAMPO}),
+            "orcamento_valor": forms.NumberInput(attrs={"class": CAMPO, "step": "0.01", "min": "0"}),
+            "orcamento_meses": forms.NumberInput(attrs={"class": CAMPO, "min": "1", "max": "120"}),
         }
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
+        self.fields["orcamento_modo"].required = False  # ausente = sem orçamento
+
+    def clean(self):
+        dados = super().clean()
+        if self.errors:
+            return dados
+        modo = dados["orcamento_modo"] = dados.get("orcamento_modo") or ModoOrcamento.SEM_ORCAMENTO
+        valor, meses, inicio = dados.get("orcamento_valor"), dados.get("orcamento_meses"), dados.get("orcamento_inicio")
+        if modo == ModoOrcamento.SEM_ORCAMENTO:
+            dados["orcamento_valor"] = dados["orcamento_meses"] = dados["orcamento_inicio"] = None
+            return dados
+        if valor is None or valor <= 0:
+            self.add_error("orcamento_valor", "Informe um valor maior que zero.")
+        if modo == ModoOrcamento.TOTAL_RATEADO:
+            if not meses or meses < 1:
+                self.add_error("orcamento_meses", "Informe em quantos meses o valor será dividido.")
+            if inicio is None:
+                self.add_error("orcamento_inicio", "Informe o primeiro mês do orçamento.")
+        else:
+            dados["orcamento_meses"] = dados["orcamento_inicio"] = None
+        if dados.get("orcamento_inicio"):
+            dados["orcamento_inicio"] = dados["orcamento_inicio"].replace(day=1)
+        return dados
 
 
 class FornecedorForm(forms.ModelForm):
@@ -299,3 +345,45 @@ class FornecedorForm(forms.ModelForm):
             "condicoes_pagamento": forms.TextInput(attrs={"class": CAMPO}),
             "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
         }
+
+
+class AlmoxarifadoForm(forms.ModelForm):
+    class Meta:
+        model = Almoxarifado
+        fields = ["filial", "nome", "central", "ativo"]
+        labels = {
+            "filial": "Filial",
+            "nome": "Nome do almoxarifado",
+            "central": "Estoque central (CSC)",
+            "ativo": "Ativo",
+        }
+        widgets = {
+            "filial": forms.Select(attrs={"class": CAMPO}),
+            "nome": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Geral, Educação Infantil"}),
+            "central": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
+            "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        filiais = Filial.objects.filter(ativo=True)
+        if self.instance.pk:  # mantém a filial atual na lista mesmo que tenha sido desativada
+            filiais = Filial.objects.filter(Q(ativo=True) | Q(pk=self.instance.filial_id))
+        self.fields["filial"].queryset = filiais
+
+    def clean(self):
+        dados = super().clean()
+        if self.errors:
+            return dados
+        central, ativo = dados.get("central"), dados.get("ativo")
+        # Os pedidos buscam "o" almoxarifado central (Almoxarifado.objects.get(central=True)):
+        # precisa existir exatamente um, e ativo. Validado aqui porque a restrição do banco
+        # envolve o tenant, que não é campo do formulário.
+        outro_central = Almoxarifado.objects.filter(central=True).exclude(pk=self.instance.pk)
+        if central and outro_central.exists():
+            self.add_error("central", "Já existe um almoxarifado central — só pode haver um.")
+        if self.instance.pk and self.instance.central and not central:
+            self.add_error("central", "O sistema precisa de um almoxarifado central. Marque outro como central primeiro.")
+        if central and not ativo:
+            self.add_error("ativo", "O almoxarifado central não pode ser desativado.")
+        return dados
