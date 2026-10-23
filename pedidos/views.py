@@ -5,7 +5,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
 from django.utils.http import urlencode
-from django.db.models import Count, Q
+from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
@@ -14,10 +14,10 @@ from contas.models import Modulo, Papel
 from contas.permissoes import requer_papel
 from estoque.models import Movimentacao, SaldoEstoque, TipoMovimentacao
 from estoque.services import EstoqueInsuficiente
-from tenancy.models import CentroCusto, Evento, Filial
+from tenancy.models import Almoxarifado, CentroCusto, Evento, Filial
 
 from . import cart
-from .forms import PedidoForm
+from .forms import PedidoForm, almoxarifados_do_usuario
 from .models import EventoPedido, ItemPedido, OrigemAtendimento, Pedido, StatusPedido
 from .services import (
     SemPermissao,
@@ -25,7 +25,7 @@ from .services import (
     aprovar_como_lider,
     entregar,
     pode_aprovar,
-    saldo_central,
+    saldo_no_almoxarifado,
     transicionar,
 )
 
@@ -59,6 +59,43 @@ def painel(request):
     return render(request, "painel.html", contexto)
 
 
+def _escopo_de_estoque(request):
+    """Almoxarifados do usuário e, se ele filtrou por um deles, só esse. Sem nenhum cadastrado
+    (ex.: superadmin), vale o estoque central como referência."""
+    meus = almoxarifados_do_usuario(request.user) or list(Almoxarifado.objects.filter(central=True))
+    sel = request.GET.get("almoxarifado", "")
+    escolhido = [a for a in meus if str(a.pk) == sel]
+    return meus, escolhido
+
+
+def _saldos_por_produto(almoxarifados):
+    """{produto_id: soma dos saldos nos almoxarifados}"""
+    return {
+        pk: total for pk, total in
+        SaldoEstoque.objects.filter(almoxarifado__in=almoxarifados).order_by()
+        .values_list("produto_id").annotate(total=Sum("quantidade"))
+    }
+
+
+def _estoque_dos_itens(itens, almoxarifados):
+    """Para o resumo: saldo de cada produto em cada almoxarifado do usuário, e quantos produtos
+    cada almoxarifado atenderia por inteiro. Preenche item["estoques"] e devolve a cobertura."""
+    saldos = {}
+    for pk, almox_id, quantidade in SaldoEstoque.objects.filter(
+        almoxarifado__in=almoxarifados, produto__in=[i["produto"].pk for i in itens]
+    ).values_list("produto_id", "almoxarifado_id", "quantidade"):
+        saldos[(pk, almox_id)] = quantidade
+    cobertura = {a.pk: 0 for a in almoxarifados}
+    for item in itens:
+        item["estoques"] = []
+        for a in almoxarifados:
+            saldo = saldos.get((item["produto"].pk, a.pk), 0)
+            item["estoques"].append({"almoxarifado": a, "saldo": saldo, "atende": saldo >= item["quantidade"]})
+            if saldo >= item["quantidade"]:
+                cobertura[a.pk] += 1
+    return [{"almoxarifado": a, "atende": cobertura[a.pk], "total": len(itens)} for a in almoxarifados]
+
+
 @login_required
 def catalogo(request):
     busca = request.GET.get("q", "").strip()
@@ -69,10 +106,8 @@ def catalogo(request):
     if categoria_id:
         produtos = produtos.filter(categoria_id=categoria_id)
 
-    saldos = dict(
-        SaldoEstoque.objects.filter(almoxarifado__central=True)
-        .values_list("produto_id", "quantidade")
-    )
+    meus, escolhido = _escopo_de_estoque(request)
+    saldos = _saldos_por_produto(escolhido or meus)
     estoque = request.GET.get("estoque", "")
     com_saldo = [pk for pk, q in saldos.items() if q > 0]
     if estoque == "com":
@@ -84,7 +119,7 @@ def catalogo(request):
     pagina = Paginator(produtos.order_by("nome"), 48).get_page(request.GET.get("pagina"))
     produtos = list(pagina)
     for p in produtos:
-        p.saldo_central = saldos.get(p.pk, 0)
+        p.saldo = saldos.get(p.pk, 0)
 
     return render(
         request, "pedidos/catalogo.html",
@@ -96,6 +131,8 @@ def catalogo(request):
             "busca": busca,
             "categoria_id": categoria_id,
             "estoque": estoque,
+            "meus_almoxarifados": meus,
+            "almoxarifado_sel": escolhido[0] if escolhido else None,
             "qs_estoque": urlencode({k: v for k, v in request.GET.items() if v and k not in ("pagina", "estoque")}),
         },
     )
@@ -134,14 +171,18 @@ def carrinho_ver(request):
             cart.limpar(request.session)
         return redirect("carrinho_ver")
     itens = cart.itens(request.session)
+    meus = almoxarifados_do_usuario(request.user)
+    cobertura = _estoque_dos_itens(itens, meus)
+    saldos = _saldos_por_produto(meus)
     for item in itens:
-        item["saldo"] = saldo_central(item["produto"])
+        item["saldo"] = saldos.get(item["produto"].pk, 0)
         item["sem_estoque"] = item["quantidade"] > item["saldo"]
     qtd_sem_estoque = sum(1 for i in itens if i["sem_estoque"])
     return render(
         request, "pedidos/carrinho.html",
         {
             "itens": itens,
+            "cobertura": cobertura,
             "qtd_sem_estoque": qtd_sem_estoque,
             "qtd_do_estoque": len(itens) - qtd_sem_estoque,
         },
@@ -156,11 +197,11 @@ def checkout(request):
         return redirect("catalogo")
 
     form = PedidoForm(request.POST or None, usuario=request.user)
-    if not form.filiais.exists():
+    if not form.almoxarifados:
         messages.error(
             request,
-            "Você não tem nenhuma unidade de destino cadastrada — peça ao administrador "
-            "para definir as unidades em que você pode fazer pedidos.",
+            "Você não tem nenhum almoxarifado cadastrado — peça ao administrador "
+            "para definir os almoxarifados de onde você pode fazer pedidos.",
         )
         return redirect("carrinho_ver")
     if request.method == "POST" and form.is_valid():
@@ -188,7 +229,14 @@ def checkout(request):
             messages.success(request, f"Pedido #{pedido.pk} enviado para aprovação.")
         return redirect("pedido_detalhe", pk=pedido.pk)
 
-    return render(request, "pedidos/checkout.html", {"form": form, "itens": itens_carrinho})
+    cobertura = _estoque_dos_itens(itens_carrinho, form.almoxarifados)
+    return render(request, "pedidos/checkout.html", {
+        "form": form, "itens": itens_carrinho, "cobertura": cobertura,
+        "estoque_json": {
+            str(a.pk): {str(i["produto"].pk): float(e["saldo"]) for i in itens_carrinho for e in i["estoques"] if e["almoxarifado"].pk == a.pk}
+            for a in form.almoxarifados
+        },
+    })
 
 
 def _filtrar_pedidos(request, pedidos):
@@ -304,7 +352,7 @@ def pedido_detalhe(request, pk):
                 origem_atendimento=OrigemAtendimento.COMPRA
             ).exists(),
             "itens_entrega": [
-                {"item": i, "saldo": saldo_central(i.produto)}
+                {"item": i, "saldo": saldo_no_almoxarifado(i.produto, pedido.almoxarifado_destino)}
                 for i in pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE)
                 .select_related("produto")
                 if i.pendente > 0
@@ -360,7 +408,9 @@ def relatorio_eventos(request):
     validos = Pedido.objects.filter(
         evento_id__in=[e.pk for e in eventos], ativo=True
     ).exclude(status__in=[StatusPedido.RASCUNHO, StatusPedido.RECUSADO])
-    entregas = Movimentacao.objects.filter(pedido__in=validos, tipo=TipoMovimentacao.TRANSFERENCIA)
+    entregas = Movimentacao.objects.filter(
+        pedido__in=validos, tipo__in=[TipoMovimentacao.SAIDA, TipoMovimentacao.TRANSFERENCIA]
+    )
 
     n_pedidos = dict(
         validos.order_by().values_list("evento_id").annotate(n=Count("pk"))

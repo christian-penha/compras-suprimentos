@@ -31,10 +31,16 @@
       <p class="text-sm text-slate-500 mt-0.5 mb-5 dark:text-slate-400">Defina a unidade que vai receber e o motivo do pedido.</p>
 
       <div class="grid gap-5 sm:grid-cols-2">
-        <div class="sm:col-span-2">
-          <label for="{{ form.filial_destino.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Unidade de destino <span class="text-red-500">*</span></label>
+        <div>
+          <label for="{{ form.filial_destino.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Unidade <span class="text-red-500">*</span></label>
           {{ form.filial_destino }}
           {% for e in form.filial_destino.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        </div>
+        <div>
+          <label for="{{ form.almoxarifado_destino.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Almoxarifado <span class="text-red-500">*</span></label>
+          {{ form.almoxarifado_destino }}
+          <p class="text-xs text-slate-400 mt-1">Só aparecem os almoxarifados da unidade escolhida. O que não houver nele segue para compra e chega aqui.</p>
+          {% for e in form.almoxarifado_destino.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
         </div>
 
         <div>
@@ -90,23 +96,72 @@
     <p class="text-sm text-slate-500 dark:text-slate-400">{{ itens|length }} {{ itens|length|pluralize:"produto,produtos" }}</p>
     <ul class="mt-4 space-y-3 text-sm divide-y divide-slate-100 dark:divide-slate-700">
       {% for item in itens %}
-      <li class="flex justify-between gap-3 pt-3 first:pt-0">
-        <span class="text-slate-700 dark:text-slate-200">{{ item.produto.nome }}</span>
-        <span class="text-slate-500 shrink-0 font-medium dark:text-slate-400">× {{ item.quantidade|floatformat:'-3' }}</span>
+      <li class="pt-3 first:pt-0" data-produto="{{ item.produto.pk }}" data-qtd="{{ item.quantidade|stringformat:'f' }}">
+        <div class="flex justify-between gap-3">
+          <span class="text-slate-700 dark:text-slate-200">{{ item.produto.nome }}</span>
+          <span class="text-slate-500 shrink-0 font-medium dark:text-slate-400">× {{ item.quantidade|floatformat:'-3' }}</span>
+        </div>
+        <p class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+          {% for e in item.estoques %}<span class="{% if e.atende %}text-emerald-700 dark:text-emerald-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">{{ e.almoxarifado.filial.sigla }} · {{ e.almoxarifado.nome }}: {{ e.saldo|floatformat:"-3" }}</span>{% endfor %}
+        </p>
+        <p class="escolhido mt-0.5 text-xs font-medium hidden"></p>
       </li>
       {% endfor %}
     </ul>
+    <div class="mt-5 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-900/40">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Estoque por almoxarifado</p>
+      <ul class="mt-2 space-y-1.5">
+        {% for c in cobertura %}
+        <li class="cobertura flex justify-between gap-3 rounded-lg px-2 py-1 dark:text-slate-100" data-almox="{{ c.almoxarifado.pk }}">
+          <span>{{ c.almoxarifado.filial.sigla }} · {{ c.almoxarifado.nome }}</span>
+          <span class="shrink-0 font-semibold {% if c.atende == c.total %}text-emerald-700 dark:text-emerald-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">atende {{ c.atende }} de {{ c.total }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
     <button class="mt-6 w-full rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Enviar pedido</button>
     <p class="text-xs text-slate-400 text-center mt-3">O pedido segue para aprovação do líder do seu setor.</p>
   </aside>
 </form>
 
 {{ form.dados_js|json_script:"dados-checkout" }}
+{{ estoque_json|json_script:"estoque-checkout" }}
 <script>
   (function () {
     var dados = JSON.parse(document.getElementById('dados-checkout').textContent);
     var motivo = document.getElementById('{{ form.motivo.id_for_label }}');
-    var filial = document.getElementById('{{ form.filial_destino.id_for_label }}');
+    var almox = document.getElementById('{{ form.almoxarifado_destino.id_for_label }}');
+    var unidade = document.getElementById('{{ form.filial_destino.id_for_label }}');
+    var estoque = JSON.parse(document.getElementById('estoque-checkout').textContent);
+
+    // a unidade manda: o almoxarifado só pode ser um dela
+    function filtrarAlmoxarifados() {
+      var visiveis = [];
+      Array.prototype.forEach.call(almox.options, function (o) {
+        if (!o.value) return;
+        var ok = !unidade.value || String(dados.almoxarifado_filial[o.value]) === unidade.value;
+        o.hidden = o.disabled = !ok;
+        if (ok) visiveis.push(o);
+      });
+      if (almox.selectedOptions[0] && almox.selectedOptions[0].disabled) almox.value = '';
+      if (unidade.value && visiveis.length === 1) almox.value = visiveis[0].value;
+    }
+
+    // resumo: destaca o almoxarifado escolhido e mostra o que faltaria comprar
+    function resumoDoEscolhido() {
+      document.querySelectorAll('.cobertura').forEach(function (li) {
+        li.classList.toggle('bg-white', li.dataset.almox === almox.value);
+        li.classList.toggle('ring-1', li.dataset.almox === almox.value);
+        li.classList.toggle('ring-slate-300', li.dataset.almox === almox.value);
+      });
+      document.querySelectorAll('li[data-produto]').forEach(function (li) {
+        var alvo = li.querySelector('.escolhido'), saldos = estoque[almox.value];
+        if (!saldos) { alvo.classList.add('hidden'); return; }
+        var saldo = saldos[li.dataset.produto] || 0, qtd = parseFloat(li.dataset.qtd) || 0, ok = saldo >= qtd;
+        alvo.textContent = ok ? 'No almoxarifado escolhido: sai do estoque' : 'No almoxarifado escolhido: ' + saldo + ' em estoque · será comprado';
+        alvo.className = 'escolhido mt-0.5 text-xs font-medium ' + (ok ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400');
+      });
+    }
     var evento = document.getElementById('{{ form.evento.id_for_label }}');
     var bloco = document.getElementById('campo-evento');
 
@@ -115,7 +170,7 @@
       bloco.classList.toggle('hidden', !exige);
       Array.prototype.forEach.call(evento.options, function (opt) {
         if (!opt.value) return;
-        var ok = !filial.value || String(dados.evento_filial[opt.value]) === filial.value;
+        var ok = !unidade.value || String(dados.evento_filial[opt.value]) === unidade.value;
         opt.hidden = !ok;
         opt.disabled = !ok;
         if (!ok && opt.selected) evento.value = '';
@@ -123,8 +178,11 @@
       if (!exige) evento.value = '';
     }
     motivo.addEventListener('change', atualizar);
-    filial.addEventListener('change', atualizar);
+    unidade.addEventListener('change', function () { filtrarAlmoxarifados(); atualizar(); resumoDoEscolhido(); });
+    almox.addEventListener('change', function () { atualizar(); resumoDoEscolhido(); });
+    filtrarAlmoxarifados();
     atualizar();
+    resumoDoEscolhido();
 
     function pintarPrioridade() {
       document.querySelectorAll('.prioridade-pill').forEach(function (pill) {

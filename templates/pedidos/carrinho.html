@@ -37,6 +37,9 @@
           <span class="h-2 w-2 rounded-full {% if item.sem_estoque %}bg-amber-500{% else %}bg-emerald-500{% endif %}"></span>
           {% if item.sem_estoque %}Estoque: {{ item.saldo|floatformat:"-3" }} · será comprado{% else %}Disponível em estoque{% endif %}
         </p>
+        <p class="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-500 dark:text-slate-400">
+          {% for e in item.estoques %}<span class="{% if e.atende %}text-emerald-700 dark:text-emerald-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">{{ e.almoxarifado.filial.sigla }} · {{ e.almoxarifado.nome }}: {{ e.saldo|floatformat:"-3" }}</span>{% endfor %}
+        </p>
       </div>
       <form method="post" class="flex items-center gap-2">
         {% csrf_token %}
@@ -62,6 +65,16 @@
       <div class="flex justify-between"><dt class="text-slate-500 dark:text-slate-400">Do estoque</dt><dd class="font-semibold text-emerald-700 dark:text-emerald-400">{{ qtd_do_estoque }}</dd></div>
       <div class="flex justify-between"><dt class="text-slate-500 dark:text-slate-400">A comprar</dt><dd class="font-semibold {% if qtd_sem_estoque %}text-amber-700 dark:text-amber-400{% else %}dark:text-slate-100{% endif %}">{{ qtd_sem_estoque }}</dd></div>
     </dl>
+    {% if cobertura %}
+    <div class="mt-5 rounded-xl bg-slate-50 p-4 text-sm dark:bg-slate-900/40">
+      <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Estoque por almoxarifado</p>
+      <ul class="mt-2 space-y-1.5">
+        {% for c in cobertura %}
+        <li class="flex justify-between gap-3 dark:text-slate-100"><span>{{ c.almoxarifado.filial.sigla }} · {{ c.almoxarifado.nome }}</span><span class="shrink-0 font-semibold {% if c.atende == c.total %}text-emerald-700 dark:text-emerald-400{% else %}text-amber-700 dark:text-amber-400{% endif %}">atende {{ c.atende }} de {{ c.total }}</span></li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
     <a href="{% url 'checkout' %}" class="mt-6 block w-full text-center rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">
       Finalizar pedido
     </a>

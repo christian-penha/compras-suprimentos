@@ -18,7 +18,9 @@
       {% csrf_token %}
       <input type="hidden" name="acao" value="remover">
       <input type="hidden" name="aprovador" value="{{ ap.pk }}">
-      <span class="text-sm dark:text-slate-100">{{ ap.usuario }}{% if ap.filial %} <span class="text-slate-400">· {{ ap.filial.nome }}</span>{% endif %}</span>
+      <span class="text-sm dark:text-slate-100">{{ ap.usuario }}{% if ap.filial %} <span class="text-slate-400">· {{ ap.filial.nome }}</span>{% endif %}
+        {% if por_filial %}<span class="block text-xs text-slate-500 dark:text-slate-400">{% for s in ap.setores.all %}{{ s.nome }}{% if not forloop.last %}, {% endif %}{% empty %}Todos os setores da unidade{% endfor %}</span>{% endif %}
+      </span>
       <button class="text-xs font-medium text-slate-400 hover:text-red-600">remover</button>
     </form>
     {% empty %}
@@ -33,7 +35,7 @@
       <input type="hidden" name="acao" value="adicionar">
       <div>
         <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Usuário</label>
-        <select name="usuario" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        <select name="usuario" id="f-usuario" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
           <option value="">Selecione</option>
           {% for u in usuarios %}<option value="{{ u.pk }}">{{ u.nome_completo|default:u.username }}</option>{% endfor %}
         </select>
@@ -41,15 +43,64 @@
       {% if por_filial %}
       <div>
         <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Diretor de qual unidade?</label>
-        <select name="filial" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        <select name="filial" id="f-filial" required class="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
           <option value="">Selecione a unidade</option>
           {% for f in filiais %}<option value="{{ f.pk }}">{{ f.nome }}</option>{% endfor %}
         </select>
+        <p id="f-dica" class="hidden text-xs text-slate-500 mt-1.5 dark:text-slate-400"></p>
         <p class="text-xs text-slate-400 mt-1.5">Em cotações com várias unidades, o diretor de qualquer uma delas pode aprovar.</p>
+      </div>
+      <div>
+        <p class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Setores que ele cobre</p>
+        <p class="text-xs text-slate-400 mb-2">Marque os setores da unidade escolhida. Sem nenhum marcado, ele cobre todos. Para mudar os setores de quem já está na lista, adicione de novo com a mesma unidade.</p>
+        <div class="max-h-56 overflow-y-auto space-y-1.5 rounded-xl border border-slate-200 p-3 dark:border-slate-700">
+          {% for s in setores %}
+          <label data-filial="{{ s.filial_id }}" class="item-setor flex items-center gap-2 text-sm dark:text-slate-100"><input type="checkbox" name="setores" value="{{ s.pk }}" class="h-4 w-4 rounded border-slate-300"> {{ s.nome }} <span class="text-xs text-slate-400">· {{ s.filial.sigla }}</span></label>
+          {% empty %}<p class="text-sm text-slate-500">Nenhum setor cadastrado.</p>
+          {% endfor %}
+          <p id="sem-setores" class="hidden text-sm text-slate-500">Escolha a unidade para ver os setores dela.</p>
+        </div>
       </div>
       {% endif %}
       <button class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Adicionar</button>
     </form>
   </section>
 </div>
+{{ unidades_do_usuario|json_script:"unidades-do-usuario" }}
+<script>
+  (function () {
+    var usuario = document.getElementById('f-usuario'), filial = document.getElementById('f-filial');
+    if (!filial) return;
+    var mapa = JSON.parse(document.getElementById('unidades-do-usuario').textContent);
+    var dica = document.getElementById('f-dica');
+
+    // 1) a lista de unidades mostra só as que a pessoa atende (se ela tiver alguma cadastrada)
+    function filtrarUnidades() {
+      var ids = (mapa[usuario.value] || []).map(String), restringe = ids.length > 0;
+      Array.prototype.forEach.call(filial.options, function (o) {
+        if (!o.value) return;
+        o.hidden = o.disabled = restringe && ids.indexOf(o.value) === -1;
+      });
+      if (filial.selectedOptions[0] && filial.selectedOptions[0].disabled) filial.value = '';
+      if (restringe && ids.length === 1) filial.value = ids[0];
+      dica.textContent = restringe ? 'Mostrando só as unidades que esta pessoa atende.' : '';
+      dica.classList.toggle('hidden', !restringe);
+      filtrarSetores();
+    }
+
+    // 2) os setores mostram só os da unidade escolhida
+    function filtrarSetores() {
+      var vazio = true;
+      document.querySelectorAll('.item-setor').forEach(function (l) {
+        var ok = l.dataset.filial === filial.value;
+        l.classList.toggle('hidden', !ok);
+        if (!ok) l.querySelector('input').checked = false; else vazio = false;
+      });
+      document.getElementById('sem-setores').classList.toggle('hidden', !!filial.value && !vazio);
+    }
+    usuario.addEventListener('change', filtrarUnidades);
+    filial.addEventListener('change', filtrarSetores);
+    filtrarSetores();
+  })();
+</script>
 {% endblock %}

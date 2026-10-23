@@ -55,7 +55,7 @@ class BaseFluxoTest(TenantTestCase):
         self.motivo = MotivoRequisicao.objects.get(nome="Projeto/Ação Pedagógica")
 
         registrar_entrada(
-            produto=self.produto, destino=self.central, quantidade=Decimal("50"),
+            produto=self.produto, destino=self.destino, quantidade=Decimal("50"),
             valor_unitario=Decimal("10.00"), responsavel=self.suprimentos,
         )
 
@@ -82,15 +82,10 @@ class CicloCompletoTest(BaseFluxoTest):
         transicionar(pedido, StatusPedido.CONCLUIDO, self.requisitante)
 
         self.assertEqual(pedido.status, StatusPedido.CONCLUIDO)
-        saldo_central = SaldoEstoque.objects.get(produto=self.produto, almoxarifado=self.central)
         saldo_destino = SaldoEstoque.objects.get(produto=self.produto, almoxarifado=self.destino)
-        self.assertEqual(saldo_central.quantidade, Decimal("40"))
-        self.assertEqual(saldo_destino.quantidade, Decimal("10"))
+        self.assertEqual(saldo_destino.quantidade, Decimal("40"))  # a baixa saiu do almoxarifado do pedido
         self.assertEqual(pedido.eventos.count(), 5)
-        self.assertFalse(
-            DebitoAlmoxarifado.objects.exists(),
-            "Fluxo central → unidade não gera débito",
-        )
+        self.assertFalse(DebitoAlmoxarifado.objects.exists())
 
     def test_item_sem_saldo_classificado_como_compra(self):
         pedido = self.novo_pedido("100")
@@ -139,26 +134,26 @@ class CicloCompletoTest(BaseFluxoTest):
 class EstoqueServicesTest(BaseFluxoTest):
     def test_custo_medio_recalculado(self):
         registrar_entrada(
-            produto=self.produto, destino=self.central, quantidade=Decimal("50"),
+            produto=self.produto, destino=self.destino, quantidade=Decimal("50"),
             valor_unitario=Decimal("20.00"), responsavel=self.suprimentos,
         )
-        saldo = SaldoEstoque.objects.get(produto=self.produto, almoxarifado=self.central)
+        saldo = SaldoEstoque.objects.get(produto=self.produto, almoxarifado=self.destino)
         self.assertEqual(saldo.quantidade, Decimal("100"))
         self.assertEqual(saldo.custo_medio, Decimal("15.00"))
 
     def test_entrada_valor_zero_preserva_custo(self):
         registrar_entrada(
-            produto=self.produto, destino=self.destino, quantidade=Decimal("30"),
+            produto=self.produto, destino=self.central, quantidade=Decimal("30"),
             responsavel=self.suprimentos, observacao="Doação lista de material",
         )
-        saldo = SaldoEstoque.objects.get(produto=self.produto, almoxarifado=self.destino)
+        saldo = SaldoEstoque.objects.get(produto=self.produto, almoxarifado=self.central)
         self.assertEqual(saldo.quantidade, Decimal("30"))
         self.assertEqual(saldo.custo_medio, Decimal("0"))
 
     def test_saida_sem_saldo_bloqueada(self):
         with self.assertRaises(EstoqueInsuficiente):
             registrar_saida(
-                produto=self.produto, origem=self.destino, quantidade=Decimal("1"),
+                produto=self.produto, origem=self.central, quantidade=Decimal("1"),
                 responsavel=self.suprimentos,
             )
 
@@ -307,6 +302,7 @@ class CheckoutFormTest(BaseFluxoTest):
     def dados(self, **sobrescrever):
         base = {
             "filial_destino": self.filial.pk,
+            "almoxarifado_destino": self.filial.almoxarifado_padrao().pk,
             "observacao": "Material para a semana",
             "prioridade": "NORMAL",
             "data_desejada": (timezone.localdate() + timedelta(days=3)).isoformat(),
@@ -315,12 +311,23 @@ class CheckoutFormTest(BaseFluxoTest):
         base.update(sobrescrever)
         return base
 
-    def test_pedido_valido_deriva_almoxarifado_da_filial(self):
-        form = PedidoForm(self.dados(), usuario=self.requisitante)
+    def test_pedido_valido_usa_o_almoxarifado_escolhido(self):
+        self.requisitante.almoxarifados.add(self.destino)
+        form = PedidoForm(self.dados(almoxarifado_destino=self.destino.pk), usuario=self.requisitante)
         self.assertTrue(form.is_valid(), form.errors)
-        pedido = form.save(commit=False)
-        self.assertEqual(pedido.almoxarifado_destino.filial, self.filial)
-        self.assertFalse(pedido.almoxarifado_destino.central)
+        self.assertEqual(form.save(commit=False).almoxarifado_destino, self.destino)
+
+    def test_sem_almoxarifados_marcados_vale_o_padrao_da_unidade(self):
+        padrao = self.filial.almoxarifado_padrao()
+        form = PedidoForm(self.dados(almoxarifado_destino=padrao.pk), usuario=self.requisitante)
+        self.assertTrue(form.is_valid(), form.errors)
+
+    def test_almoxarifado_que_nao_e_do_usuario_rejeitado(self):
+        self.requisitante.almoxarifados.add(self.destino)
+        outro = self.filial.almoxarifado_padrao()
+        form = PedidoForm(self.dados(almoxarifado_destino=outro.pk), usuario=self.requisitante)
+        self.assertFalse(form.is_valid())
+        self.assertIn("almoxarifado_destino", form.errors)
 
     def test_motivo_evento_exige_evento(self):
         form = PedidoForm(self.dados(motivo=self.motivo_evento.pk), usuario=self.requisitante)
@@ -345,11 +352,32 @@ class CheckoutFormTest(BaseFluxoTest):
         self.assertFalse(form.is_valid())
         self.assertIn("data_desejada", form.errors)
 
-    def test_filial_fora_das_permitidas_rejeitada(self):
+    def test_unidade_fora_das_permitidas_rejeitada(self):
         self.requisitante.filiais_permitidas.add(self.filial)
-        form = PedidoForm(self.dados(filial_destino=self.vc.pk), usuario=self.requisitante)
+        form = PedidoForm(
+            self.dados(filial_destino=self.vc.pk, almoxarifado_destino=self.vc.almoxarifado_padrao().pk),
+            usuario=self.requisitante,
+        )
         self.assertFalse(form.is_valid())
         self.assertIn("filial_destino", form.errors)
+
+    def test_unidade_nao_pede_no_almoxarifado_de_outra(self):
+        self.requisitante.filiais_permitidas.add(self.filial, self.vc)
+        form = PedidoForm(
+            self.dados(filial_destino=self.filial.pk, almoxarifado_destino=self.vc.almoxarifado_padrao().pk),
+            usuario=self.requisitante,
+        )
+        self.assertFalse(form.is_valid())
+        self.assertIn("almoxarifado_destino", form.errors)
+
+    def test_resumo_mostra_estoque_por_almoxarifado_do_usuario(self):
+        self.requisitante.almoxarifados.add(self.destino, self.filial.almoxarifado_padrao())
+        self.client.force_login(self.requisitante)
+        self.client.post(reverse("carrinho_adicionar"), {"produto": self.produto.pk, "quantidade": "2"})
+        for nome in ("carrinho_ver", "checkout"):
+            pagina = self.client.get(reverse(nome))
+            self.assertContains(pagina, "Estoque por almoxarifado")
+            self.assertContains(pagina, "atende 1 de 1")  # o Ed. Infantil tem os 50 de partida
 
     def test_sem_permitidas_vale_a_filial_do_usuario(self):
         form = PedidoForm(usuario=self.requisitante)
@@ -410,21 +438,20 @@ class EntregaParcialTest(BaseFluxoTest):
         item.refresh_from_db()
         self.assertEqual(pedido.status, StatusPedido.ENTREGA_PARCIAL)
         self.assertEqual(item.quantidade_entregue, Decimal("4"))
-        self.assertEqual(self.saldo(self.destino), Decimal("4"))
-        self.assertEqual(self.saldo(self.central), Decimal("46"))
+        self.assertEqual(self.saldo(self.destino), Decimal("46"))
 
         entregar(pedido, self.suprimentos)  # sem quantidades: entrega todo o pendente
         item.refresh_from_db()
         self.assertEqual(pedido.status, StatusPedido.ENTREGUE)
         self.assertEqual(item.quantidade_entregue, Decimal("10"))
-        self.assertEqual(self.saldo(self.central), Decimal("40"))
+        self.assertEqual(self.saldo(self.destino), Decimal("40"))
 
     def test_quantidade_acima_do_pendente_rejeitada(self):
         pedido = self.pedido_em_separacao("10")
         item = pedido.itens.get()
         with self.assertRaises(TransicaoInvalida):
             entregar(pedido, self.suprimentos, {item.pk: Decimal("11")})
-        self.assertEqual(self.saldo(self.central), Decimal("50"))
+        self.assertEqual(self.saldo(self.destino), Decimal("50"))
 
     def test_entrega_sem_nenhuma_quantidade_rejeitada(self):
         pedido = self.pedido_em_separacao("10")
@@ -435,8 +462,8 @@ class EntregaParcialTest(BaseFluxoTest):
     def test_estoque_insuficiente_nao_deixa_entrega_pela_metade(self):
         pedido = self.pedido_em_separacao("10")
         item = pedido.itens.get()
-        registrar_saida(  # o estoque central cai para 3 depois da aprovação
-            produto=self.produto, origem=self.central, quantidade=Decimal("47"),
+        registrar_saida(  # o estoque do almoxarifado cai para 3 depois da aprovação
+            produto=self.produto, origem=self.destino, quantidade=Decimal("47"),
             responsavel=self.suprimentos,
         )
         with self.assertRaises(EstoqueInsuficiente):
@@ -518,13 +545,14 @@ class FilaDeSuprimentosVisoesTest(BaseFluxoTest):
 
 class CatalogoFiltroDeEstoqueTest(BaseFluxoTest):
     def test_filtra_com_e_sem_estoque_central(self):
+        self.requisitante.almoxarifados.add(self.destino)
         self.client.force_login(self.requisitante)
         todos = self.client.get(reverse("catalogo")).context["produtos"]
         com = self.client.get(reverse("catalogo"), {"estoque": "com"}).context["produtos"]
         sem = self.client.get(reverse("catalogo"), {"estoque": "sem"}).context["produtos"]
         self.assertEqual(len(com) + len(sem), len(todos))
-        self.assertTrue(all(p.saldo_central > 0 for p in com))
-        self.assertTrue(all(p.saldo_central <= 0 for p in sem))
+        self.assertTrue(all(p.saldo > 0 for p in com))
+        self.assertTrue(all(p.saldo <= 0 for p in sem))
 
 
 class CentroNaEntregaTest(BaseFluxoTest):
@@ -533,7 +561,7 @@ class CentroNaEntregaTest(BaseFluxoTest):
 
         pedido = self.novo_pedido("1")
         registrar_entrada(produto=self.papel_produto if hasattr(self, "papel_produto") else self.produto,
-                          destino=Almoxarifado.objects.get(central=True), quantidade=Decimal("10"),
+                          destino=self.destino, quantidade=Decimal("10"),
                           valor_unitario=Decimal("2"), responsavel=self.requisitante)
         transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
         aprovar_como_lider(pedido, self.aprovador)

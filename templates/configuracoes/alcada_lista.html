@@ -73,6 +73,8 @@
         <div class="aprovadores mt-4 flex-1">
           {% if a.papel_aprovador == 'AUTOMATICA' %}
           <p class="text-sm text-slate-500 dark:text-slate-400">Aprovada automaticamente — não precisa de aprovador.</p>
+          {% elif a.papel_aprovador == 'LIDER_SETOR' %}
+          <p class="text-sm text-slate-500 dark:text-slate-400">Aprova o líder do setor de quem pediu. Sem líder disponível, escala para a diretoria.</p>
           {% else %}
             {% for ap in a.aprovadores.all %}
             <p class="text-sm text-slate-700 dark:text-slate-200">{{ ap.usuario }}{% if ap.filial %} <span class="text-slate-400">· {{ ap.filial.sigla }}</span>{% endif %}</p>
@@ -82,7 +84,7 @@
           {% endif %}
         </div>
 
-        {% if a.papel_aprovador != 'AUTOMATICA' and not usa_padrao %}
+        {% if a.papel_aprovador != 'AUTOMATICA' and a.papel_aprovador != 'LIDER_SETOR' and not usa_padrao %}
         <a href="{% url 'config_alcada_editar' a.pk %}" class="btn-aprovadores mt-5 block text-center rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Definir aprovadores</a>
         {% endif %}
       </article>

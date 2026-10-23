@@ -82,7 +82,8 @@ def salvar_tabela(*, tenant, filial, linhas, usuario):
     herdados = {}
     for a in atuais:
         herdados.setdefault(
-            a.papel_aprovador, [(ap.usuario_id, ap.filial_id) for ap in a.aprovadores.all()]
+            a.papel_aprovador,
+            [(ap.usuario_id, ap.filial_id, [s.pk for s in ap.setores.all()]) for ap in a.aprovadores.all()],
         )
     Alcada.todos_os_tenants.filter(pk__in=[a.pk for a in atuais]).update(ativo=False)
 
@@ -91,10 +92,11 @@ def salvar_tabela(*, tenant, filial, linhas, usuario):
             tenant=tenant, filial=filial, valor_min=minimo, valor_max=maximo,
             papel_aprovador=papel, atualizado_por=usuario,
         )
-        for usuario_id, filial_aprovador_id in herdados.get(papel, []):
-            AprovadorAlcada.objects.get_or_create(
+        for usuario_id, filial_aprovador_id, setores in herdados.get(papel, []):
+            aprovador, _ = AprovadorAlcada.objects.get_or_create(
                 alcada=faixa, usuario_id=usuario_id, filial_id=filial_aprovador_id
             )
+            aprovador.setores.set(setores)
     return True
 
 

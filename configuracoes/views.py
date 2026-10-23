@@ -257,6 +257,9 @@ def alcada_lista(request):
 @requer_papel(Papel.SUPERADMIN)
 def alcada_form(request, pk):
     alcada = get_object_or_404(Alcada, pk=pk)
+    if alcada.papel_aprovador == PapelAlcada.LIDER_SETOR:
+        messages.info(request, "Nesta faixa quem aprova é o líder do setor de quem pediu; não há lista para cadastrar.")
+        return redirect("config_alcada_lista")
     por_filial = alcada.papel_aprovador == PapelAlcada.DIRETORIA_UNIDADE
     if request.method == "POST":
         acao = request.POST.get("acao")
@@ -273,17 +276,33 @@ def alcada_form(request, pk):
             elif por_filial and filial is None:
                 messages.error(request, "Diretoria de unidade exige informar a filial do diretor.")
             else:
-                _, criado = AprovadorAlcada.objects.get_or_create(
+                aprovador, criado = AprovadorAlcada.objects.get_or_create(
                     alcada=alcada, usuario=usuario, filial=filial
                 )
-                messages.success(request, "Aprovador adicionado." if criado else "Esse aprovador já estava na faixa.")
+                if por_filial:
+                    aprovador.setores.set(
+                        Setor.objects.filter(pk__in=request.POST.getlist("setores"), filial=filial)
+                    )
+                messages.success(
+                    request,
+                    "Aprovador adicionado." if criado else "Aprovador já estava na faixa; setores atualizados.",
+                )
         return redirect("config_alcada_editar", pk=alcada.pk)
+    usuarios = list(
+        Usuario.objects.filter(ativo_no_sistema=True).prefetch_related("filiais_permitidas")
+        .order_by("nome_completo", "username")
+    )
     return render(request, "configuracoes/alcada_form.html", {
         "alcada": alcada,
         "por_filial": por_filial,
-        "aprovadores": alcada.aprovadores.select_related("usuario", "filial"),
-        "usuarios": Usuario.objects.filter(ativo_no_sistema=True).order_by("nome_completo", "username"),
+        "aprovadores": alcada.aprovadores.select_related("usuario", "filial").prefetch_related("setores"),
+        "setores": Setor.objects.filter(ativo=True).select_related("filial").order_by("filial__nome", "nome"),
+        "usuarios": usuarios,
         "filiais": Filial.objects.filter(ativo=True).order_by("nome"),
+        # unidades que cada pessoa atende (a dela + as liberadas para pedidos), para filtrar o formulário
+        "unidades_do_usuario": {
+            u.pk: sorted({u.filial_id, *(f.pk for f in u.filiais_permitidas.all())} - {None}) for u in usuarios
+        },
     })
 
 

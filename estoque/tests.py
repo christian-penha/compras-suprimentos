@@ -71,3 +71,17 @@ class PosicaoEstoqueTest(TenantTestCase):
     def test_busca_por_nome(self):
         resultado = self.get(q="papel").context["pagina"]
         self.assertEqual([s.produto.nome for s in resultado], ["Papel A4"])
+
+
+class EstoqueDoAlmoxarifadoTest(TenantTestCase):
+    def test_pagina_do_almoxarifado_mostra_o_nome_dele(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from tenancy.models import Almoxarifado
+
+        admin = get_user_model().objects.create_superuser("root_alm", tenant=self.tenant, password=None)
+        self.client.force_login(admin)
+        alm = Almoxarifado.objects.get(central=True)
+        self.assertContains(self.client.get(reverse("config_almoxarifado_lista")), f"almoxarifado={alm.pk}")
+        self.assertContains(self.client.get(reverse("posicao_estoque"), {"almoxarifado": alm.pk}), f"Estoque — {alm.nome}")

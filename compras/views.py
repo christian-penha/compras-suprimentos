@@ -306,7 +306,11 @@ def rodada_comparar(request, rodada):
 
 @login_required
 def cotacao_lista(request):
-    if not (_e_papel(request.user, Modulo.COMPRAS) or AprovadorAlcada.objects.filter(usuario=request.user).exists()):
+    if not (
+        _e_papel(request.user, Modulo.COMPRAS)
+        or AprovadorAlcada.objects.filter(usuario=request.user).exists()
+        or request.user.setores_liderados.exists()
+    ):
         raise PermissionDenied
     status = request.GET.get("status", "")
     busca = request.GET.get("q", "").strip()

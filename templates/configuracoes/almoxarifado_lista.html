@@ -22,7 +22,8 @@
       <span class="inline-flex items-center gap-1.5 text-xs font-medium {% if a.ativo %}text-emerald-700 dark:text-emerald-400{% else %}text-red-700 dark:text-red-400{% endif %}"><span class="h-2.5 w-2.5 rounded-full {% if a.ativo %}bg-emerald-500{% else %}bg-red-500{% endif %}"></span>{% if a.ativo %}Ativo{% else %}Inativo{% endif %}</span>
       {% if a.central %}<span class="text-xs font-semibold text-slate-600 dark:text-slate-300">Estoque central</span>{% endif %}
     </div>
-    <div class="mt-5 flex gap-2">
+    <a href="{% url 'posicao_estoque' %}?almoxarifado={{ a.pk }}" class="mt-5 block text-center rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Ver estoque</a>
+    <div class="mt-2 flex gap-2">
       <a href="{% url 'config_almoxarifado_editar' a.pk %}" class="flex-1 block text-center rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold py-2.5 transition dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700">Editar</a>
       {% if not a.central %}
       <form method="post" action="{% url 'config_almoxarifado_excluir' a.pk %}" onsubmit="return confirm('Excluir o almoxarifado {{ a.nome|escapejs }}? Só é possível se ele nunca teve saldo, pedidos ou movimentações.');">

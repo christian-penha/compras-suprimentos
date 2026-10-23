@@ -10,5 +10,5 @@ def menu(request):
     return {
         "menu_compras": superior or u.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS),
         "menu_estoque": superior or u.tem_papel(Papel.ADMINISTRADOR, Modulo.ESTOQUE),
-        "menu_aprova_compras": u.alcadas_que_aprova.exists(),
+        "menu_aprova_compras": u.alcadas_que_aprova.exists() or u.setores_liderados.exists(),
     }

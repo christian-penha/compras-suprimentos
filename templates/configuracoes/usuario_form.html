@@ -77,11 +77,34 @@
         </div>
       </section>
 
+      {# ------------------------------------------------ almoxarifados #}
+      <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <h2 class="font-semibold text-slate-900 dark:text-slate-100">Almoxarifados</h2>
+            <p class="text-sm text-slate-500 mt-0.5 dark:text-slate-400">O estoque que a pessoa vê no catálogo e de onde ela pode pedir. Com mais de um, ela filtra por almoxarifado (ou vê a soma) e escolhe um no checkout. Sem nenhum marcado, vale o almoxarifado padrão das unidades abaixo.</p>
+          </div>
+          <div class="flex gap-3 text-sm shrink-0">
+            <button type="button" data-marcar-grupo="almox" data-valor="todas" class="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white">Todos</button>
+            <button type="button" data-marcar-grupo="almox" data-valor="nenhuma" class="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200">Limpar</button>
+          </div>
+        </div>
+        <div id="almox" class="mt-4 flex flex-wrap gap-2">
+          {% for opcao in form.almoxarifados %}
+          {% ifchanged opcao.data.value.instance.filial_id %}<p class="basis-full mt-2 first:mt-0 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ opcao.data.value.instance.filial.nome }}</p>{% endifchanged %}
+          <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-2.5 text-sm cursor-pointer transition hover:border-slate-400 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60 dark:text-slate-100">
+            <input type="checkbox" name="{{ opcao.data.name }}" value="{{ opcao.data.value }}" {% if opcao.data.selected %}checked{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900">
+            <span class="font-medium">{{ opcao.data.value.instance.nome }}{% if opcao.data.value.instance.central %} <span class="text-xs font-normal text-slate-400">· central</span>{% endif %}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </section>
+
       {# ------------------------------------------------ unidades #}
       <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
         <div class="flex items-start justify-between gap-3">
           <div>
-            <h2 class="font-semibold text-slate-900 dark:text-slate-100">Unidades onde pode fazer pedidos</h2>
+            <h2 class="font-semibold text-slate-900 dark:text-slate-100">Unidades onde pode fazer pedidos <span class="text-xs font-normal text-slate-400">(usado só se nenhum almoxarifado for marcado)</span></h2>
             <p class="text-sm text-slate-500 mt-0.5 dark:text-slate-400">Opções de "unidade de destino" no checkout. Sem nenhuma marcada, vale só a filial do usuário.</p>
           </div>
           <div class="flex gap-3 text-sm shrink-0">
@@ -164,6 +187,12 @@
 </form>
 
 <script>
+  document.querySelectorAll('[data-marcar-grupo]').forEach(function (b) {
+    b.addEventListener('click', function () {
+      var marcar = b.dataset.valor === 'todas';
+      document.querySelectorAll('#' + b.dataset.marcarGrupo + ' input[type=checkbox]').forEach(function (c) { c.checked = marcar; });
+    });
+  });
   document.querySelectorAll('[data-marcar]').forEach(function (b) {
     b.addEventListener('click', function () {
       var marcar = b.dataset.marcar === 'todas';

@@ -196,6 +196,7 @@ def posicao_estoque(request):
         "almoxarifados": almoxarifados.order_by("filial__sigla", "nome"),
         "filial_id": filial_id,
         "almoxarifado_id": almoxarifado_id,
+        "almoxarifado_sel": almoxarifados.filter(pk=almoxarifado_id).first() if almoxarifado_id.isdigit() else None,
         "busca": busca,
         "qs_pagina": urlencode(sem_pagina),
         "qs_situacao": urlencode(sem_situacao),

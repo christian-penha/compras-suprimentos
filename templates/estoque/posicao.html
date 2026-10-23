@@ -6,8 +6,8 @@
 <div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
   <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
-      <h1 class="text-2xl font-semibold">Controle de estoque</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">Saldo, mínimo e valor por almoxarifado.</p>
+      <h1 class="text-2xl font-semibold">{% if almoxarifado_sel %}Estoque — {{ almoxarifado_sel.nome }}{% else %}Controle de estoque{% endif %}</h1>
+      <p class="text-sm text-[#9a9a9a] mt-1">{% if almoxarifado_sel %}{{ almoxarifado_sel.filial.nome }}{% if almoxarifado_sel.central %} · estoque central{% endif %} · saldo, mínimo e valor.{% else %}Saldo, mínimo e valor por almoxarifado.{% endif %}</p>
     </div>
     <a href="{% url 'entrada_planilha' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">Entrada por planilha</a>
   </div>

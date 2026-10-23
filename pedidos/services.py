@@ -4,7 +4,7 @@ from django.db import transaction
 
 from contas.models import ModoAprovacaoSetor, RegraAprovacaoEmpresa
 from estoque.models import SaldoEstoque
-from estoque.services import transferir
+from estoque.services import registrar_saida
 from tenancy.models import Almoxarifado
 from pedidos.models import (
     AprovacaoLider,
@@ -212,10 +212,10 @@ def aprovar_como_lider(pedido, usuario, observacao=""):
 
 
 def classificar_itens(pedido):
-    central = Almoxarifado.objects.get(central=True)
+    """Item com saldo no almoxarifado do pedido sai dele; sem saldo, vai para compra."""
     for item in pedido.itens.select_related("produto"):
         saldo = SaldoEstoque.objects.filter(
-            produto=item.produto, almoxarifado=central
+            produto=item.produto, almoxarifado=pedido.almoxarifado_destino
         ).first()
         disponivel = saldo.quantidade if saldo else 0
         item.origem_atendimento = (
@@ -227,7 +227,7 @@ def classificar_itens(pedido):
 
 @transaction.atomic
 def entregar(pedido, usuario, quantidades=None):
-    """Entrega itens do estoque central ao destino do pedido.
+    """Entrega os itens do estoque do almoxarifado do pedido: a baixa sai dele.
 
     `quantidades` é {item_id: Decimal} para entrega parcial; sem ele entrega todo o
     saldo pendente. O pedido vira ENTREGUE quando nenhum item de estoque tem pendência,
@@ -240,7 +240,6 @@ def entregar(pedido, usuario, quantidades=None):
         raise TransicaoInvalida(
             "Defina o centro de custo do pedido antes de entregar (eixo de consumo)."
         )
-    central = Almoxarifado.objects.get(central=True)
     itens = list(
         pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE)
         .select_related("produto").select_for_update(of=("self",))
@@ -261,10 +260,9 @@ def entregar(pedido, usuario, quantidades=None):
         )
 
     for item, qtd in a_entregar:
-        transferir(
-            produto=item.produto, origem=central, destino=pedido.almoxarifado_destino,
-            quantidade=qtd, responsavel=usuario, pedido=pedido,
-            centro_custo=pedido.centro_custo,
+        registrar_saida(
+            produto=item.produto, origem=pedido.almoxarifado_destino, quantidade=qtd,
+            responsavel=usuario, pedido=pedido, centro_custo=pedido.centro_custo,
         )
         item.quantidade_entregue += qtd
         item.save(update_fields=["quantidade_entregue"])
@@ -280,6 +278,6 @@ def entregar(pedido, usuario, quantidades=None):
     )
 
 
-def saldo_central(produto):
-    saldo = SaldoEstoque.objects.filter(produto=produto, almoxarifado__central=True).first()
+def saldo_no_almoxarifado(produto, almoxarifado):
+    saldo = SaldoEstoque.objects.filter(produto=produto, almoxarifado=almoxarifado).first()
     return saldo.quantidade if saldo else 0

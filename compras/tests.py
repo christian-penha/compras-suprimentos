@@ -163,8 +163,7 @@ class RecebimentoTest(BaseComprasTest):
         services.confirmar_recebimento(
             ordem, self.suprimentos, [{"item_id": ic.pk, "quantidade": Decimal("5")}]
         )
-        central = Almoxarifado.objects.get(central=True)
-        saldo = SaldoEstoque.objects.get(produto=self.papel, almoxarifado=central)
+        saldo = SaldoEstoque.objects.get(produto=self.papel, almoxarifado=self.destino)  # entra no almoxarifado do pedido
         self.assertEqual(saldo.quantidade, Decimal("5"))
         self.assertEqual(saldo.custo_medio, Decimal("22.00"))  # 20 + frete 10/5
 
@@ -539,3 +538,83 @@ class AndamentoDaOrdemTest(BaseComprasTest):
         self.assertEqual(r.status_code, 302)
         ordem.refresh_from_db()
         self.assertEqual(ordem.andamento, "COMPRA_EFETUADA")
+
+
+class FaixaLiderEEscopoPorSetorTest(BaseComprasTest):
+    def setUp(self):
+        super().setUp()
+        from contas.alcadas import salvar_tabela
+        from contas.models import AprovadorAlcada, Setor
+
+        salvar_tabela(tenant=self.tenant, filial=None, usuario=self.comprador, linhas=[
+            (Decimal("300.00"), "AUTOMATICA"), (Decimal("2000.00"), "LIDER_SETOR"),
+            (None, "DIRETORIA_UNIDADE"),
+        ])
+        self.salvar_tabela = salvar_tabela
+        self.outro_setor = Setor.objects.create(tenant=self.tenant, filial=self.filial, nome="Outro setor")
+        self.vinculo = AprovadorAlcada.objects.get(
+            alcada__papel_aprovador="DIRETORIA_UNIDADE", alcada__ativo=True, usuario=self.diretor
+        )
+
+    def ids(self, cotacao):
+        return set(services.aprovadores_da_cotacao(cotacao).values_list("username", flat=True))
+
+    def test_lider_do_setor_aprova_a_faixa_dele_e_o_diretor_nao(self):
+        _, item = self.pedido_sem_estoque("5")
+        cotacao = self.cotar(item, "100.00")  # 500: faixa do líder
+        self.assertEqual(cotacao.alcada.papel_aprovador, "LIDER_SETOR")
+        self.assertEqual(self.ids(cotacao), {"aprov"})
+        with self.assertRaises(SemPermissao):
+            services.decidir_cotacao(cotacao, self.diretor, True)
+        self.assertEqual(services.decidir_cotacao(cotacao, self.aprovador, True).status, StatusCotacao.APROVADA)
+
+    def test_sem_lider_disponivel_escala_para_a_diretoria(self):
+        _, item = self.pedido_sem_estoque("5")
+        self.setor.lideres.set([self.requisitante])  # depois de aprovado, o único líder é quem pediu
+        cotacao = self.cotar(item, "100.00")
+        self.assertEqual(self.ids(cotacao), {"diretor"})
+
+    def test_diretor_so_aprova_os_setores_que_cobre(self):
+        _, item = self.pedido_sem_estoque("5")
+        cotacao = self.cotar(item, "1000.00")  # 5.000: diretoria
+        self.assertEqual(cotacao.alcada.papel_aprovador, "DIRETORIA_UNIDADE")
+        self.assertEqual(self.ids(cotacao), {"diretor"})  # sem setores cadastrados: cobre todos
+        self.vinculo.setores.set([self.outro_setor])
+        self.assertEqual(self.ids(cotacao), set())
+        self.vinculo.setores.set([self.setor])
+        self.assertEqual(self.ids(cotacao), {"diretor"})
+
+    def test_nova_versao_da_tabela_preserva_os_setores_do_diretor(self):
+        from contas.models import AprovadorAlcada
+
+        self.vinculo.setores.set([self.setor])
+        self.salvar_tabela(tenant=self.tenant, filial=None, usuario=self.comprador, linhas=[
+            (Decimal("500.00"), "AUTOMATICA"), (Decimal("3000.00"), "LIDER_SETOR"),
+            (None, "DIRETORIA_UNIDADE"),
+        ])
+        novo = AprovadorAlcada.objects.get(
+            alcada__papel_aprovador="DIRETORIA_UNIDADE", alcada__ativo=True, usuario=self.diretor
+        )
+        self.assertEqual(list(novo.setores.all()), [self.setor])
+
+    def test_tela_de_aprovadores_da_faixa_de_lider_nao_tem_lista(self):
+        from contas.models import Alcada
+
+        admin = Usuario.objects.create_superuser("root_f", tenant=self.tenant, password=None)
+        self.client.force_login(admin)
+        faixa = Alcada.objects.get(papel_aprovador="LIDER_SETOR", ativo=True, filial__isnull=True)
+        self.assertEqual(self.client.get(reverse("config_alcada_editar", args=[faixa.pk])).status_code, 302)
+        self.assertContains(self.client.get(reverse("config_alcada_lista")), "Líder do setor")
+
+
+class TelaDeAprovadoresFiltraPorUnidadeTest(BaseComprasTest):
+    def test_formulario_traz_unidades_da_pessoa_e_setores_por_filial(self):
+        from contas.models import Alcada
+
+        admin = Usuario.objects.create_superuser("root_u2", tenant=self.tenant, password=None)
+        self.client.force_login(admin)
+        faixa = Alcada.objects.get(papel_aprovador="DIRETORIA_UNIDADE", ativo=True, filial__isnull=True)
+        pagina = self.client.get(reverse("config_alcada_editar", args=[faixa.pk]))
+        self.assertContains(pagina, 'id="unidades-do-usuario"')
+        self.assertContains(pagina, f'data-filial="{self.setor.filial_id}"')
+        self.assertEqual(pagina.context["unidades_do_usuario"][self.diretor.pk], [self.filial.pk])

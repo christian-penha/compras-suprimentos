@@ -47,7 +47,7 @@ class UsuarioForm(forms.ModelForm):
         model = Usuario
         fields = [
             "username", "nome_completo", "email", "telefone",
-            "filial", "filiais_permitidas", "setor", "cargo", "ciclo",
+            "filial", "filiais_permitidas", "almoxarifados", "setor", "cargo", "ciclo",
             "senha", "is_staff", "ativo_no_sistema",
         ]
         labels = {
@@ -71,6 +71,7 @@ class UsuarioForm(forms.ModelForm):
             "filial": forms.Select(attrs={"class": CAMPO}),
             "setor": forms.Select(attrs={"class": CAMPO}),
             "filiais_permitidas": forms.CheckboxSelectMultiple,
+            "almoxarifados": forms.CheckboxSelectMultiple,
             "cargo": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Coordenadora Pedagógica"}),
             "ciclo": forms.Select(attrs={"class": CAMPO}),
             "is_staff": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
@@ -85,6 +86,10 @@ class UsuarioForm(forms.ModelForm):
         self.fields["filial"].empty_label = "— sem filial definida —"
         self.fields["filiais_permitidas"].queryset = Filial.objects.filter(ativo=True)
         self.fields["filiais_permitidas"].required = False
+        self.fields["almoxarifados"].queryset = (
+            Almoxarifado.objects.filter(ativo=True).select_related("filial").order_by("filial__nome", "nome")
+        )
+        self.fields["almoxarifados"].required = False
         self.fields["setor"].queryset = Setor.objects.filter(ativo=True).select_related("filial")
         self.fields["setor"].required = False
         self.fields["setor"].empty_label = "— sem setor definido —"

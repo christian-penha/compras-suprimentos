@@ -74,6 +74,10 @@ class Usuario(AbstractUser):
         "tenancy.Filial", blank=True, related_name="usuarios_permitidos",
         help_text="Unidades para as quais este usuário pode fazer pedidos",
     )
+    almoxarifados = models.ManyToManyField(
+        "tenancy.Almoxarifado", blank=True, related_name="usuarios",
+        help_text="Almoxarifados que o usuário enxerga no catálogo e de onde pode pedir",
+    )
     cargo = models.CharField(max_length=100, blank=True, help_text="Cargo/função, ex.: Coordenadora Pedagógica")
     ciclo = models.CharField(max_length=20, choices=CicloPedagogico.choices, blank=True)
     nome_completo = models.CharField(max_length=150, blank=True)
@@ -147,12 +151,13 @@ class RegraAprovacaoEmpresa(models.Model):
 
 class PapelAlcada(models.TextChoices):
     AUTOMATICA = "AUTOMATICA", "Aprovação automática"
+    LIDER_SETOR = "LIDER_SETOR", "Líder do setor"
     DIRETORIA_UNIDADE = "DIRETORIA_UNIDADE", "Diretoria de Unidade"
     CFO = "CFO", "CFO"
     CEO = "CEO", "CEO"
 
 
-NIVEL_ALCADA = {"AUTOMATICA": 0, "DIRETORIA_UNIDADE": 1, "CFO": 2, "CEO": 3}
+NIVEL_ALCADA = {"AUTOMATICA": 0, "LIDER_SETOR": 1, "DIRETORIA_UNIDADE": 2, "CFO": 3, "CEO": 4}
 
 
 class Alcada(TenantModel):
@@ -227,6 +232,8 @@ class AprovadorAlcada(models.Model):
     filial = models.ForeignKey(
         "tenancy.Filial", on_delete=models.PROTECT, null=True, blank=True, related_name="+"
     )
+    # Diretor que cobre só alguns setores da unidade; vazio = todos os setores dela.
+    setores = models.ManyToManyField("contas.Setor", blank=True, related_name="+")
 
     class Meta:
         verbose_name = "aprovador de alçada"

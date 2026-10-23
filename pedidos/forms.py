@@ -1,7 +1,7 @@
 from django import forms
 from django.utils import timezone
 
-from tenancy.models import Evento, Filial, MotivoRequisicao
+from tenancy.models import Almoxarifado, Evento, Filial, MotivoRequisicao
 
 from cadastros.models import Produto
 
@@ -24,10 +24,25 @@ def filiais_de_destino(usuario):
     return Filial.objects.filter(pk__in=ids).order_by("nome")
 
 
+def almoxarifados_do_usuario(usuario):
+    """Almoxarifados que o usuário enxerga (catálogo) e de onde pode pedir: os marcados no
+    cadastro dele; sem nenhum, o almoxarifado padrão de cada unidade onde ele pode pedir."""
+    marcados = list(
+        usuario.almoxarifados.filter(ativo=True).select_related("filial").order_by("filial__nome", "nome")
+    )
+    if marcados:
+        return marcados
+    return [a for a in (f.almoxarifado_padrao() for f in filiais_de_destino(usuario)) if a]
+
+
 class PedidoForm(forms.ModelForm):
     filial_destino = forms.ModelChoiceField(
-        queryset=Filial.objects.none(), label="Unidade de destino",
+        queryset=Filial.objects.none(), label="Unidade",
         empty_label="Selecione a unidade", widget=forms.Select(attrs={"class": CAMPO}),
+    )
+    almoxarifado_destino = forms.ModelChoiceField(
+        queryset=Almoxarifado.objects.none(), label="Almoxarifado",
+        empty_label="Selecione o almoxarifado", widget=forms.Select(attrs={"class": CAMPO}),
     )
 
     class Meta:
@@ -53,10 +68,18 @@ class PedidoForm(forms.ModelForm):
 
     def __init__(self, *args, usuario, **kwargs):
         super().__init__(*args, **kwargs)
-        self.filiais = filiais_de_destino(usuario)
+        self.almoxarifados = almoxarifados_do_usuario(usuario)
+        self.filiais = Filial.objects.filter(pk__in={a.filial_id for a in self.almoxarifados}).order_by("nome")
         self.fields["filial_destino"].queryset = self.filiais
         if self.filiais.count() == 1:
             self.fields["filial_destino"].initial = self.filiais.first()
+        campo = self.fields["almoxarifado_destino"]
+        campo.queryset = Almoxarifado.objects.filter(
+            pk__in=[a.pk for a in self.almoxarifados]
+        ).select_related("filial").order_by("filial__nome", "nome")
+        campo.label_from_instance = lambda a: f"{a.filial.sigla} — {a.nome}"
+        if len(self.almoxarifados) == 1:
+            campo.initial = self.almoxarifados[0]
         self.fields["observacao"].required = True
         self.fields["data_desejada"].required = True
         self.fields["prioridade"].initial = PrioridadePedido.NORMAL
@@ -76,19 +99,23 @@ class PedidoForm(forms.ModelForm):
 
     def clean(self):
         dados = super().clean()
-        motivo, evento, filial = dados.get("motivo"), dados.get("evento"), dados.get("filial_destino")
+        motivo, evento = dados.get("motivo"), dados.get("evento")
+        filial, almoxarifado = dados.get("filial_destino"), dados.get("almoxarifado_destino")
+        # uma unidade não pede no almoxarifado de outra
+        if filial and almoxarifado and almoxarifado.filial_id != filial.pk:
+            self.add_error("almoxarifado_destino", "Este almoxarifado não pertence à unidade escolhida.")
         if motivo and motivo.exige_evento:
             if not evento:
                 self.add_error("evento", "Informe o evento deste pedido.")
             elif filial and evento.filial_id != filial.pk:
-                self.add_error("evento", "Este evento não pertence à unidade de destino escolhida.")
+                self.add_error("evento", "Este evento não pertence à unidade escolhida.")
         elif motivo:
             dados["evento"] = None
         return dados
 
     def save(self, commit=True):
         pedido = super().save(commit=False)
-        pedido.almoxarifado_destino = self.cleaned_data["filial_destino"].almoxarifado_padrao()
+        pedido.almoxarifado_destino = self.cleaned_data["almoxarifado_destino"]
         if commit:
             pedido.save()
         return pedido
@@ -103,6 +130,7 @@ class PedidoForm(forms.ModelForm):
             "evento_filial": {
                 str(e.pk): e.filial_id for e in self.fields["evento"].queryset
             },
+            "almoxarifado_filial": {str(a.pk): a.filial_id for a in self.almoxarifados},
         }
 
 

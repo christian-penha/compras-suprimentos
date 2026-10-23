@@ -144,11 +144,44 @@ def filiais_da_cotacao(cotacao):
     return {i.item_pedido.pedido.almoxarifado_destino.filial_id for i in cotacao.itens.all()}
 
 
+def _requisitantes_da_cotacao(cotacao):
+    return {i.item_pedido.pedido.requisitante for i in cotacao.itens.select_related("item_pedido__pedido__requisitante")}
+
+
 def aprovadores_da_cotacao(cotacao):
-    """Usuários que podem decidir. Diretoria de unidade: diretor de uma das unidades envolvidas."""
-    vinculos = AprovadorAlcada.objects.filter(alcada=cotacao.alcada)
-    if cotacao.alcada.papel_aprovador == PapelAlcada.DIRETORIA_UNIDADE:
-        vinculos = vinculos.filter(filial_id__in=filiais_da_cotacao(cotacao))
+    """Usuários que podem decidir a cotação.
+
+    - Líder do setor: líderes dos setores de quem pediu (nunca o próprio requisitante). Sem
+      líder disponível, a decisão escala para a diretoria da mesma tabela de alçadas.
+    - Diretoria de unidade: diretor de uma das unidades envolvidas que cubra algum dos setores
+      envolvidos (diretor sem setores cadastrados cobre todos os da unidade).
+    - CFO/CEO: os cadastrados na faixa."""
+    alcada = cotacao.alcada
+    if alcada.papel_aprovador == PapelAlcada.LIDER_SETOR:
+        requisitantes = _requisitantes_da_cotacao(cotacao)
+        setores = {r.setor_id for r in requisitantes if r.setor_id}
+        lideres = (
+            Usuario.objects.filter(setores_liderados__in=setores, ativo_no_sistema=True)
+            .exclude(pk__in=[r.pk for r in requisitantes]).distinct()
+        )
+        if lideres.exists():
+            return lideres
+        alcada = Alcada.todos_os_tenants.filter(
+            tenant=cotacao.tenant, filial=alcada.filial, ativo=True,
+            papel_aprovador=PapelAlcada.DIRETORIA_UNIDADE,
+        ).first()
+        if alcada is None:
+            return Usuario.objects.none()
+        papel = PapelAlcada.DIRETORIA_UNIDADE
+    else:
+        papel = alcada.papel_aprovador
+
+    vinculos = AprovadorAlcada.objects.filter(alcada=alcada)
+    if papel == PapelAlcada.DIRETORIA_UNIDADE:
+        setores = {r.setor_id for r in _requisitantes_da_cotacao(cotacao) if r.setor_id}
+        vinculos = vinculos.filter(filial_id__in=filiais_da_cotacao(cotacao)).filter(
+            Q(setores__isnull=True) | Q(setores__in=setores)
+        ).distinct()
     return Usuario.objects.filter(pk__in=vinculos.values("usuario_id"), ativo_no_sistema=True)
 
 
@@ -377,7 +410,7 @@ def sugerir_conferencia(ordem, nota):
 def confirmar_recebimento(ordem, usuario, conferencias, nota=None, observacao=""):
     """`conferencias`: lista de dicts {item_id, quantidade, linha_idx (opcional)}.
 
-    A entrada no estoque central acontece aqui, na conferência (RN-13), a custo
+    A entrada no estoque (no almoxarifado de cada pedido) acontece aqui, na conferência (RN-13), a custo
     cotado + frete rateado proporcionalmente ao valor dos itens (RN-14)."""
     ordem = OrdemCompra.objects.select_for_update().get(pk=ordem.pk)
     if not ordem.aberta:
@@ -386,7 +419,6 @@ def confirmar_recebimento(ordem, usuario, conferencias, nota=None, observacao=""
     cotacao = ordem.cotacao
     itens = {i.pk: i for i in cotacao.itens.select_related("item_pedido__produto", "item_pedido__pedido")}
     base = cotacao.valor_itens
-    central = Almoxarifado.objects.get(central=True)
     linhas = linhas_da_nota(nota) if nota else []
 
     a_receber = []
@@ -420,7 +452,7 @@ def confirmar_recebimento(ordem, usuario, conferencias, nota=None, observacao=""
         custo = (item.valor_unitario + frete_unit).quantize(CENTAVOS)
         produto = item.item_pedido.produto
         registrar_entrada(
-            produto=produto, destino=central, quantidade=qtd, responsavel=usuario,
+            produto=produto, destino=item.item_pedido.pedido.almoxarifado_destino, quantidade=qtd, responsavel=usuario,
             valor_unitario=custo, arquivo_origem=f"OC #{ordem.numero}",
             observacao=f"Recebimento da OC #{ordem.numero}" + (f" — NF {nota.numero}" if nota and nota.numero else ""),
         )
