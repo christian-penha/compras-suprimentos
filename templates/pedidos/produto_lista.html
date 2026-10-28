@@ -3,30 +3,30 @@
 {% block titulo %}Produtos{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
   <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-semibold">Produtos</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">Catálogo de itens que podem ser pedidos.</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Catálogo de itens que podem ser pedidos.</p>
     </div>
     <div class="flex gap-3">
-      <a href="{% url 'sugestoes_lista' %}" class="inline-flex items-center rounded-xl border border-[#2c2c2c] text-white text-sm font-semibold px-4 py-2.5 hover:bg-white/10 transition">Sugestões{% if pendentes %} <span class="ml-2 rounded-full bg-white text-[#0a0a0a] text-xs font-bold px-2">{{ pendentes }}</span>{% endif %}</a>
-      <a href="{% url 'produto_novo' %}" class="inline-flex items-center rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">+ Novo produto</a>
+      <a href="{% url 'sugestoes_lista' %}" class="inline-flex items-center rounded-xl border border-slate-300 text-slate-700 dark:border-slate-600 dark:text-slate-200 text-sm font-semibold px-4 py-2.5 hover:bg-slate-50 transition">Sugestões{% if pendentes %} <span class="ml-2 rounded-full bg-teal-700 text-white text-xs font-bold px-2">{{ pendentes }}</span>{% endif %}</a>
+      <a href="{% url 'produto_novo' %}" class="inline-flex items-center rounded-xl bg-teal-700 text-white text-sm font-semibold px-4 py-2.5 hover:bg-teal-800 transition">+ Novo produto</a>
     </div>
   </div>
   <form method="get" class="mt-5 flex flex-wrap gap-3">
     <input name="q" value="{{ busca }}" placeholder="Buscar por nome, código ou especificação…" autocomplete="off"
-           class="flex-1 min-w-[220px] rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
-    <select name="categoria" onchange="this.form.submit()" class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+           class="flex-1 min-w-[220px] rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
+    <select name="categoria" onchange="this.form.submit()" class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
       <option value="">Todas as categorias</option>
       {% for c in categorias %}<option value="{{ c.pk }}" {% if categoria_id == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
     </select>
-    <select name="situacao" onchange="this.form.submit()" class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+    <select name="situacao" onchange="this.form.submit()" class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
       <option value="">Ativos e inativos</option>
       <option value="ativo" {% if situacao == "ativo" %}selected{% endif %}>Só ativos</option>
       <option value="inativo" {% if situacao == "inativo" %}selected{% endif %}>Só inativos</option>
     </select>
-    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+    <button class="rounded-xl bg-teal-700 text-white text-sm font-semibold px-5 py-3 hover:bg-teal-800 transition">Filtrar</button>
   </form>
 </div>
 {% endblock %}
@@ -35,7 +35,10 @@
 <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
   {% for p in pagina %}
   <article class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col dark:bg-slate-800 dark:border-slate-700{% if not p.ativo %} opacity-60{% endif %}">
-    {% if p.imagem_exibicao %}<img src="{{ p.imagem_exibicao }}" alt="" loading="lazy" referrerpolicy="no-referrer" class="h-28 w-full rounded-xl object-cover mb-3 bg-slate-100 dark:bg-slate-900/40">{% endif %}
+    <div class="mb-3 h-28 w-full overflow-hidden rounded-xl bg-slate-100 flex items-center justify-center dark:bg-slate-900/40">
+      {% if p.imagem_exibicao %}<img src="{{ p.imagem_exibicao }}" alt="" loading="lazy" referrerpolicy="no-referrer" class="h-full w-full object-contain p-1">
+      {% else %}<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.1" stroke="currentColor" class="w-10 h-10 text-slate-300 dark:text-slate-600"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M18 9h.008M6 21h12a2.25 2.25 0 0 0 2.25-2.25V5.25A2.25 2.25 0 0 0 18 3H6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 6 21Z"/></svg>{% endif %}
+    </div>
     <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ p.categoria.nome }}{% if p.codigo %} · {{ p.codigo }}{% endif %}</p>
     <h2 class="font-semibold text-slate-900 mt-0.5 dark:text-slate-100">{{ p.nome }}</h2>
     {% if p.especificacao %}<p class="text-sm text-slate-500 dark:text-slate-400">{{ p.especificacao }}</p>{% endif %}

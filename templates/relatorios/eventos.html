@@ -2,9 +2,9 @@
 {% block titulo %}Custo por evento{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
   <h1 class="text-2xl font-semibold">Custo por evento</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Quanto cada evento consumiu, por unidade. Considera pedidos aprovados em andamento e entregues.</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Quanto cada evento consumiu, por unidade. Considera pedidos aprovados em andamento e entregues.</p>
 </div>
 {% endblock %}
 
@@ -13,7 +13,7 @@
   <div>
     <label class="block text-xs font-medium text-slate-500 mb-1 dark:text-slate-400">Unidade</label>
     <select name="filial" onchange="this.form.submit()"
-            class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+            class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
       <option value="">Todas as unidades</option>
       {% for f in filiais %}
       <option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>
@@ -64,7 +64,7 @@
         <td class="px-6 py-3.5 text-right">{{ l.pedidos }}</td>
         <td class="px-6 py-3.5 text-right font-semibold">
           R$ {{ l.custo_estoque|floatformat:2 }}
-          {% if l.sem_custo %}<span title="Há itens entregues sem custo no estoque" class="text-amber-600">⚠</span>{% endif %}
+          {% if l.sem_custo %}<span title="Há itens entregues sem custo no estoque" class="text-amber-600 dark:text-amber-400">⚠</span>{% endif %}
         </td>
         <td class="px-6 py-3.5 text-right">{{ l.a_comprar }}</td>
         <td class="px-6 py-3.5 text-right font-semibold">R$ {{ l.valor_compra|floatformat:2 }}</td>

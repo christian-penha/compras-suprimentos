@@ -2,15 +2,16 @@
 {% block titulo %}{% if instancia %}Editar produto{% else %}Novo produto{% endif %}{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'produto_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Produtos</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6 flex flex-wrap items-end justify-between gap-4">
+  <div><a href="{% url 'produto_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Produtos</a>
   <h1 class="text-2xl font-semibold mt-2">{% if instancia %}Editar produto{% else %}Novo produto{% endif %}</h1>
-  {% if sugestao %}<p class="text-sm text-[#9a9a9a] mt-1">A partir da sugestão de {{ sugestao.solicitante }}: "{{ sugestao.nome }}"{% if sugestao.justificativa %} — {{ sugestao.justificativa }}{% endif %}</p>{% endif %}
+  {% if sugestao %}<p class="text-sm text-slate-500 dark:text-slate-400 mt-1">A partir da sugestão de {{ sugestao.solicitante }}: "{{ sugestao.nome }}"{% if sugestao.justificativa %} — {{ sugestao.justificativa }}{% endif %}</p>{% endif %}</div>
+  <div class="flex gap-3"><a href="{% url 'produto_lista' %}" class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">Cancelar</a><button form="form-principal" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-2.5 transition">Salvar</button></div>
 </div>
 {% endblock %}
 
 {% block conteudo %}
-<form method="post" enctype="multipart/form-data" class="max-w-3xl">
+<form method="post" id="form-principal" enctype="multipart/form-data" class="max-w-3xl">
   {% csrf_token %}
   {% if sugestao %}<input type="hidden" name="sugestao" value="{{ sugestao.pk }}">{% endif %}
   <div class="bg-white rounded-2xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">
@@ -21,14 +22,14 @@
     <div class="{% if campo.name == 'nome' or campo.name == 'especificacao' or campo.name == 'imagem' or campo.name == 'imagem_url' %}sm:col-span-2{% endif %}">
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">{{ campo.label }}</label>
       {{ campo }}
-      {% for erro in campo.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in campo.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     {% endif %}
     {% endfor %}
   </div>
-  {% for erro in form.non_field_errors %}<p class="text-sm text-red-600 mt-3">{{ erro }}</p>{% endfor %}
+  {% for erro in form.non_field_errors %}<p class="text-sm text-red-600 mt-3 dark:text-red-400">{{ erro }}</p>{% endfor %}
   <div class="mt-6 flex gap-3">
-    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Salvar produto</button>
+    <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-semibold px-6 py-2.5 transition dark:bg-teal-600 dark:text-white">Salvar produto</button>
     <a href="{% url 'produto_lista' %}" class="rounded-xl border border-slate-200 px-6 py-2.5 text-sm font-semibold text-slate-600 dark:border-slate-700 dark:text-slate-300">Cancelar</a>
   </div>
 </form>

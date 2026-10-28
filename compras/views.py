@@ -13,7 +13,7 @@ from cadastros.models import Fornecedor
 from contas.models import AprovadorAlcada, Modulo, Papel
 from contas.permissoes import requer_papel
 from pedidos.services import SemPermissao, TransicaoInvalida
-from tenancy.models import CentroCusto
+from tenancy.models import CentroCusto, centros_da_filial
 from estoque.services import EstoqueInsuficiente
 
 from .models import AndamentoOrdem, Cotacao, ItemCotacao, NotaFiscal, OrdemCompra, StatusCotacao, StatusOrdem
@@ -202,10 +202,10 @@ def cotacao_nova(request):
     colunas = [{"fornecedor_id": str(padrao.pop()) if len(padrao) == 1 else "", "frete": "", "precos": {}}]
     contexto = {
         "itens": itens, "fornecedores": fornecedores, "colunas": colunas,
-        "centros": CentroCusto.objects.filter(ativo=True).select_related("filial"),
         "pedidos_cotados": [
             {
                 "pedido": p,
+                "centros": centros_da_filial(p.almoxarifado_destino.filial_id, p.centro_custo_id),
                 "centro_id": str(request.POST.get(f"centro_pedido_{p.pk}") or p.centro_custo_id or ""),
                 "itens": [i.produto.nome for i in itens if i.pedido_id == p.pk],
             }
@@ -429,9 +429,11 @@ def cotacao_detalhe(request, pk):
         "pode_decidir": pode_decidir,
         "e_comprador": e_comprador,
         "ordem": ordem,
-        "centros": CentroCusto.objects.filter(ativo=True).select_related("filial"),
         "pedidos_cotacao": [
-            {"pedido": p, "centro_id": centros_por_pedido.get(p.pk)}
+            {
+                "pedido": p, "centro_id": centros_por_pedido.get(p.pk),
+                "centros": centros_da_filial(p.almoxarifado_destino.filial_id, centros_por_pedido.get(p.pk)),
+            }
             for p in {i.item_pedido.pedido_id: i.item_pedido.pedido for i in cotacao.itens.select_related("item_pedido__pedido")}.values()
         ],
     })

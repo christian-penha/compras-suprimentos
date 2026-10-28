@@ -52,6 +52,7 @@ TEMPLATES = [
                 "django.contrib.messages.context_processors.messages",
                 "pedidos.context_processors.carrinho",
                 "contas.context_processors.menu",
+                "config.context_processors.asset_versao",
             ],
         },
     },

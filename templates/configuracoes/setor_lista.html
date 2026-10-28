@@ -2,32 +2,32 @@
 {% block titulo %}Setores{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
   <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-semibold">Setores</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">Quem lidera cada setor aprova os pedidos das pessoas que fazem parte dele.</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Quem lidera cada setor aprova os pedidos das pessoas que fazem parte dele.</p>
     </div>
-    <a href="{% url 'config_setor_novo' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">+ Novo setor</a>
+    <a href="{% url 'config_setor_novo' %}" class="inline-flex items-center gap-2 rounded-xl bg-teal-700 text-white text-sm font-semibold px-4 py-2.5 hover:bg-teal-800 transition">+ Novo setor</a>
   </div>
 
   <form method="get" class="mt-5 flex flex-wrap gap-3">
     <div class="relative flex-1 min-w-[220px]">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a7a7a]"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
       <input name="q" value="{{ busca }}" placeholder="Buscar por setor ou pessoa…" autocomplete="off"
-             class="w-full rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] pl-11 pr-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+             class="w-full rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 pl-11 pr-4 py-3 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
     </div>
     <select name="filial" onchange="this.form.submit()"
-            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+            class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
       <option value="">Todas as filiais</option>
       {% for f in filiais %}<option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
     </select>
     <select name="situacao" onchange="this.form.submit()"
-            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+            class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
       <option value="ativos" {% if situacao == "ativos" %}selected{% endif %}>Somente ativos</option>
       <option value="todos" {% if situacao == "todos" %}selected{% endif %}>Ativos e inativos</option>
     </select>
-    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+    <button class="rounded-xl bg-teal-700 text-white text-sm font-semibold px-5 py-3 hover:bg-teal-800 transition">Filtrar</button>
   </form>
 </div>
 {% endblock %}
@@ -70,7 +70,7 @@
       </span>
     </div>
 
-    <a href="{% url 'config_setor_editar' s.pk %}" class="mt-5 block text-center rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Editar setor e pessoas</a>
+    <a href="{% url 'config_setor_editar' s.pk %}" class="mt-5 block text-center rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold py-2.5 transition dark:bg-teal-600 dark:text-white dark:hover:bg-teal-500">Editar setor e pessoas</a>
   </article>
   {% empty %}
   <div class="col-span-full text-center py-16">

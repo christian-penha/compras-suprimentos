@@ -1,43 +1,42 @@
 {% extends "base.html" %}
 {% block titulo %}{% if instancia %}Editar almoxarifado{% else %}Novo almoxarifado{% endif %}{% endblock %}
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
-  <div>
-  <a href="{% url 'config_almoxarifado_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Voltar</a>
-    <h1 class="text-2xl font-semibold mt-2">{% if instancia %}Editar almoxarifado{% else %}Novo almoxarifado{% endif %}</h1>
-  </div>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6 flex flex-wrap items-end justify-between gap-4">
+  <div><a href="{% url 'config_almoxarifado_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Voltar</a>
+    <h1 class="text-2xl font-semibold mt-2">{% if instancia %}Editar almoxarifado{% else %}Novo almoxarifado{% endif %}</h1></div>
+  <div class="flex gap-3"><a href="{% url 'config_almoxarifado_lista' %}" class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">Cancelar</a><button form="form-principal" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-2.5 transition">Salvar</button></div>
 </div>
 {% endblock %}
 
 {% block conteudo %}
-<form method="post" class="max-w-2xl">
+<form method="post" id="form-principal" class="max-w-2xl">
   {% csrf_token %}
   <div class="bg-white rounded-2xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">
     <div>
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Filial</label>
       {{ form.filial }}
-      {% for erro in form.filial.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in form.filial.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     <div>
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Nome do almoxarifado</label>
       {{ form.nome }}
-      {% for erro in form.nome.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
-      {% for erro in form.non_field_errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in form.nome.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
+      {% for erro in form.non_field_errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     <div class="sm:col-span-2 pt-2 space-y-3">
       <div>
         <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">{{ form.central }} Estoque central (CSC)</label>
         <p class="text-xs text-slate-400 mt-1">Só pode haver um no grupo. Os pedidos são atendidos a partir dele.</p>
-        {% for erro in form.central.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+        {% for erro in form.central.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
       </div>
       <div>
         <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">{{ form.ativo }} Ativo</label>
-        {% for erro in form.ativo.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+        {% for erro in form.ativo.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
       </div>
     </div>
   </div>
   <div class="flex items-center gap-3 mt-6">
-    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-medium px-5 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar</button>
+    <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-medium px-5 py-2.5 transition dark:bg-teal-600 dark:text-white dark:hover:bg-teal-500">Salvar</button>
     <a href="{% url 'config_almoxarifado_lista' %}" class="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">cancelar</a>
   </div>
 </form>

@@ -85,3 +85,58 @@ class EstoqueDoAlmoxarifadoTest(TenantTestCase):
         alm = Almoxarifado.objects.get(central=True)
         self.assertContains(self.client.get(reverse("config_almoxarifado_lista")), f"almoxarifado={alm.pk}")
         self.assertContains(self.client.get(reverse("posicao_estoque"), {"almoxarifado": alm.pk}), f"Estoque — {alm.nome}")
+
+
+class FiltrosDependentesDeEstoqueTest(TenantTestCase):
+    def test_almoxarifado_de_outra_unidade_e_descartado_e_planilha_traz_unidades(self):
+        from django.contrib.auth import get_user_model
+        from django.urls import reverse
+
+        from tenancy.models import Almoxarifado, Filial
+
+        admin = get_user_model().objects.create_superuser("root_fd", tenant=self.tenant, password=None)
+        self.client.force_login(admin)
+        cp, vc = Filial.objects.get(sigla="CP"), Filial.objects.get(sigla="VC")
+        do_vc = Almoxarifado.objects.filter(filial=vc).first()
+        resposta = self.client.get(reverse("posicao_estoque"), {"filial": cp.pk, "almoxarifado": do_vc.pk})
+        self.assertEqual(resposta.status_code, 200)
+        self.assertEqual(resposta.context["almoxarifado_sel"], None)  # não é da unidade escolhida
+        pagina = self.client.get(reverse("entrada_planilha"))
+        self.assertContains(pagina, 'id="e-unidade"')
+        self.assertContains(pagina, f'data-filial="{do_vc.filial_id}"')
+
+
+class EntradaDeMaterialTelaTest(TenantTestCase):
+    def test_modelo_baixa_e_previa_mostra_totais(self):
+        import io
+
+        from django.contrib.auth import get_user_model
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from django.urls import reverse
+        from openpyxl import Workbook
+
+        from cadastros.models import Categoria, Produto
+        from tenancy.models import Almoxarifado
+
+        admin = get_user_model().objects.create_superuser("root_ent", tenant=self.tenant, password=None)
+        self.client.force_login(admin)
+        produto = Produto.objects.create(
+            codigo="TST-001", nome="Papel A4", especificacao="resma", categoria=Categoria.objects.first(),
+        )
+        modelo = self.client.get(reverse("entrada_modelo"))
+        self.assertEqual(modelo.status_code, 200)
+        self.assertIn("spreadsheetml", modelo["Content-Type"])
+
+        wb = Workbook()
+        wb.active.append(["Código", "Quantidade", "Valor unitário"])
+        wb.active.append(["TST-001", 10, 2.5])
+        buf = io.BytesIO()
+        wb.save(buf)
+        alm = Almoxarifado.objects.get(central=True)
+        self.client.post(reverse("entrada_planilha"), {
+            "arquivo": SimpleUploadedFile("e.xlsx", buf.getvalue()), "almoxarifado": alm.pk, "observacao": "teste",
+        })
+        pagina = self.client.get(reverse("entrada_planilha"))
+        self.assertContains(pagina, "Conferir a prévia")
+        self.assertEqual(pagina.context["total_quantidade"], 10)
+        self.assertEqual(float(pagina.context["total_valor"]), 25.0)

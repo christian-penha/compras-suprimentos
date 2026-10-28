@@ -2,10 +2,10 @@
 {% block titulo %}Comparar fornecedores{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'cotacao_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Cotações</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'cotacao_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Cotações</a>
   <h1 class="text-2xl font-semibold mt-2">Comparar fornecedores</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Escolha o vencedor de cada item (a sugestão é o menor preço). Cada fornecedor vencedor gera uma cotação própria, com sua alçada e ordem de compra.</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Escolha o vencedor de cada item (a sugestão é o menor preço). Cada fornecedor vencedor gera uma cotação própria, com sua alçada e ordem de compra.</p>
 </div>
 {% endblock %}
 
@@ -34,7 +34,7 @@
           {% for c in propostas %}
           <td class="px-4 py-3.5 text-right">
             {% for pk, oferta in l.ofertas.items %}{% if pk == c.pk %}
-            <label class="inline-flex items-center gap-2 cursor-pointer rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-700 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60">
+            <label class="inline-flex items-center gap-2 cursor-pointer rounded-xl border border-slate-200 px-3 py-2 dark:border-slate-700 has-[:checked]:border-teal-700 has-[:checked]:bg-teal-50 dark:has-[:checked]:border-teal-500 dark:has-[:checked]:bg-teal-900/30">
               <input type="radio" name="vencedor_{{ l.item.pk }}" value="{{ c.pk }}" {% if l.barato == c.pk %}checked{% endif %} class="h-4 w-4 text-slate-900">
               <span class="font-semibold">R$ {{ oferta.valor_unitario|floatformat:2 }}</span>
               {% if l.barato == c.pk %}<span class="text-[10px] font-semibold uppercase text-emerald-600 dark:text-emerald-400">menor</span>{% endif %}
@@ -50,7 +50,7 @@
   </section>
 
   <div class="mt-6 flex flex-wrap items-center gap-3">
-    <button name="acao" value="fechar" class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Confirmar vencedores</button>
+    <button name="acao" value="fechar" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-semibold px-6 py-3 transition dark:bg-teal-600 dark:text-white dark:hover:bg-teal-500">Confirmar vencedores</button>
     <button name="acao" value="cancelar" formnovalidate onclick="return confirm('Cancelar a comparação e devolver os itens à fila?')" class="ml-auto text-sm text-slate-400 hover:text-red-600">Cancelar comparação</button>
   </div>
   <p class="text-xs text-slate-400 mt-4 max-w-3xl">O frete de cada fornecedor é somado integralmente ao total dele, mesmo que ele ganhe só parte dos itens — a alçada é calculada sobre esse total.</p>

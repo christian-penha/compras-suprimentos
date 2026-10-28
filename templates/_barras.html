@@ -1,0 +1,18 @@
+{# Barras horizontais em CSS puro. Recebe `dados` ([{rotulo, valor, pct, participacao}]), `cor` e `vazio`. #}
+{% if dados %}
+<ul class="space-y-3">
+  {% for d in dados %}
+  <li>
+    <div class="flex items-baseline justify-between gap-3 text-sm">
+      <span class="truncate text-slate-700 dark:text-slate-200" title="{{ d.rotulo }}">{{ d.rotulo }}</span>
+      <span class="shrink-0 font-semibold text-slate-900 dark:text-white">R$ {{ d.valor|floatformat:"2g" }} <span class="text-xs font-normal text-slate-400">{{ d.participacao }}%</span></span>
+    </div>
+    <div class="mt-1 h-2.5 rounded-full bg-slate-100 dark:bg-slate-700">
+      <div class="h-2.5 rounded-full {{ cor|default:'bg-teal-600' }}" style="width: {{ d.pct }}%"></div>
+    </div>
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="py-8 text-center text-sm text-slate-400">{{ vazio|default:"Sem dados no período." }}</p>
+{% endif %}

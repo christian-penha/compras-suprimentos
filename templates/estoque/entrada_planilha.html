@@ -1,81 +1,212 @@
 {% extends "base.html" %}
-{% block titulo %}Entrada por planilha{% endblock %}
+{% block titulo %}Entrada de material{% endblock %}
+
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
-  <div>
-    <h1 class="text-2xl font-semibold">Entrada de material por planilha</h1>
-    <p class="text-sm text-[#9a9a9a] mt-1">Colunas esperadas: <b>código</b>, <b>quantidade</b> e opcionalmente <b>valor unitário</b>. Nada é gravado antes da sua confirmação.</p>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <div class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">Entrada de material</h1>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Carregue o estoque de um almoxarifado a partir de uma planilha. Nada é gravado antes da sua confirmação.</p>
+    </div>
+    <a href="{% url 'entrada_modelo' %}" class="inline-flex items-center gap-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-sm font-semibold px-4 py-2.5 transition dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"/></svg>
+      Baixar planilha modelo
+    </a>
   </div>
+
+  <ol class="mt-5 flex flex-wrap items-center gap-3 text-xs font-medium">
+    <li class="flex items-center gap-2 {% if previa %}text-slate-600 dark:text-slate-300{% else %}text-slate-900 dark:text-white{% endif %}"><span class="h-6 w-6 rounded-full flex items-center justify-center bg-teal-700 text-white {% if not previa %}font-bold{% endif %}">{% if previa %}✓{% else %}1{% endif %}</span>Enviar planilha</li>
+    <li class="h-px w-8 bg-slate-300 dark:bg-slate-700"></li>
+    <li class="flex items-center gap-2 {% if previa %}text-slate-900 dark:text-white{% else %}text-slate-400{% endif %}"><span class="h-6 w-6 rounded-full flex items-center justify-center {% if previa %}bg-teal-700 text-white font-bold{% else %}bg-slate-200 text-slate-500 dark:bg-slate-700{% endif %}">2</span>Conferir a prévia</li>
+    <li class="h-px w-8 bg-slate-300 dark:bg-slate-700"></li>
+    <li class="flex items-center gap-2 text-slate-400"><span class="h-6 w-6 rounded-full flex items-center justify-center bg-slate-200 text-slate-500 dark:bg-slate-700">3</span>Confirmar a entrada</li>
+  </ol>
 </div>
 {% endblock %}
 
 {% block conteudo %}
 {% if not previa %}
-<form method="post" enctype="multipart/form-data" class="bg-white rounded-2xl border border-slate-200 p-6 space-y-5 max-w-xl dark:bg-slate-800 dark:border-slate-700">
-  {% csrf_token %}
-  <div>
-    <label class="block text-sm font-medium text-slate-600 mb-1.5">Planilha (.xlsx)</label>
-    <input type="file" name="arquivo" accept=".xlsx" required
-           class="w-full text-sm file:mr-4 file:rounded-xl file:border-0 file:bg-blue-50 file:text-blue-700 file:px-4 file:py-2.5 file:text-sm file:font-medium hover:file:bg-blue-100">
-  </div>
-  <div>
-    <label class="block text-sm font-medium text-slate-600 mb-1.5">Almoxarifado de destino</label>
-    <select name="almoxarifado" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
-      {% for a in almoxarifados %}
-      <option value="{{ a.pk }}" {% if a.central %}selected{% endif %}>{{ a }}{% if a.central %} (central){% endif %}</option>
-      {% endfor %}
-    </select>
-  </div>
-  <div>
-    <label class="block text-sm font-medium text-slate-600 mb-1.5">Observação</label>
-    <input name="observacao" placeholder="Ex.: doação lista de material 2026, carga inicial Glide…"
-           class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
-  </div>
-  <button class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-medium px-6 py-2.5 transition">Gerar prévia</button>
-</form>
+<div class="grid gap-6 xl:grid-cols-[1fr_380px] items-start">
+
+  <form method="post" enctype="multipart/form-data" class="bg-white rounded-2xl border border-slate-200 p-6 space-y-5 dark:bg-slate-800 dark:border-slate-700">
+    {% csrf_token %}
+    <div>
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">1. Planilha e destino</h2>
+      <p class="text-sm text-slate-500 dark:text-slate-400">Escolha a unidade, o almoxarifado que vai receber e o arquivo .xlsx.</p>
+    </div>
+
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Unidade</label>
+        <select id="e-unidade" class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
+          <option value="">Todas as unidades</option>
+          {% for f in filiais_destino %}<option value="{{ f.pk }}">{{ f.nome }}</option>{% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Almoxarifado de destino</label>
+        <select name="almoxarifado" id="e-almox" required class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
+          {% for a in almoxarifados %}
+          <option value="{{ a.pk }}" data-filial="{{ a.filial_id }}" {% if a.central %}selected{% endif %}>{{ a }}{% if a.central %} (central){% endif %}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <label id="zona" for="arquivo" class="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center transition hover:border-teal-700 hover:bg-teal-50/40 dark:border-slate-600 dark:bg-slate-900/30 dark:hover:bg-teal-900/10">
+      <span class="flex h-12 w-12 items-center justify-center rounded-full bg-teal-100 text-teal-700 dark:bg-teal-900/40 dark:text-teal-300">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="h-6 w-6"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5"/></svg>
+      </span>
+      <span id="zona-texto" class="text-sm font-medium text-slate-700 dark:text-slate-200">Arraste a planilha aqui ou <span class="text-teal-700 underline dark:text-teal-400">escolha o arquivo</span></span>
+      <span class="text-xs text-slate-400">Formato .xlsx</span>
+      <input id="arquivo" type="file" name="arquivo" accept=".xlsx" required class="sr-only">
+    </label>
+
+    <div>
+      <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Observação <span class="font-normal text-slate-400">(opcional)</span></label>
+      <input name="observacao" placeholder="Ex.: doação lista de material 2026, carga inicial Glide…"
+             class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm shadow-sm focus:outline-none focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
+    </div>
+
+    <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-3 transition">Gerar prévia</button>
+  </form>
+
+  <aside class="space-y-6">
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">Como preparar a planilha</h2>
+      <p class="text-sm text-slate-500 mt-0.5 dark:text-slate-400">A primeira linha é o cabeçalho. Use o código do produto como está no cadastro.</p>
+      <div class="mt-4 overflow-hidden rounded-xl border border-slate-200 text-xs dark:border-slate-700">
+        <table class="w-full">
+          <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400"><tr><th class="px-3 py-2 font-medium">Código</th><th class="px-3 py-2 font-medium">Quantidade</th><th class="px-3 py-2 font-medium">Valor unitário</th></tr></thead>
+          <tbody class="divide-y divide-slate-100 dark:divide-slate-700 dark:text-slate-200">
+            <tr><td class="px-3 py-2">ABAC-001</td><td class="px-3 py-2">12</td><td class="px-3 py-2">3,50</td></tr>
+            <tr><td class="px-3 py-2">ANIL-002</td><td class="px-3 py-2">5</td><td class="px-3 py-2">8,00</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <ul class="mt-4 space-y-1.5 text-sm text-slate-600 dark:text-slate-300">
+        <li class="flex gap-2"><span class="text-teal-700 dark:text-teal-400">•</span> <span><b>Código</b> e <b>quantidade</b> são obrigatórios.</span></li>
+        <li class="flex gap-2"><span class="text-teal-700 dark:text-teal-400">•</span> <span><b>Valor unitário</b> é opcional: sem ele a entrada vale R$ 0 (doação).</span></li>
+        <li class="flex gap-2"><span class="text-teal-700 dark:text-teal-400">•</span> <span>Linhas com problema são listadas na prévia e ignoradas.</span></li>
+      </ul>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">Últimas entradas</h2>
+      {% if recentes %}
+      <ul class="mt-3 divide-y divide-slate-100 dark:divide-slate-700">
+        {% for m in recentes %}
+        <li class="py-2.5 text-sm dark:text-slate-100">
+          <div class="flex items-baseline justify-between gap-3"><span class="truncate font-medium" title="{{ m.produto }}">{{ m.produto.nome }}</span><span class="shrink-0 font-semibold text-emerald-700 dark:text-emerald-400">+ {{ m.quantidade|floatformat:"-3" }}</span></div>
+          <p class="text-xs text-slate-500 dark:text-slate-400">{{ m.destino.filial.sigla }} · {{ m.destino.nome }} · {{ m.criado_em|date:"d/m H:i" }}{% if m.arquivo_origem %} · {{ m.arquivo_origem }}{% endif %}</p>
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}
+      <p class="mt-3 text-sm text-slate-400">Nenhuma entrada registrada ainda.</p>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+
+<script>
+  (function () {
+    var unidade = document.getElementById('e-unidade'), almox = document.getElementById('e-almox');
+    function filtrar() {
+      var visiveis = [];
+      Array.prototype.forEach.call(almox.options, function (o) {
+        o.hidden = o.disabled = !!unidade.value && o.dataset.filial !== unidade.value;
+        if (!o.disabled) visiveis.push(o);
+      });
+      if (almox.selectedOptions[0] && almox.selectedOptions[0].disabled && visiveis.length) almox.value = visiveis[0].value;
+    }
+    unidade.addEventListener('change', filtrar);
+
+    // arrastar e soltar
+    var zona = document.getElementById('zona'), campo = document.getElementById('arquivo'), texto = document.getElementById('zona-texto');
+    function mostrar() { if (campo.files.length) texto.textContent = '✓ ' + campo.files[0].name; }
+    campo.addEventListener('change', mostrar);
+    ['dragenter', 'dragover'].forEach(function (ev) {
+      zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.add('border-teal-700', 'bg-teal-50/40'); });
+    });
+    ['dragleave', 'drop'].forEach(function (ev) {
+      zona.addEventListener(ev, function (e) { e.preventDefault(); zona.classList.remove('border-teal-700', 'bg-teal-50/40'); });
+    });
+    zona.addEventListener('drop', function (e) {
+      if (e.dataTransfer.files.length) { campo.files = e.dataTransfer.files; mostrar(); }
+    });
+  })();
+</script>
 
 {% else %}
 <div class="space-y-6">
-  <div class="rounded-2xl bg-blue-50 border border-blue-100 text-blue-800 text-sm px-4 py-3">
-    Prévia de <b>{{ previa.arquivo }}</b> → destino <b>{{ destino }}</b>{% if previa.observacao %} · "{{ previa.observacao }}"{% endif %}
+  <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Destino</p>
+      <p class="mt-1 text-lg font-semibold text-slate-900 dark:text-white">{{ destino.nome }}</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400">{{ destino.filial.nome }}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Produtos</p>
+      <p class="mt-1 text-3xl font-semibold text-teal-700 dark:text-teal-400">{{ previa.linhas|length }}</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400">{% if previa.erros %}{{ previa.erros|length }} linha(s) ignorada(s){% else %}todas as linhas válidas{% endif %}</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Quantidade total</p>
+      <p class="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{{ total_quantidade|floatformat:"-3g" }}</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400">unidades a entrar</p>
+    </div>
+    <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+      <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Valor total</p>
+      <p class="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">R$ {{ total_valor|floatformat:"2g" }}</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400">arquivo {{ previa.arquivo }}</p>
+    </div>
   </div>
 
   {% if previa.erros %}
-  <div class="rounded-2xl bg-amber-50 border border-amber-100 text-amber-800 text-sm px-4 py-3">
-    <p class="font-medium mb-1 dark:text-slate-100">{{ previa.erros|length }} linha(s) ignoradas:</p>
-    <ul class="list-disc ml-4">{% for e in previa.erros %}<li>{{ e }}</li>{% endfor %}</ul>
-  </div>
+  <details class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200" open>
+    <summary class="cursor-pointer font-semibold">{{ previa.erros|length }} linha(s) ignoradas — corrija na planilha e envie de novo, se precisar delas</summary>
+    <ul class="mt-2 list-disc ml-5 space-y-0.5">{% for e in previa.erros %}<li>{{ e }}</li>{% endfor %}</ul>
+  </details>
   {% endif %}
 
-  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
-    <table class="w-full text-sm">
-      <thead class="bg-slate-50 text-slate-500 text-left dark:text-slate-400">
-        <tr>
-          <th class="px-6 py-3 font-medium dark:text-slate-100">Código</th>
-          <th class="px-6 py-3 font-medium dark:text-slate-100">Produto</th>
-          <th class="px-6 py-3 font-medium text-right">Quantidade</th>
-          <th class="px-6 py-3 font-medium text-right">Valor unit.</th>
-        </tr>
-      </thead>
-      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-        {% for l in previa.linhas %}
-        <tr>
-          <td class="px-6 py-3">{{ l.codigo }}</td>
-          <td class="px-6 py-3">{{ l.produto }}</td>
-          <td class="px-6 py-3 text-right">{{ l.quantidade }}</td>
-          <td class="px-6 py-3 text-right">R$ {{ l.valor }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
+  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <div class="px-6 pt-5 pb-3 flex flex-wrap items-center justify-between gap-2">
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">Conferir a prévia</h2>
+      {% if previa.observacao %}<p class="text-sm text-slate-500 dark:text-slate-400">Observação: "{{ previa.observacao }}"</p>{% endif %}
+    </div>
+    <div class="overflow-x-auto max-h-[480px] overflow-y-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left sticky top-0 dark:bg-slate-900 dark:text-slate-400">
+          <tr>
+            <th class="px-6 py-3 font-medium">Código</th>
+            <th class="px-6 py-3 font-medium">Produto</th>
+            <th class="px-6 py-3 font-medium text-right">Quantidade</th>
+            <th class="px-6 py-3 font-medium text-right">Valor unit.</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700 dark:text-slate-100">
+          {% for l in previa.linhas %}
+          <tr>
+            <td class="px-6 py-3 text-slate-500 dark:text-slate-400">{{ l.codigo }}</td>
+            <td class="px-6 py-3 font-medium">{{ l.produto }}</td>
+            <td class="px-6 py-3 text-right">{{ l.quantidade }}</td>
+            <td class="px-6 py-3 text-right">R$ {{ l.valor }}</td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="4" class="px-6 py-12 text-center text-slate-400">Nenhuma linha válida na planilha.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
 
-  <form method="post" class="flex gap-3">
+  <form method="post" class="flex flex-wrap items-center gap-3">
     {% csrf_token %}
-    <button name="acao" value="aplicar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium px-6 py-2.5 transition">
-      Confirmar {{ previa.linhas|length }} entrada(s)
+    <button name="acao" value="aplicar" {% if not previa.linhas %}disabled{% endif %} class="rounded-xl bg-teal-700 hover:bg-teal-800 disabled:opacity-40 text-white text-sm font-semibold px-6 py-3 transition">
+      Confirmar entrada de {{ previa.linhas|length }} produto{{ previa.linhas|length|pluralize }}
     </button>
-    <button name="acao" value="cancelar" class="rounded-xl px-5 py-2.5 text-sm text-slate-500 hover:bg-slate-200 transition dark:text-slate-400">Cancelar</button>
+    <button name="acao" value="cancelar" class="rounded-xl border border-slate-300 px-5 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50 transition dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">Cancelar e voltar</button>
   </form>
 </div>
 {% endif %}

@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% block titulo %}Compras & Suprimentos{% endblock %}</title>
-  <link rel="stylesheet" href="{% static 'css/app.css' %}?v=12">
+  <link rel="stylesheet" href="{% static 'css/app.css' %}?v={{ asset_versao }}">
   <script>
     (function () {
       var tema = localStorage.getItem('tema');
@@ -14,11 +14,11 @@
     })();
   </script>
 </head>
-<body class="min-h-screen antialiased {% if user.is_authenticated %}bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100{% else %}bg-[#141414] text-white{% endif %}">
+<body class="min-h-screen antialiased {% if user.is_authenticated %}bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-100{% else %}bg-[#1c2027] text-white{% endif %}">
   <div class="{% if user.is_authenticated %}flex min-h-screen{% endif %}">
   {% if user.is_authenticated %}
-    <aside id="sidebar" class="group/sidebar shrink-0 w-64 [html.menu-recolhido_&]:w-20 bg-[#0a0a0a] border-r border-[#232323] flex flex-col sticky top-0 h-screen overflow-y-auto transition-[width] duration-200">
-      <div class="h-16 flex items-center gap-2 px-4 border-b border-[#232323] overflow-hidden">
+    <aside id="sidebar" class="group/sidebar shrink-0 w-64 [html.menu-recolhido_&]:w-20 bg-[#1c2027] border-r border-[#2b313b] flex flex-col sticky top-0 h-screen overflow-y-auto transition-[width] duration-200">
+      <div class="h-16 flex items-center gap-2 px-4 border-b border-[#2b313b] overflow-hidden">
         <img src="{% static 'img/logo-perfil.png' %}" alt="Grupo Perfil" class="h-8 shrink-0 [html.menu-recolhido_&]:h-7">
       </div>
 
@@ -49,32 +49,32 @@
         {% url 'relatorio_eventos' as u_rel_eventos %}
         {% url 'relatorio_centros' as u_rel_centros %}
 
-        <a href="{% url 'painel' %}" title="Painel" class="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-3 text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == '/' %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+        <a href="{% url 'painel' %}" title="Painel" class="flex items-center gap-3 px-3 py-2.5 rounded-xl mb-3 text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == '/' %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955a1.5 1.5 0 0 1 2.122 0l8.955 8.955M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75"/></svg>
           <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Painel</span>
         </a>
 
         {% comment %} Grupo: Requisição {% endcomment %}
         <div class="mb-1">
-          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#5c5c5c] hover:text-[#b3b3b3] [html.menu-recolhido_&]:hidden" data-grupo="requisicao">
+          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#6f7a8a] hover:text-[#b8c0cc] [html.menu-recolhido_&]:hidden" data-grupo="requisicao">
             <span>Requisição</span>
             <svg class="grupo-seta w-3 h-3 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
           </button>
           <div class="grupo-itens space-y-1" data-grupo-itens="requisicao">
-            <a href="{{ u_catalogo }}" title="Catálogo" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_catalogo %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_catalogo }}" title="Catálogo" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_catalogo %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Catálogo</span>
             </a>
-            <a href="{{ u_pedidos }}" title="Meus pedidos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_pedidos %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_pedidos }}" title="Meus pedidos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_pedidos %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l4.414 4.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Meus pedidos</span>
             </a>
-            <a href="{{ u_carrinho }}" title="Carrinho" class="relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_carrinho %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_carrinho }}" title="Carrinho" class="relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_carrinho %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 0 0-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 0 0-16.536-1.84M7.5 14.25 5.106 5.272M6 20.25a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Zm12.75 0a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Carrinho</span>
               <span class="js-carrinho-qtd {% if not carrinho_qtd %}hidden{% endif %} absolute left-7 top-1 bg-white text-[#0a0a0a] text-[10px] font-bold h-4 min-w-4 px-1 rounded-full flex items-center justify-center">{{ carrinho_qtd }}</span>
             </a>
-            <a href="{{ u_aprovacoes }}" title="Aprovações" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_aprovacoes %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_aprovacoes }}" title="Aprovações" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_aprovacoes %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Aprovações</span>
             </a>
@@ -84,31 +84,31 @@
         {% comment %} Grupo: Compras {% endcomment %}
         {% if menu_compras or menu_aprova_compras or menu_estoque %}
         <div class="mb-1">
-          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#5c5c5c] hover:text-[#b3b3b3] [html.menu-recolhido_&]:hidden" data-grupo="compras">
+          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#6f7a8a] hover:text-[#b8c0cc] [html.menu-recolhido_&]:hidden" data-grupo="compras">
             <span>Compras</span>
             <svg class="grupo-seta w-3 h-3 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
           </button>
           <div class="grupo-itens space-y-1" data-grupo-itens="compras">
 {% if menu_compras %}
-            <a href="{{ u_fila_compras }}" title="Fila de compras" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_fila_compras %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_fila_compras }}" title="Fila de compras" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_fila_compras %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Fila de compras</span>
             </a>
 {% endif %}
 {% if menu_compras or menu_aprova_compras %}
-            <a href="{{ u_cotacoes }}" title="Cotações" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_cotacoes %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_cotacoes }}" title="Cotações" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_cotacoes %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.625c.621 0 1.125.504 1.125 1.125V6h-.75a.75.75 0 0 1-.75-.75V4.5M2.25 6v9a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 15V6"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Cotações</span>
             </a>
 {% endif %}
 {% if menu_aprova_compras %}
-            <a href="{{ u_aprova_compras }}" title="Aprovar compras" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_aprova_compras %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_aprova_compras }}" title="Aprovar compras" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_aprova_compras %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Aprovar compras</span>
             </a>
 {% endif %}
 {% if menu_compras or menu_estoque %}
-            <a href="{{ u_ordens }}" title="Ordens de compra" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_ordens %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_ordens }}" title="Ordens de compra" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_ordens %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Ordens de compra</span>
             </a>
@@ -120,28 +120,28 @@
         {% comment %} Grupo: Suprimentos {% endcomment %}
         {% if menu_estoque %}
         <div class="mb-1">
-          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#5c5c5c] hover:text-[#b3b3b3] [html.menu-recolhido_&]:hidden" data-grupo="suprimentos">
+          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#6f7a8a] hover:text-[#b8c0cc] [html.menu-recolhido_&]:hidden" data-grupo="suprimentos">
             <span>Suprimentos</span>
             <svg class="grupo-seta w-3 h-3 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
           </button>
           <div class="grupo-itens space-y-1" data-grupo-itens="suprimentos">
-            <a href="{{ u_fila }}" title="Fila de suprimentos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_fila %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_fila }}" title="Fila de suprimentos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_fila %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5 12 3 3.75 7.5m16.5 0-8.25 4.5m8.25-4.5v9l-8.25 4.5m0-9L3.75 7.5m8.25 4.5v9m-8.25-9v9l8.25 4.5"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Fila de suprimentos</span>
             </a>
-            <a href="{{ u_produtos }}" title="Produtos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_produtos %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_produtos }}" title="Produtos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_produtos %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Produtos</span>
             </a>
-            <a href="{{ u_sugestoes }}" title="Sugestões de produto" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_sugestoes %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_sugestoes }}" title="Sugestões de produto" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_sugestoes %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9.568 3H5.25A2.25 2.25 0 0 0 3 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 0 0 5.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 0 0 9.568 3Z"/><path stroke-linecap="round" stroke-linejoin="round" d="M6 6h.008v.008H6V6Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Sugestões de produto</span>
             </a>
-            <a href="{{ u_entrada }}" title="Entrada" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_entrada %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_entrada }}" title="Entrada" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_entrada %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5a2.25 2.25 0 0 0-2.25 2.25v9a2.25 2.25 0 0 0 2.25 2.25h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25H15m-6 3 3-3m0 0 3 3m-3-3v10.5"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Entrada</span>
             </a>
-            <a href="{{ u_estoque }}" title="Estoque" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_estoque %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_estoque }}" title="Estoque" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_estoque %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M21 7.5V18a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 18V7.5m18 0A2.25 2.25 0 0 0 18.75 5.25H5.25A2.25 2.25 0 0 0 3 7.5m18 0-9 6-9-6"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Estoque</span>
             </a>
@@ -152,20 +152,20 @@
         {% comment %} Grupo: Relatórios {% endcomment %}
         {% if menu_estoque or menu_compras %}
         <div class="mb-1">
-          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#5c5c5c] hover:text-[#b3b3b3] [html.menu-recolhido_&]:hidden" data-grupo="relatorios">
+          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#6f7a8a] hover:text-[#b8c0cc] [html.menu-recolhido_&]:hidden" data-grupo="relatorios">
             <span>Relatórios</span>
             <svg class="grupo-seta w-3 h-3 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
           </button>
           <div class="grupo-itens space-y-1" data-grupo-itens="relatorios">
-            <a href="{{ u_rel_eventos }}" title="Custo por evento" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_rel_eventos %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_rel_eventos }}" title="Custo por evento" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_rel_eventos %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Custo por evento</span>
             </a>
-            <a href="{{ u_rel_centros }}" title="Custo por centro" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_rel_centros %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_rel_centros }}" title="Custo por centro" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_rel_centros %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6v12m-3-2.818.879.659c1.171.879 3.07.879 4.242 0 1.172-.879 1.172-2.303 0-3.182C13.536 12.219 12.768 12 12 12c-.725 0-1.45-.22-2.003-.659-1.106-.879-1.106-2.303 0-3.182s2.9-.879 4.006 0l.415.33M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Custo por centro</span>
             </a>
-            <span title="Em breve" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#5c5c5c] cursor-default">
+            <span title="Em breve" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#6f7a8a] cursor-default">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Desembolso <span class="text-[10px]">(em breve)</span></span>
             </span>
@@ -176,44 +176,44 @@
         {% if user.e_superadmin or user.is_superuser %}
         {% comment %} Grupo: Configurações {% endcomment %}
         <div class="mb-1">
-          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#5c5c5c] hover:text-[#b3b3b3] [html.menu-recolhido_&]:hidden" data-grupo="configuracoes">
+          <button type="button" class="grupo-toggle w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-[10px] font-semibold uppercase tracking-wider text-[#6f7a8a] hover:text-[#b8c0cc] [html.menu-recolhido_&]:hidden" data-grupo="configuracoes">
             <span>Configurações</span>
             <svg class="grupo-seta w-3 h-3 transition-transform" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
           </button>
           <div class="grupo-itens space-y-1" data-grupo-itens="configuracoes">
-            <a href="{{ u_config_usuarios }}" title="Usuários" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_usuarios %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_usuarios }}" title="Usuários" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_usuarios %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Usuários</span>
             </a>
-            <a href="{{ u_config_empresas }}" title="Empresas" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_empresas %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_empresas }}" title="Empresas" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_empresas %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Empresas</span>
             </a>
-            <a href="{{ u_config_filiais }}" title="Filiais" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_filiais %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_filiais }}" title="Filiais" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_filiais %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 21h19.5m-18-18v18m10.5-18v18m6-13.5V21M6.75 6.75h.75m-.75 3h.75m-.75 3h.75m3-6h.75m-.75 3h.75m-.75 3h.75M6.75 21v-3.375c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Filiais</span>
             </a>
-            <a href="{{ u_config_almox }}" title="Almoxarifados" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_almox %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_almox }}" title="Almoxarifados" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_almox %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Almoxarifados</span>
             </a>
-            <a href="{{ u_config_setores }}" title="Setores" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_setores %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_setores }}" title="Setores" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_setores %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M18 18.72a9.094 9.094 0 0 0 3.741-.479 3 3 0 0 0-4.682-2.72m.94 3.198.001.031c0 .225-.012.447-.037.666A11.944 11.944 0 0 1 12 21c-2.17 0-4.207-.576-5.963-1.584A6.062 6.062 0 0 1 6 18.719m12 0a5.971 5.971 0 0 0-.941-3.197m0 0A5.995 5.995 0 0 0 12 12.75a5.995 5.995 0 0 0-5.058 2.772m0 0a3 3 0 0 0-4.681 2.72 8.986 8.986 0 0 0 3.74.477m.94-3.197a5.971 5.971 0 0 0-.94 3.197M15 6.75a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm6 3a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Zm-13.5 0a2.25 2.25 0 1 1-4.5 0 2.25 2.25 0 0 1 4.5 0Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Setores</span>
             </a>
-            <a href="{{ u_config_eventos }}" title="Eventos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_eventos %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_eventos }}" title="Eventos" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_eventos %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Eventos</span>
             </a>
-            <a href="{{ u_config_centros }}" title="Centros de custo" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_centros %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_centros }}" title="Centros de custo" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_centros %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 11.25v7.5"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Centros de custo</span>
             </a>
-            <a href="{{ u_config_alcadas }}" title="Alçadas" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_alcadas %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_alcadas }}" title="Alçadas" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_alcadas %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v17.25m0 0c-1.472 0-2.882.265-4.185.75M12 20.25c1.472 0 2.882.265 4.185.75M18.75 4.97A48.416 48.416 0 0 0 12 4.5c-2.291 0-4.545.16-6.75.47m13.5 0c1.01.143 2.01.317 3 .52m-3-.52 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.988 5.988 0 0 1-2.031.352 5.988 5.988 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L18.75 4.971Zm-16.5.52c.99-.203 1.99-.377 3-.52m0 0 2.62 10.726c.122.499-.106 1.028-.589 1.202a5.989 5.989 0 0 1-2.031.352 5.989 5.989 0 0 1-2.031-.352c-.483-.174-.711-.703-.59-1.202L5.25 4.971Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Alçadas</span>
             </a>
-            <a href="{{ u_config_fornecedores }}" title="Fornecedores" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white {% if request.path == u_config_fornecedores %}bg-white text-[#0a0a0a] hover:bg-white hover:text-[#0a0a0a]{% endif %}">
+            <a href="{{ u_config_fornecedores }}" title="Fornecedores" class="flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white {% if request.path == u_config_fornecedores %}bg-teal-700 text-white hover:bg-teal-700 hover:text-white{% endif %}">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 21v-7.5a.75.75 0 0 1 .75-.75h3a.75.75 0 0 1 .75.75V21m-4.5 0H2.36m11.14 0H18m0 0h3.64m-1.39 0V9.349M3.75 21V9.349m0 0a3.001 3.001 0 0 0 3.75-.615A2.993 2.993 0 0 0 9.75 9.75c.896 0 1.7-.393 2.25-1.016a2.993 2.993 0 0 0 2.25 1.016c.896 0 1.7-.393 2.25-1.015a3.001 3.001 0 0 0 3.75.614m-16.5 0a3.004 3.004 0 0 1-.621-4.72l1.189-1.19A1.5 1.5 0 0 1 5.378 3h13.243a1.5 1.5 0 0 1 1.06.44l1.19 1.189a3 3 0 0 1-.621 4.72M6.75 18h3.75a.75.75 0 0 0 .75-.75V13.5a.75.75 0 0 0-.75-.75H6.75a.75.75 0 0 0-.75.75v3.75c0 .414.336.75.75.75Z"/></svg>
               <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Fornecedores</span>
             </a>
@@ -222,23 +222,23 @@
         {% endif %}
       </nav>
 
-      <div class="border-t border-[#232323] p-3 space-y-1">
-        <button type="button" id="botao-tema" title="Alternar tema" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b3b3b3] hover:bg-white/5 hover:text-white">
+      <div class="border-t border-[#2b313b] p-3 space-y-1">
+        <button type="button" id="botao-tema" title="Alternar tema" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#b8c0cc] hover:bg-white/5 hover:text-white">
           <svg id="icone-tema-claro" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0 dark:hidden"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z"/></svg>
           <svg id="icone-tema-escuro" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0 hidden dark:block"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z"/></svg>
           <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Tema escuro</span>
         </button>
 
         <div class="flex items-center gap-3 px-3 py-2 [html.menu-recolhido_&]:justify-center">
-          <span class="text-[#7a7a7a] text-xs truncate whitespace-nowrap [html.menu-recolhido_&]:hidden">{{ user }}</span>
+          <span class="text-[#8a94a3] text-xs truncate whitespace-nowrap [html.menu-recolhido_&]:hidden">{{ user }}</span>
         </div>
         <form method="post" action="{% url 'logout' %}">{% csrf_token %}
-          <button title="Sair" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#7a7a7a] hover:bg-white/5 hover:text-white">
+          <button title="Sair" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#8a94a3] hover:bg-white/5 hover:text-white">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0"><path stroke-linecap="round" stroke-linejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15M12 9l-3 3m0 0 3 3m-3-3h12.75"/></svg>
             <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Sair</span>
           </button>
         </form>
-        <button type="button" id="botao-recolher" title="Recolher menu" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#5c5c5c] hover:bg-white/5 hover:text-white">
+        <button type="button" id="botao-recolher" title="Recolher menu" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-[#6f7a8a] hover:bg-white/5 hover:text-white">
           <svg id="icone-recolher" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.6" stroke="currentColor" class="w-5 h-5 shrink-0 [html.menu-recolhido_&]:rotate-180 transition-transform"><path stroke-linecap="round" stroke-linejoin="round" d="M11 19l-7-7 7-7m8 14-7-7 7-7"/></svg>
           <span class="whitespace-nowrap [html.menu-recolhido_&]:hidden">Recolher menu</span>
         </button>

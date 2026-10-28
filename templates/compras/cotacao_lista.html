@@ -3,25 +3,25 @@
 {% block titulo %}Cotações{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
   <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-semibold">Cotações</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">Compras cotadas com fornecedores e a situação de cada alçada.</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Compras cotadas com fornecedores e a situação de cada alçada.</p>
     </div>
-    <a href="{% url 'fila_compras' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">Ir para a fila de compras</a>
+    <a href="{% url 'fila_compras' %}" class="inline-flex items-center gap-2 rounded-xl bg-teal-700 text-white text-sm font-semibold px-4 py-2.5 hover:bg-teal-800 transition">Ir para a fila de compras</a>
   </div>
   <form method="get" class="mt-5 flex flex-wrap gap-3">
     <input type="hidden" name="agrupar" value="{{ agrupar }}">
     <input type="hidden" name="visao" value="{{ visao }}">
     <input name="q" value="{{ busca }}" placeholder="Buscar por fornecedor ou produto…" autocomplete="off"
-           class="flex-1 min-w-[220px] rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+           class="flex-1 min-w-[220px] rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
     <select name="status" onchange="this.form.submit()"
-            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+            class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
       <option value="">Todas as situações</option>
       {% for valor, rotulo in status_opcoes %}<option value="{{ valor }}" {% if status == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
     </select>
-    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+    <button class="rounded-xl bg-teal-700 text-white text-sm font-semibold px-5 py-3 hover:bg-teal-800 transition">Filtrar</button>
     {% include "compras/_alternar.html" %}
     {% if agrupar == "cotacao" %}{% include "compras/_visao.html" %}{% endif %}
   </form>

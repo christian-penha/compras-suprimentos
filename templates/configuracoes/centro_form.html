@@ -1,28 +1,27 @@
 {% extends "base.html" %}
 {% block titulo %}{% if instancia %}Editar centro de custo{% else %}Novo centro de custo{% endif %}{% endblock %}
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
-  <div>
-  <a href="{% url 'config_centro_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Voltar</a>
-    <h1 class="text-2xl font-semibold mt-2">{% if instancia %}Editar centro de custo{% else %}Novo centro de custo{% endif %}</h1>
-  </div>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6 flex flex-wrap items-end justify-between gap-4">
+  <div><a href="{% url 'config_centro_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Voltar</a>
+    <h1 class="text-2xl font-semibold mt-2">{% if instancia %}Editar centro de custo{% else %}Novo centro de custo{% endif %}</h1></div>
+  <div class="flex gap-3"><a href="{% url 'config_centro_lista' %}" class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">Cancelar</a><button form="form-principal" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-2.5 transition">Salvar</button></div>
 </div>
 {% endblock %}
 
 {% block conteudo %}
-<form method="post" class="max-w-2xl">
+<form method="post" id="form-principal" class="max-w-2xl">
   {% csrf_token %}
   <div class="bg-white rounded-2xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">
     <div>
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Filial</label>
       {{ form.filial }}
-      {% for erro in form.filial.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in form.filial.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     <div>
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Nome do centro de custo</label>
       {{ form.nome }}
-      {% for erro in form.nome.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
-      {% for erro in form.non_field_errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in form.nome.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
+      {% for erro in form.non_field_errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     <div class="sm:col-span-2 pt-2">
       <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">{{ form.ativo }} Ativo</label>
@@ -35,22 +34,22 @@
     <div id="campo-valor">
       <label id="rotulo-valor" class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Valor (R$)</label>
       {{ form.orcamento_valor }}
-      {% for erro in form.orcamento_valor.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in form.orcamento_valor.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     <div id="campo-meses">
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Dividir em quantos meses</label>
       {{ form.orcamento_meses }}
-      {% for erro in form.orcamento_meses.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in form.orcamento_meses.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     <div id="campo-inicio">
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Primeiro mês</label>
       {{ form.orcamento_inicio }}
-      {% for erro in form.orcamento_inicio.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in form.orcamento_inicio.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     <p id="previa-parcela" class="sm:col-span-2 text-sm text-slate-500 dark:text-slate-400"></p>
   </div>
   <div class="flex items-center gap-3 mt-6">
-    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-medium px-5 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar</button>
+    <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-medium px-5 py-2.5 transition dark:bg-teal-600 dark:text-white dark:hover:bg-teal-500">Salvar</button>
     <a href="{% url 'config_centro_lista' %}" class="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">cancelar</a>
   </div>
 </form>

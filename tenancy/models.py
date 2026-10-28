@@ -212,3 +212,10 @@ class Evento(TenantModel):
 
     def __str__(self):
         return f"{self.filial.sigla} — {self.nome}"
+
+
+def centros_da_filial(filial_id, atual_id=None):
+    """Centros de custo ativos da unidade (e o já escolhido, para não sumir da lista)."""
+    return CentroCusto.objects.filter(
+        models.Q(filial_id=filial_id, ativo=True) | models.Q(pk=atual_id)
+    ).select_related("filial").order_by("nome")

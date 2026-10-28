@@ -3,12 +3,12 @@
 {% block titulo %}Ordem de compra #{{ ordem.numero }}{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'ordem_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Ordens de compra</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'ordem_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Ordens de compra</a>
   <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
     <div>
       <h1 class="text-2xl font-semibold">Ordem de compra #{{ ordem.numero }} — {{ cotacao.fornecedor }}</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">Origem: <a href="{% url 'cotacao_detalhe' cotacao.pk %}" class="underline">cotação #{{ cotacao.numero }}</a> · pedido(s) #{{ cotacao.pedidos_origem }} · R$ {{ cotacao.valor_total|floatformat:2 }}</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Origem: <a href="{% url 'cotacao_detalhe' cotacao.pk %}" class="underline">cotação #{{ cotacao.numero }}</a> · pedido(s) #{{ cotacao.pedidos_origem }} · R$ {{ cotacao.valor_total|floatformat:2 }}</p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-sm font-semibold px-4 py-2 rounded-full {{ ordem.andamento|badge_status }}">{{ ordem.get_andamento_display }}</span>
@@ -19,7 +19,7 @@
 {% endblock %}
 
 {% block conteudo %}
-<div class="grid gap-6 lg:grid-cols-[1fr_360px] items-start">
+<div class="grid gap-6 xl:grid-cols-[1fr_360px] items-start">
   <div class="space-y-6">
     <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
       <div class="flex flex-wrap items-start justify-between gap-3">
@@ -36,7 +36,7 @@
         </select>
         <input type="date" name="previsao" value="{{ ordem.previsao_entrega|date:'Y-m-d' }}" aria-label="Previsão de entrega" class="rounded-xl border border-slate-300 px-3 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
         <input name="observacao" maxlength="300" placeholder="Observação (transportadora, código de rastreio…)" class="sm:col-span-2 rounded-xl border border-slate-300 px-3 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
-        <button name="acao" value="andamento" class="sm:col-span-2 justify-self-start rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-5 py-2.5 transition dark:bg-white dark:text-black">Atualizar andamento</button>
+        <button name="acao" value="andamento" class="sm:col-span-2 justify-self-start rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-5 py-2.5 transition dark:bg-teal-600 dark:text-white">Atualizar andamento</button>
       </form>
       {% endif %}
       {% if historico %}
@@ -105,7 +105,7 @@
         <input type="hidden" name="acao" value="enviar_nota">
         <input type="file" name="xml" accept=".xml,text/xml,application/xml" required
                class="block w-full text-sm text-slate-600 file:mr-3 file:rounded-xl file:border-0 file:bg-slate-100 file:px-4 file:py-2.5 file:text-sm file:font-medium hover:file:bg-slate-200 dark:text-slate-300 dark:file:bg-slate-700">
-        <button class="w-full rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black">Enviar nota</button>
+        <button class="w-full rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold py-2.5 transition dark:bg-teal-600 dark:text-white">Enviar nota</button>
       </form>
     </section>
     {% endif %}

@@ -9,7 +9,7 @@ from django.utils import timezone
 from contas.models import Alcada, AprovadorAlcada, PapelAlcada, Usuario
 from estoque.services import registrar_entrada
 from pedidos.models import EventoPedido, ItemPedido, OrigemAtendimento, StatusPedido
-from pedidos.services import SemPermissao, TransicaoInvalida, liberar_itens_comprados, reavaliar_pedido
+from pedidos.services import SemPermissao, TransicaoInvalida, liberar_itens_comprados, reavaliar_pedido, validar_centro_da_unidade
 from tenancy.context import obter_tenant_atual_id
 from tenancy.models import Almoxarifado, Empresa
 
@@ -123,7 +123,7 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
     ItemCotacao.objects.bulk_create([
         ItemCotacao(
             cotacao=cotacao, item_pedido=i, quantidade=i.pendente, valor_unitario=precos[i.pk],
-            centro_custo=(centros or {}).get(i.pk) or i.pedido.centro_custo,
+            centro_custo=_centro_do_item(i, centros),
         )
         for i in itens
     ])
@@ -142,6 +142,13 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
 
 def filiais_da_cotacao(cotacao):
     return {i.item_pedido.pedido.almoxarifado_destino.filial_id for i in cotacao.itens.all()}
+
+
+def _centro_do_item(item_pedido, centros):
+    """Centro escolhido pelo comprador (validado: da unidade do pedido) ou o do próprio pedido."""
+    escolhido = (centros or {}).get(item_pedido.pk)
+    validar_centro_da_unidade(escolhido, item_pedido.pedido.almoxarifado_destino.filial_id)
+    return escolhido or item_pedido.pedido.centro_custo
 
 
 def _requisitantes_da_cotacao(cotacao):
@@ -301,7 +308,8 @@ def definir_centros(cotacao, escolhas, usuario):
     cotacao = Cotacao.objects.select_for_update().get(pk=cotacao.pk)
     if not cotacao.ativa or hasattr(cotacao, "ordem"):
         raise TransicaoInvalida("O centro de custo só pode ser alterado antes da ordem de compra.")
-    for item in cotacao.itens.filter(pk__in=list(escolhas)):
+    for item in cotacao.itens.filter(pk__in=list(escolhas)).select_related("item_pedido__pedido__almoxarifado_destino"):
+        validar_centro_da_unidade(escolhas[item.pk], item.item_pedido.pedido.almoxarifado_destino.filial_id)
         item.centro_custo = escolhas[item.pk]
         item.save(update_fields=["centro_custo"])
     pedidos = {i.item_pedido.pedido for i in cotacao.itens.select_related("item_pedido__pedido")}

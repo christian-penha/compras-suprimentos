@@ -147,6 +147,12 @@ def liberar_itens_comprados(pedido, usuario, observacao):
         )
 
 
+def validar_centro_da_unidade(centro, filial_id):
+    """O centro de custo tem de ser da unidade do pedido (uma unidade não custeia na outra)."""
+    if centro is not None and centro.filial_id != filial_id:
+        raise TransicaoInvalida(f"O centro de custo {centro} é de outra unidade; escolha um da unidade do pedido.")
+
+
 def reavaliar_pedido(pedido, usuario):
     """Depois que itens saem do pedido (eliminados na alçada de compra): encerra o pedido se
     não sobrou nada a entregar, ou o libera para separação se só restam itens de estoque."""

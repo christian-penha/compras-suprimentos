@@ -2,10 +2,10 @@
 {% block titulo %}Conferência — OC #{{ ordem.numero }}{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'ordem_detalhe' ordem.pk %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Ordem de compra #{{ ordem.numero }}</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'ordem_detalhe' ordem.pk %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Ordem de compra #{{ ordem.numero }}</a>
   <h1 class="text-2xl font-semibold mt-2">Conferência do recebimento</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
     {{ ordem.cotacao.fornecedor }}{% if nota %} · NF {{ nota.numero }} · R$ {{ nota.valor_total|floatformat:2 }}{% endif %}.
     O material só entra no estoque quando você confirmar a conferência física.
   </p>
@@ -47,7 +47,7 @@
           <td class="px-4 py-3.5 text-right text-slate-500 dark:text-slate-400">{% if l.linha %}{{ l.linha.quantidade|floatformat:"-3" }}{% else %}—{% endif %}</td>
           <td class="px-6 py-3.5 text-right">
             <input name="qtd_{{ l.item.pk }}" value="{{ l.sugerida|floatformat:'-3' }}" inputmode="decimal" aria-label="Quantidade conferida de {{ l.item.item_pedido.produto.nome }}"
-                   class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+                   class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold focus:border-teal-700 focus:ring-1 focus:ring-teal-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
           </td>
         </tr>
         {% empty %}
@@ -61,7 +61,7 @@
   <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
     <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Observação da conferência</label>
     <input name="observacao" maxlength="250" placeholder="Ex.: caixa avariada, faltou 1 unidade…"
-           class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+           class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
     <p class="text-xs text-slate-400 mt-2">O que for conferido entra no estoque do almoxarifado de cada pedido a custo cotado + frete rateado. Quantidade menor que a pendente deixa a ordem parcialmente recebida.</p>
     <button class="mt-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-6 py-3 transition">Confirmar conferência e dar entrada no estoque</button>
   </section>

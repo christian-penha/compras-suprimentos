@@ -2,15 +2,15 @@
 {% block titulo %}{% if instancia %}Editar setor{% else %}Novo setor{% endif %}{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'config_setor_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Setores</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'config_setor_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Setores</a>
   <h1 class="text-2xl font-semibold mt-2">{% if instancia %}{{ instancia.nome }}{% else %}Novo setor{% endif %}</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Defina a regra de aprovação e quem faz parte do setor.</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Defina a regra de aprovação e quem faz parte do setor.</p>
 </div>
 {% endblock %}
 
 {% block conteudo %}
-<form method="post" class="grid gap-6 lg:grid-cols-[1fr_380px] items-start">
+<form method="post" class="grid gap-6 xl:grid-cols-[1fr_380px] items-start">
   {% csrf_token %}
 
   <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
@@ -19,11 +19,14 @@
         <h2 class="font-semibold text-slate-900 dark:text-slate-100">Pessoas do setor</h2>
         <p class="text-sm text-slate-500 dark:text-slate-400">Marque quem <strong>faz parte</strong> e quem <strong>lidera</strong>. Líder aprova os pedidos dos membros.</p>
       </div>
+      <div class="flex flex-wrap items-center gap-3">
+      <label class="flex items-center gap-2 text-xs text-slate-500 cursor-pointer dark:text-slate-400"><input id="outras-unidades" type="checkbox" class="h-4 w-4 rounded border-slate-300"> Mostrar pessoas de outras unidades</label>
       <input id="busca-pessoa" type="search" placeholder="Buscar pessoa…" autocomplete="off"
-             class="rounded-xl border border-slate-200 px-4 py-2 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+             class="rounded-xl border border-slate-200 px-4 py-2 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+      </div>
     </div>
 
-    {% for e in form.lideres.errors %}<p class="text-xs text-red-600 mb-2">{{ e }}</p>{% endfor %}
+    {% for e in form.lideres.errors %}<p class="text-xs text-red-600 mb-2 dark:text-red-400">{{ e }}</p>{% endfor %}
 
     <div class="border border-slate-200 rounded-xl overflow-hidden dark:border-slate-700">
       <div class="grid grid-cols-[1fr_72px_72px] bg-slate-50 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:bg-slate-900/40 dark:text-slate-400">
@@ -31,7 +34,7 @@
       </div>
       <ul class="max-h-[460px] overflow-y-auto divide-y divide-slate-100 dark:divide-slate-700">
         {% for u in form.pessoas %}
-        <li class="pessoa grid grid-cols-[1fr_72px_72px] items-center px-4 py-3 dark:text-slate-100" data-nome="{{ u.nome_completo|lower }} {{ u.username|lower }}">
+        <li class="pessoa grid grid-cols-[1fr_72px_72px] items-center px-4 py-3 dark:text-slate-100" data-nome="{{ u.nome_completo|lower }} {{ u.username|lower }}" data-filial="{{ u.filial_id|default_if_none:'' }}">
           <div class="min-w-0">
             <p class="text-sm font-medium truncate">{{ u.nome_completo|default:u.username }}</p>
             <p class="text-xs text-slate-500 truncate dark:text-slate-400">
@@ -40,7 +43,7 @@
             </p>
           </div>
           <label class="flex justify-center cursor-pointer"><input type="checkbox" name="membros" value="{{ u.pk }}" class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-900" {% if u.pk|stringformat:"s" in form.membros_marcados %}checked{% endif %}><span class="sr-only">{{ u }} é membro</span></label>
-          <label class="flex justify-center cursor-pointer"><input type="checkbox" name="lideres" value="{{ u.pk }}" class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600" {% if u.pk|stringformat:"s" in form.lideres_marcados %}checked{% endif %}><span class="sr-only">{{ u }} é líder</span></label>
+          <label class="flex justify-center cursor-pointer"><input type="checkbox" name="lideres" value="{{ u.pk }}" class="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-600 dark:text-emerald-400" {% if u.pk|stringformat:"s" in form.lideres_marcados %}checked{% endif %}><span class="sr-only">{{ u }} é líder</span></label>
         </li>
         {% empty %}
         <li class="px-4 py-8 text-center text-sm text-slate-400">Nenhum usuário ativo cadastrado.</li>
@@ -56,13 +59,13 @@
       <div>
         <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Filial/unidade</label>
         {{ form.filial }}
-        {% for e in form.filial.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        {% for e in form.filial.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ e }}</p>{% endfor %}
       </div>
       <div>
         <label class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Nome do setor</label>
         {{ form.nome }}
-        {% for e in form.nome.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
-        {% for e in form.non_field_errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
+        {% for e in form.nome.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ e }}</p>{% endfor %}
+        {% for e in form.non_field_errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ e }}</p>{% endfor %}
       </div>
       <label class="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">{{ form.ativo }} Setor ativo</label>
     </section>
@@ -75,18 +78,30 @@
     </section>
 
     <div class="flex items-center gap-3">
-      <button class="flex-1 rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar setor</button>
+      <button class="flex-1 rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-semibold py-3 transition dark:bg-teal-600 dark:text-white dark:hover:bg-teal-500">Salvar setor</button>
       <a href="{% url 'config_setor_lista' %}" class="text-sm text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">cancelar</a>
     </div>
   </div>
 </form>
 
 <script>
-  document.getElementById('busca-pessoa').addEventListener('input', function () {
-    var termo = this.value.trim().toLowerCase();
-    document.querySelectorAll('.pessoa').forEach(function (li) {
-      li.classList.toggle('hidden', termo && li.dataset.nome.indexOf(termo) === -1);
-    });
-  });
+  // lista as pessoas da unidade do setor (marcadas e sem unidade sempre aparecem) + busca por nome
+  (function () {
+    var busca = document.getElementById('busca-pessoa'), outras = document.getElementById('outras-unidades');
+    var unidade = document.getElementById('{{ form.filial.id_for_label }}');
+    function filtrar() {
+      var termo = busca.value.trim().toLowerCase();
+      document.querySelectorAll('.pessoa').forEach(function (li) {
+        var marcada = li.querySelector('input:checked');
+        var daUnidade = !li.dataset.filial || !unidade.value || li.dataset.filial === unidade.value;
+        var visivel = (daUnidade || outras.checked || marcada) && (!termo || li.dataset.nome.indexOf(termo) !== -1);
+        li.classList.toggle('hidden', !visivel);
+      });
+    }
+    busca.addEventListener('input', filtrar);
+    outras.addEventListener('change', filtrar);
+    unidade.addEventListener('change', filtrar);
+    filtrar();
+  })();
 </script>
 {% endblock %}

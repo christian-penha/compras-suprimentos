@@ -13,7 +13,7 @@ from contas.models import Modulo, Papel
 from contas.permissoes import requer_papel
 from tenancy.models import Filial
 
-from .models import Almoxarifado, SaldoEstoque
+from .models import Almoxarifado, Movimentacao, SaldoEstoque, TipoMovimentacao
 from .services import registrar_entrada
 
 SESSAO_PREVIA = "entrada_planilha_previa"
@@ -68,6 +68,26 @@ def _parse_planilha(arquivo):
 
 
 @requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+def entrada_modelo(request):
+    """Planilha de exemplo com as colunas que a entrada espera, já com alguns códigos reais."""
+    from django.http import HttpResponse
+    from openpyxl import Workbook
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Entrada"
+    ws.append(["Código", "Produto (só para conferência)", "Quantidade", "Valor unitário"])
+    for p in Produto.objects.exclude(codigo__isnull=True).order_by("codigo")[:3]:
+        ws.append([p.codigo, p.nome, 10, 5.0])
+    for col, largura in zip("ABCD", (18, 44, 14, 16)):
+        ws.column_dimensions[col].width = largura
+    resposta = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    resposta["Content-Disposition"] = 'attachment; filename="modelo-entrada-de-material.xlsx"'
+    wb.save(resposta)
+    return resposta
+
+
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def entrada_planilha(request):
     almoxarifados = Almoxarifado.objects.filter(ativo=True).select_related("filial")
 
@@ -119,7 +139,14 @@ def entrada_planilha(request):
         destino = Almoxarifado.objects.filter(pk=previa["almoxarifado_id"]).first()
     return render(
         request, "estoque/entrada_planilha.html",
-        {"almoxarifados": almoxarifados, "previa": previa, "destino": destino},
+        {
+            "total_quantidade": sum((Decimal(l["quantidade"]) for l in previa["linhas"]), Decimal("0")) if previa else 0,
+            "total_valor": sum((Decimal(l["quantidade"]) * Decimal(l["valor"]) for l in previa["linhas"]), Decimal("0")) if previa else 0,
+            "recentes": Movimentacao.objects.filter(tipo=TipoMovimentacao.ENTRADA)
+            .select_related("produto", "destino__filial")[:8],
+            "almoxarifados": almoxarifados, "previa": previa, "destino": destino,
+            "filiais_destino": Filial.objects.filter(pk__in=almoxarifados.values("filial_id")).order_by("nome"),
+        },
     )
 
 
@@ -154,6 +181,9 @@ def posicao_estoque(request):
     )
     if filial_id.isdigit():
         saldos = saldos.filter(almoxarifado__filial_id=filial_id)
+        # o almoxarifado tem de ser da unidade escolhida; senão o filtro dele é descartado
+        if almoxarifado_id.isdigit() and not almoxarifados.filter(pk=almoxarifado_id, filial_id=filial_id).exists():
+            almoxarifado_id = ""
     if almoxarifado_id.isdigit():
         saldos = saldos.filter(almoxarifado_id=almoxarifado_id)
     if busca:

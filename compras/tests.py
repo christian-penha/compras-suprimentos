@@ -618,3 +618,39 @@ class TelaDeAprovadoresFiltraPorUnidadeTest(BaseComprasTest):
         self.assertContains(pagina, 'id="unidades-do-usuario"')
         self.assertContains(pagina, f'data-filial="{self.setor.filial_id}"')
         self.assertEqual(pagina.context["unidades_do_usuario"][self.diretor.pk], [self.filial.pk])
+
+
+class CentroDeCustoDaUnidadeTest(BaseComprasTest):
+    def test_centro_de_outra_unidade_e_rejeitado_e_a_lista_e_filtrada(self):
+        from tenancy.models import CentroCusto, Filial, centros_da_filial
+
+        vc = Filial.objects.get(sigla="VC")
+        de_fora = CentroCusto.objects.create(tenant=self.tenant, filial=vc, nome="Cantina VC")
+        pedido, item = self.pedido_sem_estoque("5")
+        unidade = pedido.almoxarifado_destino.filial_id
+        self.assertNotIn(de_fora, list(centros_da_filial(unidade)))
+        self.assertIn(self.centro, list(centros_da_filial(unidade)))
+        with self.assertRaises(TransicaoInvalida):
+            services.criar_cotacao(
+                comprador=self.comprador, fornecedor=self.fornecedor,
+                precos={item.pk: Decimal("20.00")}, centros={item.pk: de_fora},
+            )
+        cotacao = self.cotar(item, "20.00")
+        with self.assertRaises(TransicaoInvalida):
+            services.definir_centros(cotacao, {cotacao.itens.get().pk: de_fora}, self.comprador)
+
+    def test_pedido_rejeita_centro_de_outra_unidade_na_tela(self):
+        from pedidos.services import transicionar
+        from tenancy.models import CentroCusto, Filial
+
+        vc = Filial.objects.get(sigla="VC")
+        de_fora = CentroCusto.objects.create(tenant=self.tenant, filial=vc, nome="Cantina VC")
+        pedido, _ = self.pedido_sem_estoque("5")
+        estoquista = Usuario.objects.create_user("est_cc", tenant=self.tenant, password=None)
+        PapelUsuario.objects.create(usuario=estoquista, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.client.force_login(estoquista)
+        antes = Pedido.objects.get(pk=pedido.pk).centro_custo_id
+        self.client.post(reverse("pedido_detalhe", args=[pedido.pk]), {"acao": "definir_centro", "centro_custo": de_fora.pk})
+        self.assertEqual(Pedido.objects.get(pk=pedido.pk).centro_custo_id, antes)
+        pagina = self.client.get(reverse("pedido_detalhe", args=[pedido.pk]))
+        self.assertNotIn(de_fora, list(pagina.context["centros"]))  # a lista só traz centros da unidade

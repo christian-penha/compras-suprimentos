@@ -3,10 +3,10 @@
 {% block titulo %}Fila de suprimentos{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
   <div>
     <h1 class="text-2xl font-semibold">Fila de suprimentos</h1>
-    <p class="text-sm text-[#9a9a9a] mt-1">Pedidos aprovados para separar e entregar.</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Pedidos aprovados para separar e entregar.</p>
   </div>
   {% include "compras/_visao.html" %}
   {% include "_filtros.html" with placeholder="Buscar por nº, requisitante ou descrição…" %}
@@ -43,13 +43,15 @@
 </div>
 
 {% elif visao == "kanban" %}
+<form id="csrf-kanban" class="hidden">{% csrf_token %}</form>
+<p class="mb-4 text-sm text-slate-500 dark:text-slate-400">Arraste o cartão para a coluna seguinte. Para entregar, uma janela pede as quantidades (e o centro de custo, se faltar).</p>
 <div class="flex gap-4 overflow-x-auto pb-4">
   {% for col in colunas %}
-  <section class="w-72 shrink-0 rounded-2xl bg-slate-100 p-3 dark:bg-slate-900/40">
+  <section class="coluna w-72 shrink-0 rounded-2xl bg-slate-100 p-3 transition dark:bg-slate-900/40" data-status="{{ col.status }}">
     <h2 class="px-1 pb-3 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ col.titulo }} <span class="ml-1 text-slate-400">{{ col.pedidos|length }}</span></h2>
-    <div class="space-y-3">
+    <div class="space-y-3 min-h-[80px]">
       {% for p in col.pedidos %}
-      <a href="{% url 'pedido_detalhe' p.pk %}" class="block bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition dark:bg-slate-800 dark:border-slate-700">
+      <a href="{% url 'pedido_detalhe' p.pk %}" draggable="true" data-pedido="{{ p.pk }}" data-status="{{ p.status }}" class="cartao block cursor-grab bg-white rounded-xl border border-slate-200 p-4 hover:shadow-md transition active:cursor-grabbing dark:bg-slate-800 dark:border-slate-700">
         <p class="font-semibold text-slate-900 dark:text-slate-100">Pedido #{{ p.pk }}</p>
         <p class="text-sm text-slate-500 dark:text-slate-400">{{ p.requisitante }}</p>
         <p class="mt-2 text-xs text-slate-600 dark:text-slate-300">{{ p.almoxarifado_destino }}</p>
@@ -62,6 +64,54 @@
   </section>
   {% endfor %}
 </div>
+
+<div id="modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 p-4">
+  <div id="modal-corpo" class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl dark:bg-slate-800"></div>
+</div>
+
+<script>
+  (function () {
+    var arrastando = null, modal = document.getElementById('modal'), corpo = document.getElementById('modal-corpo');
+    var token = document.querySelector('#csrf-kanban input[name=csrfmiddlewaretoken]').value;
+
+    function avisar(texto, ok) {
+      var caixa = document.getElementById('toasts');
+      if (!caixa) { caixa = document.createElement('div'); caixa.id = 'toasts'; caixa.className = 'fixed top-6 right-6 z-[60] w-80 max-w-[calc(100vw-3rem)] space-y-3'; document.body.appendChild(caixa); }
+      var t = document.createElement('div');
+      t.setAttribute('role', 'alert');
+      t.className = 'rounded-2xl px-5 py-4 text-sm font-medium shadow-2xl text-white ' + (ok ? 'bg-emerald-600' : 'bg-red-600');
+      t.textContent = texto; caixa.appendChild(t);
+      setTimeout(function () { t.remove(); }, 4500);
+    }
+    function fechar() { modal.classList.add('hidden'); modal.classList.remove('flex'); corpo.innerHTML = ''; }
+    modal.addEventListener('click', function (e) { if (e.target === modal || e.target.closest('[data-fechar]')) fechar(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') fechar(); });
+
+    document.querySelectorAll('.cartao').forEach(function (c) {
+      c.addEventListener('dragstart', function (e) { arrastando = c; c.classList.add('opacity-50'); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', c.dataset.pedido); });
+      c.addEventListener('dragend', function () { c.classList.remove('opacity-50'); document.querySelectorAll('.coluna').forEach(function (k) { k.classList.remove('ring-2', 'ring-teal-600'); }); });
+    });
+    document.querySelectorAll('.coluna').forEach(function (col) {
+      col.addEventListener('dragover', function (e) { e.preventDefault(); col.classList.add('ring-2', 'ring-teal-600'); });
+      col.addEventListener('dragleave', function () { col.classList.remove('ring-2', 'ring-teal-600'); });
+      col.addEventListener('drop', function (e) {
+        e.preventDefault(); col.classList.remove('ring-2', 'ring-teal-600');
+        if (!arrastando || col.dataset.status === arrastando.dataset.status) return;
+        var dados = new FormData(); dados.append('destino', col.dataset.status);
+        fetch('/suprimentos/pedidos/' + arrastando.dataset.pedido + '/mover/', { method: 'POST', body: dados, headers: { 'X-CSRFToken': token } })
+          .then(function (r) { return r.json(); })
+          .then(function (d) {
+            if (!d.ok) { avisar(d.mensagem, false); return; }
+            if (d.modal) {
+              fetch(d.modal + '?voltar=' + encodeURIComponent(location.pathname + location.search)).then(function (r) { return r.text(); }).then(function (html) {
+                corpo.innerHTML = html; modal.classList.remove('hidden'); modal.classList.add('flex');
+              });
+            } else { avisar(d.mensagem || 'Pedido atualizado.', true); setTimeout(function () { location.reload(); }, 600); }
+          }).catch(function () { avisar('Não foi possível mover o pedido.', false); });
+      });
+    });
+  })();
+</script>
 
 {% else %}
 <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">

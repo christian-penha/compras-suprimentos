@@ -17,9 +17,9 @@ Usuario = get_user_model()
 
 CAMPO = (
     "w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm "
-    "placeholder:text-slate-400 hover:border-slate-400 focus:border-slate-900 focus:ring-2 focus:ring-slate-900/10 "
+    "placeholder:text-slate-400 hover:border-slate-400 focus:border-teal-700 focus:ring-2 focus:ring-teal-700/20 "
     "focus:outline-none dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100 "
-    "dark:hover:border-slate-500 dark:focus:border-white dark:focus:ring-white/20"
+    "dark:hover:border-slate-500 dark:focus:border-teal-400 dark:focus:ring-teal-400/20"
 )
 CAMPO_CHECK = "rounded border-slate-300 text-slate-900 focus:ring-slate-900"
 
@@ -109,6 +109,11 @@ class UsuarioForm(forms.ModelForm):
             if repetido.exists():
                 raise forms.ValidationError("Já existe um usuário com este e-mail.")
         return email
+
+    @property
+    def setor_filial(self):
+        """Para o front filtrar o setor pela unidade escolhida."""
+        return {str(s.pk): s.filial_id for s in self.fields["setor"].queryset}
 
     def clean(self):
         dados = super().clean()

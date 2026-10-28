@@ -2,7 +2,19 @@
 @source "../../templates";
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Superfícies escuras em grafite, na mesma família do menu lateral (#1c2027) */
+@theme {
+  --color-slate-600: #4a5260;
+  --color-slate-700: #2f3641;
+  --color-slate-800: #232831;
+  --color-slate-900: #181b21;
+  --color-slate-950: #121418;
+}
+
 /* Menu lateral recolhido (modo ícone): grupos sempre expandidos, cabeçalhos ocultos */
 html.menu-recolhido .grupo-itens {
   display: block !important;
 }
+
+/* Barra de rolagem do menu lateral discreta (combina com o grafite) */
+#sidebar { scrollbar-width: thin; scrollbar-color: #3a4250 transparent; }

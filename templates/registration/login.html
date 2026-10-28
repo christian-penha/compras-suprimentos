@@ -8,7 +8,7 @@
       <img src="{% static 'img/logo-perfil.png' %}" alt="Grupo Perfil de Educação" class="h-14 mx-auto mb-4">
       <h1 class="text-xl font-semibold text-white">Sistema de Pedidos</h1>
     </div>
-    <form method="post" class="bg-[#0a0a0a] border border-[#232323] rounded-2xl p-8 space-y-4">
+    <form method="post" class="bg-[#232831] border border-[#323945] rounded-2xl p-8 space-y-4">
       {% csrf_token %}
       {% if form.errors %}
         <div class="rounded-xl bg-red-950/60 border border-red-900 text-red-300 text-sm px-4 py-3">
@@ -16,24 +16,24 @@
         </div>
       {% endif %}
       <div>
-        <label for="id_username" class="block text-sm font-semibold text-[#b3b3b3] mb-1.5">Usuário</label>
+        <label for="id_username" class="block text-sm font-semibold text-[#b8c0cc] mb-1.5">Usuário</label>
         <input type="text" name="username" id="id_username" autofocus autocomplete="username"
-               class="w-full rounded-lg border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+               class="w-full rounded-lg border border-[#3a4250] bg-[#1c2027] px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
       </div>
       <div>
-        <label for="id_password" class="block text-sm font-semibold text-[#b3b3b3] mb-1.5">Senha</label>
+        <label for="id_password" class="block text-sm font-semibold text-[#b8c0cc] mb-1.5">Senha</label>
         <input type="password" name="password" id="id_password" autocomplete="current-password"
-               class="w-full rounded-lg border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+               class="w-full rounded-lg border border-[#3a4250] bg-[#1c2027] px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
       </div>
-      <button class="w-full rounded-lg bg-white hover:bg-slate-200 text-[#0a0a0a] font-bold py-2.5 transition">
+      <button class="w-full rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold py-2.5 transition">
         Entrar
       </button>
       {% if google_login_ativo %}
-      <div class="flex items-center gap-3 text-xs text-[#6b6b6b]">
-        <span class="flex-1 h-px bg-[#232323]"></span>ou<span class="flex-1 h-px bg-[#232323]"></span>
+      <div class="flex items-center gap-3 text-xs text-[#8a94a3]">
+        <span class="flex-1 h-px bg-[#323945]"></span>ou<span class="flex-1 h-px bg-[#323945]"></span>
       </div>
       <a href="{% url 'auth_google_login' %}{% if next %}?next={{ next|urlencode }}{% endif %}"
-         class="w-full flex items-center justify-center gap-2 rounded-lg border border-[#2c2c2c] bg-[#1c1c1c] hover:bg-[#262626] text-white font-semibold py-2.5 text-sm transition">
+         class="w-full flex items-center justify-center gap-2 rounded-lg border border-[#3a4250] bg-[#1c2027] hover:bg-[#2b313b] text-white font-semibold py-2.5 text-sm transition">
         <svg class="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true">
           <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/>
           <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/>

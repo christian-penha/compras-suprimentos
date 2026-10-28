@@ -2,10 +2,10 @@
 {% block titulo %}Sugerir produto{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'catalogo' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Mercado</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'catalogo' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Mercado</a>
   <h1 class="text-2xl font-semibold mt-2">Sugerir um produto</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Não achou o que precisa? Descreva o item e o suprimentos avalia o cadastro.</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Não achou o que precisa? Descreva o item e o suprimentos avalia o cadastro.</p>
 </div>
 {% endblock %}
 
@@ -17,10 +17,10 @@
     <div>
       <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">{{ campo.label }}</label>
       {{ campo }}
-      {% for erro in campo.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+      {% for erro in campo.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
     </div>
     {% endfor %}
-    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Enviar sugestão</button>
+    <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-semibold px-6 py-2.5 transition dark:bg-teal-600 dark:text-white">Enviar sugestão</button>
   </form>
 
   <section class="space-y-3">
@@ -29,7 +29,7 @@
     <div class="bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
       <div class="flex items-start justify-between gap-3">
         <p class="font-medium text-slate-900 dark:text-slate-100">{{ s.nome }}</p>
-        <span class="text-xs font-semibold px-2.5 py-1 rounded-full {% if s.status == 'CADASTRADO' %}bg-emerald-50 text-emerald-700{% elif s.status == 'RECUSADO' %}bg-red-50 text-red-700{% else %}bg-amber-50 text-amber-700{% endif %}">{{ s.get_status_display }}</span>
+        <span class="text-xs font-semibold px-2.5 py-1 rounded-full {% if s.status == 'CADASTRADO' %}bg-emerald-50 text-emerald-700{% elif s.status == 'RECUSADO' %}bg-red-50 text-red-700{% else %}bg-amber-50 text-amber-700{% endif %} dark:text-emerald-400 dark:text-red-400 dark:text-amber-400 dark:bg-emerald-950 dark:bg-red-950 dark:bg-amber-950">{{ s.get_status_display }}</span>
       </div>
       {% if s.motivo_recusa %}<p class="text-sm text-slate-500 mt-1 dark:text-slate-400">{{ s.motivo_recusa }}</p>{% endif %}
     </div>

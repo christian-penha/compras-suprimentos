@@ -1,12 +1,12 @@
 <form method="get" class="basis-full mt-1 flex flex-wrap gap-3">
   {% if visao %}<input type="hidden" name="visao" value="{{ visao }}">{% endif %}
   <input name="q" value="{{ busca }}" placeholder="{{ placeholder|default:'Buscar por nome…' }}" autocomplete="off"
-         class="flex-1 min-w-[220px] rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+         class="flex-1 min-w-[220px] rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
   {% if filiais %}
-  <select name="filial" onchange="this.form.submit()" class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+  <select name="filial" onchange="this.form.submit()" class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
     <option value="">Todas as unidades</option>
     {% for f in filiais %}<option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
   </select>
   {% endif %}
-  <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+  <button class="rounded-xl bg-teal-700 text-white text-sm font-semibold px-5 py-3 hover:bg-teal-800 transition">Filtrar</button>
 </form>

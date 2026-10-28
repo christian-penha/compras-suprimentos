@@ -9,7 +9,7 @@ from .models import Pedido, PrioridadePedido, SugestaoProduto
 
 CAMPO = (
     "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm "
-    "focus:border-slate-900 focus:ring-1 focus:ring-slate-900 "
+    "focus:border-teal-700 focus:ring-1 focus:ring-teal-700 "
     "dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"
 )
 

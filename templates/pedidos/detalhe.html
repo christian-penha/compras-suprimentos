@@ -3,12 +3,12 @@
 {% block titulo %}Pedido #{{ pedido.pk }}{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'pedido_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Meus pedidos</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'pedido_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Meus pedidos</a>
   <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
     <div>
       <h1 class="text-2xl font-semibold">Pedido #{{ pedido.pk }}</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">
         Solicitado por {{ pedido.requisitante }} em {{ pedido.criado_em|date:"d/m/Y \à\s H:i" }}
       </p>
     </div>
@@ -18,9 +18,118 @@
 {% endblock %}
 
 {% block conteudo %}
-<div class="grid gap-6 lg:grid-cols-[1fr_340px] items-start">
+<div class="grid gap-6 xl:grid-cols-[1fr_340px] items-start">
   <div class="space-y-6">
 
+    {# ---- ações primeiro: o que a pessoa precisa fazer agora ---- #}
+    {% if pedido.status == 'ENVIADO' and pode_aprovar %}
+    <section class="bg-white rounded-2xl border-2 border-slate-900 p-6 dark:bg-slate-800 dark:border-white">
+      <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Decisão do aprovador</h2>
+      <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Este pedido aguarda a sua aprovação como líder do setor.</p>
+      <form method="post" class="space-y-3">
+        {% csrf_token %}
+        <input name="observacao" placeholder="Motivo (obrigatório para recusar)"
+               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+        <div class="flex gap-3">
+          <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-2.5 transition">Aprovar</button>
+          <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold px-6 py-2.5 transition dark:bg-red-950 dark:text-red-300">Recusar</button>
+        </div>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if pedido.status == 'ENTREGUE' and user == pedido.requisitante %}
+    <form method="post">{% csrf_token %}
+      <button name="acao" value="concluir" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-teal-600 dark:text-white">Confirmar recebimento</button>
+    </form>
+    {% endif %}
+
+    {% if e_gestor and pedido.status != 'RASCUNHO' and pedido.status != 'ENVIADO' and pedido.status != 'RECUSADO' and pedido.status != 'ENTREGUE' and pedido.status != 'CONCLUIDO' %}
+    <section class="rounded-2xl border p-5 {% if pedido.centro_custo_id %}bg-white border-slate-200 dark:bg-slate-800 dark:border-slate-700{% else %}bg-amber-50 border-amber-300 dark:bg-amber-950/40 dark:border-amber-800{% endif %}">
+      <div class="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <h2 class="font-semibold text-slate-900 dark:text-slate-100">Centro de custo do consumo</h2>
+          <p class="text-sm mt-0.5 {% if pedido.centro_custo_id %}text-slate-500 dark:text-slate-400{% else %}text-amber-800 dark:text-amber-300{% endif %}">
+            {% if pedido.centro_custo_id %}Onde o custo desta entrega é apropriado. Clique em outro para trocar.{% else %}<strong>Falta definir</strong> — é obrigatório para entregar. Clique no centro da unidade {{ pedido.almoxarifado_destino.filial.sigla }}.{% endif %}
+          </p>
+        </div>
+        {% if pedido.centro_custo_id %}<span class="text-xs font-semibold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 px-3 py-1 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-900">Definido</span>{% endif %}
+      </div>
+      <form method="post" class="mt-3 flex flex-wrap gap-2">
+        {% csrf_token %}
+        <input type="hidden" name="acao" value="definir_centro">
+        {% for c in centros %}
+        <button name="centro_custo" value="{{ c.pk }}" class="rounded-full border px-4 py-2 text-sm font-medium transition {% if pedido.centro_custo_id == c.pk %}bg-teal-700 text-white border-teal-700 dark:bg-teal-600 dark:border-teal-600{% else %}bg-white text-slate-700 border-slate-300 hover:border-teal-700 hover:text-teal-800 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-600{% endif %}">{{ c.nome }}</button>
+        {% empty %}
+        <p class="text-sm text-slate-600 dark:text-slate-300">Esta unidade ainda não tem centro de custo cadastrado.{% if user.is_superuser or user.e_superadmin %} <a href="{% url 'config_centro_novo' %}" class="font-medium text-teal-700 underline dark:text-teal-400">Cadastrar agora</a>{% endif %}</p>
+        {% endfor %}
+      </form>
+    </section>
+    {% endif %}
+
+    {% if e_gestor %}
+      {% if pedido.status == 'APROVADO_UNIDADE' %}
+      <form method="post">{% csrf_token %}
+        <button name="acao" value="separar" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-teal-600 dark:text-white">Iniciar separação</button>
+      </form>
+      {% elif pedido.status == 'EM_SEPARACAO' or pedido.status == 'ENTREGA_PARCIAL' %}
+      <section class="bg-white rounded-2xl border-2 border-slate-900 p-6 dark:bg-slate-800 dark:border-white">
+        <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Registrar entrega</h2>
+        <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Informe quanto de cada item sai agora. Pode entregar em partes: o pedido continua na fila até zerar o pendente.</p>
+        {% if itens_entrega %}
+        <form method="post">
+          {% csrf_token %}
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="text-slate-500 text-left dark:text-slate-400">
+                <tr>
+                  <th class="py-2 pr-4 font-medium">Produto</th>
+                  <th class="py-2 px-3 font-medium text-right">Pendente</th>
+                  <th class="py-2 px-3 font-medium text-right">Saldo em {{ pedido.almoxarifado_destino.nome }}</th>
+                  <th class="py-2 pl-3 font-medium text-right">Entregar agora</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+                {% for linha in itens_entrega %}
+                <tr class="dark:text-slate-100">
+                  <td class="py-3 pr-4">{{ linha.item.produto }}</td>
+                  <td class="py-3 px-3 text-right font-medium">{{ linha.item.pendente|floatformat:"-3" }}</td>
+                  <td class="py-3 px-3 text-right {% if linha.saldo < linha.item.pendente %}text-amber-700 dark:text-amber-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ linha.saldo|floatformat:"-3" }}</td>
+                  <td class="py-3 pl-3 text-right">
+                    <input name="qtd_{{ linha.item.pk }}" inputmode="decimal" aria-label="Quantidade a entregar de {{ linha.item.produto.nome }}"
+                           value="{% if linha.saldo >= linha.item.pendente %}{{ linha.item.pendente|floatformat:'-3' }}{% else %}{{ linha.saldo|floatformat:'-3' }}{% endif %}"
+                           class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold focus:border-teal-700 focus:ring-1 focus:ring-teal-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <button name="acao" value="entregar" class="mt-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 transition">Registrar entrega (baixa no estoque)</button>
+        </form>
+        {% else %}
+        <p class="text-sm text-slate-500 dark:text-slate-400">Não há mais itens do estoque pendentes. Os itens restantes aguardam compra.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+    {% endif %}
+
+    {% if etapas %}
+    <section class="bg-white rounded-2xl border border-slate-200 px-6 py-5 dark:bg-slate-800 dark:border-slate-700" aria-label="Etapas do pedido">
+      <ol class="flex items-start">
+        {% for e in etapas %}
+        <li class="flex-1 min-w-0 text-center relative">
+          {% if not forloop.first %}<span class="absolute top-3.5 right-1/2 w-full h-0.5 {% if e.estado == 'pendente' %}bg-slate-200 dark:bg-slate-700{% else %}bg-teal-700{% endif %}"></span>{% endif %}
+          <span class="relative z-10 inline-flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold {% if e.estado == 'feito' %}bg-teal-700 text-white{% elif e.estado == 'atual' %}bg-white text-teal-700 ring-2 ring-teal-700 dark:bg-slate-800{% else %}bg-slate-200 text-slate-500 dark:bg-slate-700 dark:text-slate-300{% endif %}">{% if e.estado == 'feito' %}✓{% else %}{{ forloop.counter }}{% endif %}</span>
+          <p class="mt-2 text-xs font-semibold {% if e.estado == 'pendente' %}text-slate-400{% else %}text-slate-900 dark:text-slate-100{% endif %}">{{ e.nome }}</p>
+          {% if e.detalhe %}<p class="text-[11px] text-teal-700 dark:text-teal-400">{{ e.detalhe }}</p>{% endif %}
+        </li>
+        {% endfor %}
+      </ol>
+    </section>
+    {% endif %}
+
+    {# ---- dados do pedido ---- #}
     <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
       <h2 class="font-semibold text-slate-900 mb-4 dark:text-slate-100">Informações do pedido</h2>
       <dl class="grid gap-x-6 gap-y-5 sm:grid-cols-2 text-sm">
@@ -80,7 +189,7 @@
         <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
           {% for item in itens %}
           <tr class="dark:text-slate-100">
-            <td class="px-6 py-3.5{% if item.cancelado %} line-through text-slate-400{% endif %}">{{ item.produto }}{% if item.cancelado %} <span class="no-underline text-xs font-medium text-red-600">eliminado: {{ item.motivo_cancelamento }}</span>{% endif %}</td>
+            <td class="px-6 py-3.5{% if item.cancelado %} line-through text-slate-400{% endif %}">{{ item.produto }}{% if item.cancelado %} <span class="no-underline text-xs font-medium text-red-600 dark:text-red-400">eliminado: {{ item.motivo_cancelamento }}</span>{% endif %}</td>
             <td class="px-6 py-3.5 text-right font-medium">{{ item.quantidade|floatformat:"-3" }}</td>
             <td class="px-6 py-3.5 text-right {% if item.quantidade_entregue and item.pendente > 0 %}text-sky-700 dark:text-sky-400{% endif %}">
               {% if item.quantidade_entregue %}{{ item.quantidade_entregue|floatformat:"-3" }}{% else %}<span class="text-slate-300">—</span>{% endif %}
@@ -100,27 +209,11 @@
       </table>
     </section>
 
-    {% if pedido.status == 'ENVIADO' and pode_aprovar %}
-    <section class="bg-white rounded-2xl border-2 border-slate-900 p-6 dark:bg-slate-800 dark:border-white">
-      <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Decisão do aprovador</h2>
-      <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Este pedido aguarda a sua aprovação como líder do setor.</p>
-      <form method="post" class="space-y-3">
-        {% csrf_token %}
-        <input name="observacao" placeholder="Motivo (obrigatório para recusar)"
-               class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
-        <div class="flex gap-3">
-          <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-2.5 transition">Aprovar</button>
-          <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold px-6 py-2.5 transition dark:bg-red-950 dark:text-red-300">Recusar</button>
-        </div>
-      </form>
-    </section>
-    {% endif %}
-
     {% for o in compras_do_pedido %}
     <section class="rounded-2xl border border-slate-200 bg-white px-6 py-4 flex flex-wrap items-center justify-between gap-3 dark:bg-slate-800 dark:border-slate-700">
       <div>
-        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Compra · OC #{{ o.numero }}</p>
-        <p class="font-medium text-slate-900 dark:text-slate-100">{{ o.cotacao.fornecedor }}</p>
+        <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Compra{% if ve_fornecedor %} · OC #{{ o.numero }}{% endif %}</p>
+        {% if ve_fornecedor %}<p class="font-medium text-slate-900 dark:text-slate-100">{{ o.cotacao.fornecedor }}</p>{% endif %}
         {% if o.previsao_entrega %}<p class="text-sm text-slate-500 dark:text-slate-400">Previsão de entrega: {{ o.previsao_entrega|date:"d/m/Y" }}</p>{% endif %}
       </div>
       <span class="text-xs font-semibold px-3 py-1.5 rounded-full {{ o.andamento|badge_status }}">{{ o.get_andamento_display }}</span>
@@ -134,72 +227,6 @@
     </section>
     {% endif %}
 
-    {% if e_gestor and pedido.status != 'RASCUNHO' and pedido.status != 'ENVIADO' and pedido.status != 'RECUSADO' and pedido.status != 'ENTREGUE' and pedido.status != 'CONCLUIDO' %}
-    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
-      <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Centro de custo (consumo)</h2>
-      <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Onde o custo desta entrega será apropriado. É obrigatório para entregar.</p>
-      <form method="post" class="flex flex-wrap gap-3">{% csrf_token %}
-        <select name="centro_custo" class="flex-1 min-w-[220px] rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
-          <option value="">Selecione…</option>
-          {% for c in centros %}<option value="{{ c.pk }}" {% if pedido.centro_custo_id == c.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}
-        </select>
-        <button name="acao" value="definir_centro" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Salvar centro</button>
-      </form>
-    </section>
-    {% endif %}
-
-    {% if e_gestor %}
-      {% if pedido.status == 'APROVADO_UNIDADE' %}
-      <form method="post">{% csrf_token %}
-        <button name="acao" value="separar" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Iniciar separação</button>
-      </form>
-      {% elif pedido.status == 'EM_SEPARACAO' or pedido.status == 'ENTREGA_PARCIAL' %}
-      <section class="bg-white rounded-2xl border-2 border-slate-900 p-6 dark:bg-slate-800 dark:border-white">
-        <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Registrar entrega</h2>
-        <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Informe quanto de cada item sai agora. Pode entregar em partes: o pedido continua na fila até zerar o pendente.</p>
-        {% if itens_entrega %}
-        <form method="post">
-          {% csrf_token %}
-          <div class="overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead class="text-slate-500 text-left dark:text-slate-400">
-                <tr>
-                  <th class="py-2 pr-4 font-medium">Produto</th>
-                  <th class="py-2 px-3 font-medium text-right">Pendente</th>
-                  <th class="py-2 px-3 font-medium text-right">Saldo em {{ pedido.almoxarifado_destino.nome }}</th>
-                  <th class="py-2 pl-3 font-medium text-right">Entregar agora</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
-                {% for linha in itens_entrega %}
-                <tr class="dark:text-slate-100">
-                  <td class="py-3 pr-4">{{ linha.item.produto }}</td>
-                  <td class="py-3 px-3 text-right font-medium">{{ linha.item.pendente|floatformat:"-3" }}</td>
-                  <td class="py-3 px-3 text-right {% if linha.saldo < linha.item.pendente %}text-amber-700 dark:text-amber-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{{ linha.saldo|floatformat:"-3" }}</td>
-                  <td class="py-3 pl-3 text-right">
-                    <input name="qtd_{{ linha.item.pk }}" inputmode="decimal" aria-label="Quantidade a entregar de {{ linha.item.produto.nome }}"
-                           value="{% if linha.saldo >= linha.item.pendente %}{{ linha.item.pendente|floatformat:'-3' }}{% else %}{{ linha.saldo|floatformat:'-3' }}{% endif %}"
-                           class="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm text-right font-semibold focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
-                  </td>
-                </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          <button name="acao" value="entregar" class="mt-5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-3 transition">Registrar entrega (baixa no estoque)</button>
-        </form>
-        {% else %}
-        <p class="text-sm text-slate-500 dark:text-slate-400">Não há mais itens do estoque pendentes. Os itens restantes aguardam compra.</p>
-        {% endif %}
-      </section>
-      {% endif %}
-    {% endif %}
-
-    {% if pedido.status == 'ENTREGUE' and user == pedido.requisitante %}
-    <form method="post">{% csrf_token %}
-      <button name="acao" value="concluir" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Confirmar recebimento</button>
-    </form>
-    {% endif %}
   </div>
 
   <aside class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
@@ -208,9 +235,8 @@
       {% for e in eventos %}
       <li class="ml-5">
         <span class="absolute -left-[5px] mt-1.5 h-2.5 w-2.5 rounded-full {% if forloop.last %}bg-slate-900 dark:bg-white{% else %}bg-slate-300 dark:bg-slate-600{% endif %}"></span>
-        <p class="font-medium text-slate-900 dark:text-slate-100">{{ e.get_para_status_display }}</p>
+        <p class="font-medium text-slate-900 dark:text-slate-100">{{ e.para_status|evento_rotulo }}</p>
         <p class="text-slate-500 dark:text-slate-400">{{ e.usuario }} · {{ e.criado_em|date:"d/m H:i" }}</p>
-        {% if e.observacao %}<p class="text-slate-500 italic mt-0.5 dark:text-slate-400">"{{ e.observacao }}"</p>{% endif %}
       </li>
       {% empty %}
       <li class="ml-5 text-slate-400">Sem eventos.</li>

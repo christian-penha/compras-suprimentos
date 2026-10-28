@@ -2,14 +2,14 @@
 {% block titulo %}Alçadas{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
   <h1 class="text-2xl font-semibold">Alçadas de aprovação</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Limites de valor e quem aprova cada faixa das cotações de compra, calculados sobre o total com frete.</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Limites de valor e quem aprova cada faixa das cotações de compra, calculados sobre o total com frete.</p>
 
   <form method="get" class="mt-5 flex flex-wrap items-center gap-3">
-    <label class="text-sm text-[#9a9a9a]" for="escopo">Tabela de</label>
+    <label class="text-sm text-slate-500 dark:text-slate-400" for="escopo">Tabela de</label>
     <select id="escopo" name="filial" onchange="this.form.submit()"
-            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+            class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
       <option value="">Padrão do grupo (todas as filiais)</option>
       {% for f in filiais %}<option value="{{ f.pk }}" {% if filial and filial.pk == f.pk %}selected{% endif %}>{{ f.nome }}{% if f.pk in filiais_com_tabela %} — tabela própria{% endif %}</option>{% endfor %}
     </select>
@@ -23,7 +23,7 @@
   <p class="text-sm text-slate-600 dark:text-slate-300"><strong class="text-slate-900 dark:text-white">{{ filial.nome }}</strong> segue a tabela padrão do grupo (abaixo, somente leitura). Crie uma tabela própria para definir limites diferentes só para esta unidade.</p>
   <form method="post">{% csrf_token %}
     <input type="hidden" name="filial" value="{{ filial.pk }}">
-    <button name="acao" value="criar_propria" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-5 py-2.5 transition dark:bg-white dark:text-black">Criar tabela própria</button>
+    <button name="acao" value="criar_propria" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-5 py-2.5 transition dark:bg-teal-600 dark:text-white">Criar tabela própria</button>
   </form>
 </div>
 {% endif %}
@@ -85,20 +85,20 @@
         </div>
 
         {% if a.papel_aprovador != 'AUTOMATICA' and a.papel_aprovador != 'LIDER_SETOR' and not usa_padrao %}
-        <a href="{% url 'config_alcada_editar' a.pk %}" class="btn-aprovadores mt-5 block text-center rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Definir aprovadores</a>
+        <a href="{% url 'config_alcada_editar' a.pk %}" class="btn-aprovadores mt-5 block text-center rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold py-2.5 transition dark:bg-teal-600 dark:text-white dark:hover:bg-teal-500">Definir aprovadores</a>
         {% endif %}
       </article>
       {% endfor %}
     {% endif %}
 
     {% if not usa_padrao %}
-    <button type="button" id="adicionar" class="rounded-2xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-slate-900 hover:text-slate-900 text-sm font-semibold min-h-[160px] transition dark:border-slate-600 dark:text-slate-400 dark:hover:border-white dark:hover:text-white">+ Adicionar faixa</button>
+    <button type="button" id="adicionar" class="rounded-2xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-teal-700 hover:text-teal-800 text-sm font-semibold min-h-[160px] transition dark:border-slate-600 dark:text-slate-400 dark:hover:border-white dark:hover:text-white">+ Adicionar faixa</button>
     {% endif %}
   </div>
 
   {% if not usa_padrao %}
   <div class="mt-6 flex flex-wrap items-center gap-3">
-    <button name="acao" value="salvar" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Salvar tabela</button>
+    <button name="acao" value="salvar" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-teal-600 dark:text-white">Salvar tabela</button>
     {% if filial %}
     <button name="acao" value="voltar_padrao" formnovalidate onclick="return confirm('Descartar a tabela própria de {{ filial.nome }} e voltar à padrão do grupo?')" class="ml-auto text-sm text-slate-400 hover:text-red-600">Voltar à tabela do grupo</button>
     {% endif %}

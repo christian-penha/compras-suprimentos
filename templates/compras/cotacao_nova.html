@@ -2,10 +2,10 @@
 {% block titulo %}Nova cotação{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'fila_compras' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Fila de compras</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'fila_compras' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Fila de compras</a>
   <h1 class="text-2xl font-semibold mt-2">Nova cotação</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Adicione um ou mais fornecedores e informe o valor unitário de cada item (deixe em branco o que o fornecedor não cotou). Com mais de um fornecedor, você compara e escolhe o vencedor de cada item.</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Adicione um ou mais fornecedores e informe o valor unitário de cada item (deixe em branco o que o fornecedor não cotou). Com mais de um fornecedor, você compara e escolhe o vencedor de cada item.</p>
 </div>
 {% endblock %}
 
@@ -16,14 +16,14 @@
 
   <section class="bg-white rounded-2xl border border-slate-200 p-5 mb-5 dark:bg-slate-800 dark:border-slate-700">
     <h2 class="font-semibold text-slate-900 dark:text-slate-100">Centro de custo (desembolso)</h2>
-    <p class="text-sm text-slate-500 mb-3 dark:text-slate-400">Um centro por pedido: vale para todos os itens dele.</p>
+    <p class="text-sm text-slate-500 mb-3 dark:text-slate-400">Um centro por pedido, da unidade do pedido: vale para todos os itens dele.</p>
     <div class="grid gap-3 sm:grid-cols-2">
       {% for pc in pedidos_cotados %}
       <label class="flex items-center gap-3 text-sm dark:text-slate-100">
-        <span class="w-40 shrink-0">Pedido #{{ pc.pedido.pk }} <span class="block text-xs text-slate-500 dark:text-slate-400">{{ pc.itens|join:", "|truncatechars:40 }}</span></span>
+        <span class="w-40 shrink-0">Pedido #{{ pc.pedido.pk }} · {{ pc.pedido.almoxarifado_destino.filial.sigla }} <span class="block text-xs text-slate-500 dark:text-slate-400">{{ pc.itens|join:", "|truncatechars:40 }}</span></span>
         <select name="centro_pedido_{{ pc.pedido.pk }}" required class="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
           <option value="">Selecione…</option>
-          {% for c in centros %}<option value="{{ c.pk }}" {% if pc.centro_id == c.pk|stringformat:"s" %}selected{% endif %}>{{ c }}</option>{% endfor %}
+          {% for c in pc.centros %}<option value="{{ c.pk }}" {% if pc.centro_id == c.pk|stringformat:"s" %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
         </select>
       </label>
       {% endfor %}
@@ -50,7 +50,7 @@
           </th>
           {% endfor %}
           <th class="px-3 py-3 w-12">
-            <button type="button" id="add-col" class="rounded-xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-slate-900 hover:text-slate-900 text-xs font-semibold px-3 py-6 whitespace-nowrap dark:border-slate-600 dark:text-slate-400 dark:hover:border-white dark:hover:text-white">+ Fornecedor</button>
+            <button type="button" id="add-col" class="rounded-xl border-2 border-dashed border-slate-300 text-slate-500 hover:border-teal-700 hover:text-teal-800 text-xs font-semibold px-3 py-6 whitespace-nowrap dark:border-slate-600 dark:text-slate-400 dark:hover:border-white dark:hover:text-white">+ Fornecedor</button>
           </th>
         </tr>
       </thead>
@@ -88,9 +88,9 @@
       <input name="observacao" maxlength="300" placeholder="Prazo, condição de pagamento…"
              class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
     </div>
-    <button name="enviar" value="1" class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-3 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Registrar cotação</button>
+    <button name="enviar" value="1" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-semibold px-6 py-3 transition dark:bg-teal-600 dark:text-white dark:hover:bg-teal-500">Registrar cotação</button>
   </div>
-  {% if not fornecedores %}<p class="text-xs text-amber-700 mt-3">Nenhum fornecedor cadastrado — cadastre em Configurações → Fornecedores.</p>{% endif %}
+  {% if not fornecedores %}<p class="text-xs text-amber-700 mt-3 dark:text-amber-400">Nenhum fornecedor cadastrado — cadastre em Configurações → Fornecedores.</p>{% endif %}
 </form>
 
 <script>

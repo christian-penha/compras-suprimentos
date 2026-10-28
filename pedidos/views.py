@@ -4,9 +4,10 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.utils.http import urlencode
+from django.utils.http import url_has_allowed_host_and_scheme, urlencode
 from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
+from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
 
 from cadastros.models import Categoria, Produto
@@ -14,7 +15,7 @@ from contas.models import Modulo, Papel
 from contas.permissoes import requer_papel
 from estoque.models import Movimentacao, SaldoEstoque, TipoMovimentacao
 from estoque.services import EstoqueInsuficiente
-from tenancy.models import Almoxarifado, CentroCusto, Evento, Filial
+from tenancy.models import Almoxarifado, CentroCusto, Evento, Filial, centros_da_filial
 
 from . import cart
 from .forms import PedidoForm, almoxarifados_do_usuario
@@ -26,6 +27,7 @@ from .services import (
     entregar,
     pode_aprovar,
     saldo_no_almoxarifado,
+    validar_centro_da_unidade,
     transicionar,
 )
 
@@ -56,6 +58,22 @@ def painel(request):
         contexto["qtd_fila"] = Pedido.objects.filter(
             status__in=FILA_SUPRIMENTOS, ativo=True
         ).count()
+    from compras.models import Cotacao, OrdemCompra, StatusCotacao, StatusOrdem
+    from compras.services import itens_para_cotar, pode_decidir_cotacao
+
+    e_estoque = usuario.is_superuser or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.ESTOQUE)
+    e_compras = usuario.is_superuser or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS)
+    contexto.update({"e_estoque": e_estoque, "e_compras": e_compras})
+    if e_compras:
+        contexto["qtd_cotar"] = itens_para_cotar().count()
+        contexto["qtd_ordens_abertas"] = OrdemCompra.objects.filter(
+            status__in=[StatusOrdem.ABERTA, StatusOrdem.PARCIALMENTE_RECEBIDA]
+        ).count()
+    if usuario.alcadas_que_aprova.exists() or usuario.setores_liderados.exists() or usuario.is_superuser:
+        contexto["qtd_alcada"] = sum(
+            1 for c in Cotacao.objects.filter(status=StatusCotacao.AGUARDANDO_ALCADA)
+            if pode_decidir_cotacao(usuario, c)
+        )
     return render(request, "painel.html", contexto)
 
 
@@ -263,6 +281,41 @@ def pedido_lista(request):
     return render(request, "pedidos/lista.html", {"pedidos": pedidos, **ctx})
 
 
+def _eventos_sem_repeticao(pedido):
+    """Passos internos (cotação, alçada, OC) repetem o mesmo status; o histórico mostra só a mudança."""
+    saida = []
+    for e in pedido.eventos.select_related("usuario"):
+        if not saida or saida[-1].para_status != e.para_status:
+            saida.append(e)
+    return saida
+
+
+_ETAPAS = ["Enviado", "Aprovado", "Compra", "Separação", "Entrega", "Concluído"]
+_ETAPA_ATUAL = {
+    "ENVIADO": 0, "APROVADO_UNIDADE": 1, "AGUARDANDO_COMPRA": 2, "EM_SEPARACAO": 3,
+    "ENTREGA_PARCIAL": 4, "ENTREGUE": 4, "CONCLUIDO": 6,
+}
+
+
+def _etapas_do_pedido(pedido, compras, tem_compra):
+    """Trilha para o requisitante: o que já passou, onde está e o que falta."""
+    if pedido.status not in _ETAPA_ATUAL:
+        return []
+    atual = _ETAPA_ATUAL[pedido.status]
+    detalhe = {
+        0: "Aguardando aprovação",
+        2: compras[-1].get_andamento_display() if compras else "Em cotação",
+        4: "Parcial" if pedido.status == "ENTREGA_PARCIAL" else "",
+    }
+    etapas = []
+    for i, nome in enumerate(_ETAPAS):
+        if i == 2 and not (tem_compra or atual == 2):
+            continue
+        estado = "feito" if i < atual else "atual" if i == atual else "pendente"
+        etapas.append({"nome": nome, "estado": estado, "detalhe": detalhe.get(i, "") if estado == "atual" else ""})
+    return etapas
+
+
 def _compras_do_pedido(pedido):
     """Ordens de compra que atendem itens deste pedido, com o andamento informado pelo comprador."""
     from compras.models import OrdemCompra
@@ -310,6 +363,13 @@ def pedido_detalhe(request, pk):
                 transicionar(pedido, StatusPedido.EM_SEPARACAO, usuario)
                 messages.success(request, f"Pedido #{pedido.pk} em separação.")
             elif acao == "entregar":
+                if pedido.centro_custo_id is None and request.POST.get("centro_custo"):
+                    centro = CentroCusto.objects.filter(pk=request.POST["centro_custo"], ativo=True).first()
+                    validar_centro_da_unidade(centro, pedido.almoxarifado_destino.filial_id)
+                    if centro is None:
+                        raise TransicaoInvalida("Escolha o centro de custo.")
+                    pedido.centro_custo = centro
+                    pedido.save(update_fields=["centro_custo"])
                 quantidades = {}
                 for item in pedido.itens.all():
                     bruto = request.POST.get(f"qtd_{item.pk}", "").strip().replace(",", ".")
@@ -328,6 +388,7 @@ def pedido_detalhe(request, pk):
                 centro = CentroCusto.objects.filter(pk=request.POST.get("centro_custo") or 0, ativo=True).first()
                 if centro is None:
                     raise TransicaoInvalida("Escolha o centro de custo.")
+                validar_centro_da_unidade(centro, pedido.almoxarifado_destino.filial_id)
                 antes = pedido.centro_custo
                 pedido.centro_custo = centro
                 pedido.save(update_fields=["centro_custo"])
@@ -341,27 +402,34 @@ def pedido_detalhe(request, pk):
                 messages.success(request, "Recebimento confirmado. Pedido concluído.")
         except (TransicaoInvalida, SemPermissao, EstoqueInsuficiente) as e:
             messages.error(request, str(e))
+        volta = request.POST.get("next", "")
+        if volta and url_has_allowed_host_and_scheme(volta, allowed_hosts={request.get_host()}):
+            return redirect(volta)
         return redirect("pedido_detalhe", pk=pedido.pk)
 
+    compras = _compras_do_pedido(pedido)
+    tem_compra = pedido.itens.filter(origem_atendimento=OrigemAtendimento.COMPRA).exists()
     return render(
         request, "pedidos/detalhe.html",
         {
             "pedido": pedido,
             "itens": pedido.itens.select_related("produto"),
-            "tem_item_de_compra": pedido.itens.filter(
-                origem_atendimento=OrigemAtendimento.COMPRA
-            ).exists(),
+            "tem_item_de_compra": tem_compra,
             "itens_entrega": [
                 {"item": i, "saldo": saldo_no_almoxarifado(i.produto, pedido.almoxarifado_destino)}
                 for i in pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE)
                 .select_related("produto")
                 if i.pendente > 0
             ],
-            "eventos": pedido.eventos.select_related("usuario"),
+            "eventos": _eventos_sem_repeticao(pedido),
             "pode_aprovar": pode_aprovar(usuario, pedido),
-            "compras_do_pedido": _compras_do_pedido(pedido),
+            "compras_do_pedido": compras,
+            "etapas": _etapas_do_pedido(pedido, compras, tem_compra),
             "e_gestor": e_gestor,
-            "centros": CentroCusto.objects.filter(ativo=True).select_related("filial") if e_gestor else [],
+            "ve_fornecedor": e_gestor or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS),
+            "centros": (
+                centros_da_filial(pedido.almoxarifado_destino.filial_id, pedido.centro_custo_id) if e_gestor else []
+            ),
         },
     )
 
@@ -380,6 +448,57 @@ def aprovacoes(request):
 
 
 @requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+def pedido_mover(request, pk):
+    """Arrastar no kanban. Só o que não precisa de informação muda direto; entrega pede dados
+    (quantidades e centro de custo) numa janela, e o resto é definido pelo sistema."""
+    if request.method != "POST":
+        return JsonResponse({"ok": False, "mensagem": "Método não permitido."}, status=405)
+    pedido = get_object_or_404(Pedido, pk=pk, ativo=True)
+    destino = request.POST.get("destino", "")
+    try:
+        if destino == StatusPedido.EM_SEPARACAO and pedido.status == StatusPedido.APROVADO_UNIDADE:
+            transicionar(pedido, StatusPedido.EM_SEPARACAO, request.user)
+            return JsonResponse({"ok": True, "mensagem": f"Pedido #{pedido.pk} em separação."})
+        if destino in (StatusPedido.ENTREGA_PARCIAL, StatusPedido.ENTREGUE) and pedido.status in (
+            StatusPedido.EM_SEPARACAO, StatusPedido.ENTREGA_PARCIAL,
+        ):
+            return JsonResponse({"ok": True, "modal": reverse("pedido_entrega_modal", args=[pedido.pk])})
+        if destino == pedido.status:
+            return JsonResponse({"ok": True, "mensagem": ""})
+    except (TransicaoInvalida, SemPermissao) as e:
+        return JsonResponse({"ok": False, "mensagem": str(e)}, status=400)
+    if destino in (StatusPedido.AGUARDANDO_COMPRA, StatusPedido.APROVADO_UNIDADE):
+        motivo = "Esse status é definido pelo sistema (aprovação e compra), não por arrastar."
+    elif pedido.status == StatusPedido.APROVADO_UNIDADE:
+        motivo = "Antes de entregar, inicie a separação (arraste para \"Em separação\")."
+    else:
+        motivo = "Esse movimento não é permitido para o status atual do pedido."
+    return JsonResponse({"ok": False, "mensagem": motivo}, status=400)
+
+
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+def pedido_entrega_modal(request, pk):
+    """Trecho de HTML com o formulário de entrega (quantidades + centro de custo, se faltar)."""
+    pedido = get_object_or_404(
+        Pedido.objects.select_related("almoxarifado_destino__filial", "centro_custo"), pk=pk, ativo=True
+    )
+    return render(request, "estoque/_entrega_modal.html", {
+        "pedido": pedido,
+        "itens_entrega": [
+            {
+                "item": i, "saldo": saldo,
+                "sugerido": min(i.pendente, saldo) if saldo > 0 else 0,
+            }
+            for i in pedido.itens.filter(origem_atendimento=OrigemAtendimento.ESTOQUE).select_related("produto")
+            if i.pendente > 0
+            for saldo in [saldo_no_almoxarifado(i.produto, pedido.almoxarifado_destino)]
+        ],
+        "centros": centros_da_filial(pedido.almoxarifado_destino.filial_id, pedido.centro_custo_id),
+        "voltar": request.GET.get("voltar", ""),
+    })
+
+
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def fila_suprimentos(request):
     pedidos = Pedido.objects.filter(
         status__in=FILA_SUPRIMENTOS, ativo=True
@@ -387,9 +506,14 @@ def fila_suprimentos(request):
     pedidos, ctx = _filtrar_pedidos(request, pedidos)
     pedidos = list(pedidos)
     visao = request.GET.get("visao", "cards")
+    if visao == "kanban":  # a última coluna mostra o que acabou de ser entregue
+        recentes = Pedido.objects.filter(status=StatusPedido.ENTREGUE, ativo=True).select_related(
+            "requisitante", "almoxarifado_destino__filial"
+        ).order_by("-atualizado_em")[:15]
+        pedidos += list(recentes)
     colunas = [
-        {"titulo": StatusPedido(st).label, "pedidos": [p for p in pedidos if p.status == st]}
-        for st in FILA_SUPRIMENTOS
+        {"status": st, "titulo": StatusPedido(st).label, "pedidos": [p for p in pedidos if p.status == st]}
+        for st in FILA_SUPRIMENTOS + ([StatusPedido.ENTREGUE] if visao == "kanban" else [])
     ]
     return render(request, "estoque/fila.html", {
         "pedidos": pedidos, "colunas": colunas,
@@ -475,10 +599,13 @@ def relatorio_eventos(request):
 
 @requer_papel(Papel.ADMINISTRADOR, modulo=(Modulo.ESTOQUE, Modulo.COMPRAS))
 def relatorio_centros(request):
-    """Desembolso (notas) e consumo (baixas) por centro de custo — eixos que não se somam."""
+    """Desembolso (notas) e consumo (baixas) por centro de custo, com filtros e gráficos.
+    Os dois eixos ficam lado a lado e nunca são somados (RN-17)."""
     from datetime import date
 
-    from compras.services import desembolso_por_centro
+    from contas.models import Setor
+
+    from . import relatorio_custos as rc
 
     def _data(nome):
         try:
@@ -489,33 +616,42 @@ def relatorio_centros(request):
     inicio, fim = _data("de"), _data("ate")
     filial_id = request.GET.get("filial", "")
     filial_id = filial_id if filial_id.isdigit() else ""
+    setor_id = request.GET.get("setor", "")
+    setor_id = setor_id if setor_id.isdigit() else ""
+    centros_ids = {int(c) for c in request.GET.getlist("centro") if c.isdigit()}
 
-    movs = Movimentacao.objects.filter(
-        pedido__isnull=False, tipo__in=[TipoMovimentacao.SAIDA, TipoMovimentacao.TRANSFERENCIA]
-    ).select_related("centro_custo__filial")
-    if inicio:
-        movs = movs.filter(criado_em__date__gte=inicio)
-    if fim:
-        movs = movs.filter(criado_em__date__lte=fim)
-    consumo = {}
-    for m in movs:
-        consumo[m.centro_custo] = consumo.get(m.centro_custo, Decimal("0")) + m.quantidade * m.valor_unitario
-    desembolso = desembolso_por_centro(inicio, fim)
+    todos_c, todos_d = rc.linhas_consumo(), rc.linhas_desembolso()
+    f = lambda linhas: rc.filtrar(linhas, filial_id, setor_id, centros_ids)  # noqa: E731
+    no_periodo = lambda linhas: [  # noqa: E731
+        l for l in linhas if (not inicio or l["data"] >= inicio) and (not fim or l["data"] <= fim)
+    ]
+    consumo, desembolso = f(no_periodo(todos_c)), f(no_periodo(todos_d))
 
-    def _linhas(dados):
-        linhas = [
-            {"centro": c, "valor": v} for c, v in dados.items()
-            if not filial_id or (c is not None and str(c.filial_id) == filial_id)
-        ]
-        linhas.sort(key=lambda x: -x["valor"])
-        return linhas, sum((x["valor"] for x in linhas), Decimal("0"))
+    nome_centro = lambda c: str(c) if c else "Sem centro"  # noqa: E731
+    por_centro = {}
+    for eixo, linhas in (("consumo", consumo), ("desembolso", desembolso)):
+        for l in linhas:
+            linha = por_centro.setdefault(l["centro"], {"centro": l["centro"], "consumo": 0, "desembolso": 0})
+            linha[eixo] += l["valor"]
+    tabela = sorted(por_centro.values(), key=lambda x: -(x["consumo"] + x["desembolso"]))
+    total_consumo = sum((l["valor"] for l in consumo), Decimal("0"))
+    total_desembolso = sum((l["valor"] for l in desembolso), Decimal("0"))
+    maior_centro = rc.agrupar(consumo, lambda l: l["centro"], nome_centro, limite=1)
 
-    linhas_consumo, total_consumo = _linhas(consumo)
-    linhas_desembolso, total_desembolso = _linhas(desembolso)
     return render(request, "pedidos/relatorio_centros.html", {
-        "consumo": linhas_consumo, "total_consumo": total_consumo,
-        "desembolso": linhas_desembolso, "total_desembolso": total_desembolso,
+        "total_consumo": total_consumo, "total_desembolso": total_desembolso,
+        "qtd_entregas": len(consumo), "qtd_centros": len(por_centro),
+        "maior_centro": maior_centro[0] if maior_centro else None,
+        "consumo_unidade": rc.agrupar(consumo, lambda l: l["filial"], lambda f_: f_.nome if f_ else "Sem unidade"),
+        "consumo_setor": rc.agrupar(consumo, lambda l: l["setor"], lambda s: s.nome if s else "Sem setor", limite=8),
+        "consumo_centro": rc.agrupar(consumo, lambda l: l["centro"], nome_centro, limite=8),
+        "desembolso_centro": rc.agrupar(desembolso, lambda l: l["centro"], nome_centro, limite=8),
+        "serie": rc.serie_mensal(f(todos_c), f(todos_d)),
+        "tabela": tabela,
         "filiais": Filial.objects.filter(ativo=True).order_by("nome"),
-        "filial_id": filial_id,
+        "setores": Setor.objects.filter(ativo=True).select_related("filial").order_by("filial__nome", "nome"),
+        "centros": CentroCusto.objects.filter(ativo=True).select_related("filial").order_by("filial__nome", "nome"),
+        "filial_id": filial_id, "setor_id": setor_id, "centros_ids": centros_ids,
         "de": request.GET.get("de", ""), "ate": request.GET.get("ate", ""),
+        "hoje": date.today().isoformat(),
     })

@@ -1,0 +1,59 @@
+<div class="p-6">
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <h2 class="text-lg font-semibold text-slate-900 dark:text-white">Entregar pedido #{{ pedido.pk }}</h2>
+      <p class="text-sm text-slate-500 dark:text-slate-400">{{ pedido.requisitante }} · {{ pedido.almoxarifado_destino }}</p>
+    </div>
+    <button type="button" data-fechar class="text-2xl leading-none text-slate-400 hover:text-slate-700 dark:hover:text-white" aria-label="Fechar">&times;</button>
+  </div>
+
+  <form method="post" action="{% url 'pedido_detalhe' pedido.pk %}" class="mt-5 space-y-5">
+    {% csrf_token %}
+    <input type="hidden" name="acao" value="entregar">
+    <input type="hidden" name="next" value="{{ voltar }}">
+
+    {% if not pedido.centro_custo_id %}
+    <div class="rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-800 dark:bg-amber-950/40">
+      <p class="text-sm font-semibold text-amber-900 dark:text-amber-200">Falta o centro de custo do consumo</p>
+      <p class="text-xs text-amber-800 dark:text-amber-300">Obrigatório para entregar. Centros da unidade {{ pedido.almoxarifado_destino.filial.sigla }}:</p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        {% for c in centros %}
+        <label class="cursor-pointer rounded-full border border-slate-300 bg-white px-3.5 py-1.5 text-sm text-slate-700 transition hover:border-teal-700 has-[:checked]:border-teal-700 has-[:checked]:bg-teal-700 has-[:checked]:text-white dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200">
+          <input type="radio" name="centro_custo" value="{{ c.pk }}" class="sr-only" required>{{ c.nome }}
+        </label>
+        {% empty %}<p class="text-sm text-amber-900 dark:text-amber-200">Esta unidade não tem centro de custo cadastrado.</p>{% endfor %}
+      </div>
+    </div>
+    {% else %}
+    <p class="text-sm text-slate-500 dark:text-slate-400">Centro de custo: <strong class="text-slate-800 dark:text-slate-100">{{ pedido.centro_custo }}</strong></p>
+    {% endif %}
+
+    {% if itens_entrega %}
+    <div class="overflow-hidden rounded-xl border border-slate-200 dark:border-slate-700">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+          <tr><th class="px-4 py-2.5 font-medium">Produto</th><th class="px-3 py-2.5 font-medium text-right">Pendente</th><th class="px-3 py-2.5 font-medium text-right">Saldo</th><th class="px-4 py-2.5 font-medium text-right">Entregar agora</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700 dark:text-slate-100">
+          {% for l in itens_entrega %}
+          <tr>
+            <td class="px-4 py-3">{{ l.item.produto.nome }}</td>
+            <td class="px-3 py-3 text-right">{{ l.item.pendente|floatformat:"-3" }}</td>
+            <td class="px-3 py-3 text-right text-slate-500 dark:text-slate-400">{{ l.saldo|floatformat:"-3" }}</td>
+            <td class="px-4 py-3 text-right"><input name="qtd_{{ l.item.pk }}" value="{{ l.sugerido|floatformat:'-3' }}" inputmode="decimal" aria-label="Entregar agora de {{ l.item.produto.nome }}" class="w-24 rounded-lg border border-slate-300 px-2.5 py-1.5 text-right text-sm focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-800"></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="text-xs text-slate-400">Entregue em partes se preciso: o pedido segue na fila até zerar o pendente.</p>
+    {% else %}
+    <p class="rounded-xl bg-slate-50 p-4 text-sm text-slate-600 dark:bg-slate-900/40 dark:text-slate-300">Nenhum item deste pedido está disponível no estoque para entrega agora.</p>
+    {% endif %}
+
+    <div class="flex flex-wrap justify-end gap-3">
+      <button type="button" data-fechar class="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800">Cancelar</button>
+      {% if itens_entrega %}<button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-2.5 transition">Registrar entrega</button>{% endif %}
+    </div>
+  </form>
+</div>

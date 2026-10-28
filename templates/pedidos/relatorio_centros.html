@@ -2,58 +2,222 @@
 {% block titulo %}Custo por centro{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
   <h1 class="text-2xl font-semibold">Custo por centro de custo</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Dois eixos independentes: o desembolso (notas fiscais) e o consumo (baixas do estoque a custo médio). Não somam entre si.</p>
-  <form method="get" class="mt-5 flex flex-wrap items-end gap-3">
-    <select name="filial" onchange="this.form.submit()" class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
-      <option value="">Todas as filiais</option>
-      {% for f in filiais %}<option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
-    </select>
-    <label class="text-xs text-[#9a9a9a]">De<input type="date" name="de" value="{{ de }}" class="mt-1 block rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-3 py-2.5 text-sm text-white"></label>
-    <label class="text-xs text-[#9a9a9a]">Até<input type="date" name="ate" value="{{ ate }}" class="mt-1 block rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-3 py-2.5 text-sm text-white"></label>
-    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Quanto saiu do caixa (notas fiscais) e quanto cada unidade, setor e centro consumiu (baixas a custo médio). Os dois eixos não se somam.</p>
+
+  <form method="get" id="filtros" class="mt-5 space-y-4">
+    <div class="flex flex-wrap items-end gap-3">
+      <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Unidade
+        <select name="filial" id="f-unidade" class="mt-1 block min-w-[180px] rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+          <option value="">Todas as unidades</option>
+          {% for f in filiais %}<option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Setor
+        <select name="setor" id="f-setor" class="mt-1 block min-w-[180px] rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+          <option value="">Todos os setores</option>
+          {% for s in setores %}<option value="{{ s.pk }}" data-filial="{{ s.filial_id }}" {% if setor_id == s.pk|stringformat:"s" %}selected{% endif %}>{{ s.nome }}</option>{% endfor %}
+        </select>
+      </label>
+      <label class="text-xs font-medium text-slate-500 dark:text-slate-400">De
+        <input type="date" name="de" id="f-de" value="{{ de }}" class="mt-1 block rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+      </label>
+      <label class="text-xs font-medium text-slate-500 dark:text-slate-400">Até
+        <input type="date" name="ate" id="f-ate" value="{{ ate }}" class="mt-1 block rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+      </label>
+      <div class="relative">
+        <p class="text-xs font-medium text-slate-500 dark:text-slate-400">Centros de custo</p>
+        <details id="seletor-centros" class="group">
+          <summary class="mt-1 flex min-w-[200px] cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm hover:border-slate-400 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+            <span id="resumo-centros">Todos os centros</span>
+            <svg class="h-4 w-4 text-slate-400 transition group-open:rotate-180" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/></svg>
+          </summary>
+          <div class="absolute left-0 z-30 mt-2 w-[min(640px,90vw)] max-h-80 overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-xl dark:border-slate-700 dark:bg-slate-800">
+            <div class="mb-3 flex items-center justify-between text-xs">
+              <span class="text-slate-500 dark:text-slate-400">Nenhum marcado = todos os centros</span>
+              <button type="button" id="limpar-centros" class="font-medium text-teal-700 hover:underline dark:text-teal-400">Limpar seleção</button>
+            </div>
+            <div id="centros" class="flex flex-wrap gap-2">
+              {% for c in centros %}
+              {% ifchanged c.filial_id %}<p data-grupo="{{ c.filial_id }}" class="grupo basis-full mt-1 first:mt-0 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ c.filial.nome }}</p>{% endifchanged %}
+              <label data-filial="{{ c.filial_id }}" class="centro cursor-pointer rounded-full border border-slate-300 px-3.5 py-1.5 text-sm text-slate-600 transition hover:border-teal-700 has-[:checked]:border-teal-700 has-[:checked]:bg-teal-700 has-[:checked]:text-white dark:border-slate-600 dark:text-slate-300">
+                <input type="checkbox" name="centro" value="{{ c.pk }}" class="sr-only" {% if c.pk in centros_ids %}checked{% endif %}>
+                {{ c.nome }}
+              </label>
+              {% endfor %}
+            </div>
+          </div>
+        </details>
+      </div>
+      <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-5 py-2.5 transition">Aplicar</button>
+      <a href="{% url 'relatorio_centros' %}" class="text-sm text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white py-2.5">Limpar</a>
+    </div>
+
+    <div class="flex flex-wrap items-center gap-2 text-sm">
+      <span class="text-xs font-medium text-slate-500 dark:text-slate-400 mr-1">Período:</span>
+      <button type="button" data-preset="mes" class="preset rounded-full border border-slate-300 px-3 py-1 text-slate-600 hover:border-teal-700 hover:text-teal-800 dark:border-slate-600 dark:text-slate-300">Este mês</button>
+      <button type="button" data-preset="anterior" class="preset rounded-full border border-slate-300 px-3 py-1 text-slate-600 hover:border-teal-700 hover:text-teal-800 dark:border-slate-600 dark:text-slate-300">Mês passado</button>
+      <button type="button" data-preset="90" class="preset rounded-full border border-slate-300 px-3 py-1 text-slate-600 hover:border-teal-700 hover:text-teal-800 dark:border-slate-600 dark:text-slate-300">Últimos 90 dias</button>
+      <button type="button" data-preset="ano" class="preset rounded-full border border-slate-300 px-3 py-1 text-slate-600 hover:border-teal-700 hover:text-teal-800 dark:border-slate-600 dark:text-slate-300">Este ano</button>
+      <button type="button" data-preset="tudo" class="preset rounded-full border border-slate-300 px-3 py-1 text-slate-600 hover:border-teal-700 hover:text-teal-800 dark:border-slate-600 dark:text-slate-300">Tudo</button>
+    </div>
+
   </form>
 </div>
 {% endblock %}
 
 {% block conteudo %}
-<div class="grid gap-6 lg:grid-cols-2 items-start">
-  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
-    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-700">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Eixo desembolso · definido por compras</p>
-      <h2 class="font-semibold text-slate-900 dark:text-slate-100">Compras (valor das notas)</h2>
-    </header>
-    <ul class="divide-y divide-slate-100 dark:divide-slate-700">
-      {% for l in desembolso %}
-      <li class="flex items-center justify-between px-6 py-3 text-sm dark:text-slate-100">
-        <span>{% if l.centro %}{{ l.centro }}{% else %}<span class="text-amber-700 dark:text-amber-400">Sem centro</span>{% endif %}</span>
-        <span class="font-semibold">R$ {{ l.valor|floatformat:2 }}</span>
-      </li>
-      {% empty %}
-      <li class="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">Nenhuma nota no período.</li>
-      {% endfor %}
-    </ul>
-    <footer class="flex items-center justify-between px-6 py-3 bg-slate-50 text-sm font-bold dark:bg-slate-900/40 dark:text-white"><span>Total do eixo</span><span>R$ {{ total_desembolso|floatformat:2 }}</span></footer>
+{# ------------------------------------------------ números principais #}
+<div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Consumo</p>
+    <p class="mt-1 text-3xl font-semibold text-teal-700 dark:text-teal-400">R$ {{ total_consumo|floatformat:"2g" }}</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">{{ qtd_entregas }} baixa{{ qtd_entregas|pluralize }} de estoque</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Desembolso</p>
+    <p class="mt-1 text-3xl font-semibold text-indigo-600 dark:text-indigo-400">R$ {{ total_desembolso|floatformat:"2g" }}</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">valor das notas fiscais</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Centros com movimento</p>
+    <p class="mt-1 text-3xl font-semibold text-slate-900 dark:text-white">{{ qtd_centros }}</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">no período e filtros escolhidos</p>
+  </div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
+    <p class="text-xs font-semibold uppercase tracking-wider text-slate-400">Quem mais consome</p>
+    {% if maior_centro %}
+    <p class="mt-1 text-xl font-semibold text-slate-900 truncate dark:text-white" title="{{ maior_centro.rotulo }}">{{ maior_centro.rotulo }}</p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">R$ {{ maior_centro.valor|floatformat:"2g" }}</p>
+    {% else %}<p class="mt-1 text-xl font-semibold text-slate-400">—</p>{% endif %}
+  </div>
+</div>
+
+{# ------------------------------------------------ gráficos #}
+<div class="grid gap-6 lg:grid-cols-2">
+  <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 dark:text-slate-100">Consumo por unidade</h2>
+    <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Para onde o material saiu.</p>
+    {% include "_barras.html" with dados=consumo_unidade cor="bg-teal-600" vazio="Nenhuma baixa no período." %}
   </section>
 
-  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
-    <header class="px-6 py-4 border-b border-slate-100 dark:border-slate-700">
-      <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">Eixo consumo · definido por suprimentos</p>
-      <h2 class="font-semibold text-slate-900 dark:text-slate-100">Entregas (custo médio na baixa)</h2>
-    </header>
-    <ul class="divide-y divide-slate-100 dark:divide-slate-700">
-      {% for l in consumo %}
-      <li class="flex items-center justify-between px-6 py-3 text-sm dark:text-slate-100">
-        <span>{% if l.centro %}{{ l.centro }}{% else %}<span class="text-amber-700 dark:text-amber-400">Sem centro</span>{% endif %}</span>
-        <span class="font-semibold">R$ {{ l.valor|floatformat:2 }}</span>
-      </li>
-      {% empty %}
-      <li class="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">Nenhuma entrega no período.</li>
-      {% endfor %}
-    </ul>
-    <footer class="flex items-center justify-between px-6 py-3 bg-slate-50 text-sm font-bold dark:bg-slate-900/40 dark:text-white"><span>Total do eixo</span><span>R$ {{ total_consumo|floatformat:2 }}</span></footer>
+  <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 dark:text-slate-100">Consumo por setor</h2>
+    <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Setor de quem pediu (os 8 maiores).</p>
+    {% include "_barras.html" with dados=consumo_setor cor="bg-teal-500" vazio="Nenhuma baixa no período." %}
+  </section>
+
+  <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 dark:text-slate-100">Consumo por centro de custo</h2>
+    <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Eixo definido por suprimentos na entrega.</p>
+    {% include "_barras.html" with dados=consumo_centro cor="bg-teal-700" vazio="Nenhuma baixa no período." %}
+  </section>
+
+  <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 dark:text-slate-100">Desembolso por centro de custo</h2>
+    <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Eixo definido por compras, pela data da nota.</p>
+    {% include "_barras.html" with dados=desembolso_centro cor="bg-indigo-500" vazio="Nenhuma nota no período." %}
   </section>
 </div>
-<p class="text-xs text-slate-400 mt-5 max-w-3xl">O mesmo item comprado para um pedido aparece nos dois eixos, em momentos diferentes (nota fiscal e entrega). Por isso os totais não devem ser somados.</p>
+
+{# ------------------------------------------------ evolução #}
+<section class="mt-6 bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">Evolução nos últimos 6 meses</h2>
+      <p class="text-sm text-slate-500 dark:text-slate-400">Respeita os filtros de unidade, setor e centro (o período acima não se aplica aqui).</p>
+    </div>
+    <div class="flex gap-4 text-xs text-slate-500 dark:text-slate-400">
+      <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-teal-600"></span>Consumo</span>
+      <span class="inline-flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-indigo-500"></span>Desembolso</span>
+    </div>
+  </div>
+  <div class="mt-6 flex items-end gap-3 sm:gap-6 h-48 border-b border-slate-200 dark:border-slate-700">
+    {% for s in serie %}
+    <div class="flex-1 flex items-end justify-center gap-1.5 h-full">
+      <div class="w-full max-w-[28px] rounded-t-md bg-teal-600" style="height: {{ s.pa }}%" title="Consumo {{ s.mes }}: R$ {{ s.a|floatformat:'2g' }}"></div>
+      <div class="w-full max-w-[28px] rounded-t-md bg-indigo-500" style="height: {{ s.pb }}%" title="Desembolso {{ s.mes }}: R$ {{ s.b|floatformat:'2g' }}"></div>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="mt-2 flex gap-3 sm:gap-6 text-center text-xs text-slate-500 dark:text-slate-400">
+    {% for s in serie %}<div class="flex-1"><p class="font-medium">{{ s.mes }}</p><p class="text-teal-700 dark:text-teal-400">{{ s.a|floatformat:"0g" }}</p><p class="text-indigo-600 dark:text-indigo-400">{{ s.b|floatformat:"0g" }}</p></div>{% endfor %}
+  </div>
+</section>
+
+{# ------------------------------------------------ tabela #}
+<section class="mt-6 bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  <div class="px-6 pt-5 pb-3"><h2 class="font-semibold text-slate-900 dark:text-slate-100">Detalhe por centro</h2></div>
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+        <tr><th class="px-6 py-3 font-medium">Centro de custo</th><th class="px-6 py-3 font-medium text-right">Consumo</th><th class="px-6 py-3 font-medium text-right">Desembolso</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for l in tabela %}
+        <tr class="dark:text-slate-100">
+          <td class="px-6 py-3">{% if l.centro %}{{ l.centro }}{% else %}<span class="text-amber-700 dark:text-amber-400">Sem centro definido</span>{% endif %}</td>
+          <td class="px-6 py-3 text-right font-semibold text-teal-700 dark:text-teal-400">R$ {{ l.consumo|floatformat:"2g" }}</td>
+          <td class="px-6 py-3 text-right font-semibold text-indigo-600 dark:text-indigo-400">R$ {{ l.desembolso|floatformat:"2g" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="3" class="px-6 py-12 text-center text-slate-400">Nenhum movimento para os filtros escolhidos.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+<p class="text-xs text-slate-400 mt-5 max-w-3xl">O mesmo item comprado para um pedido aparece nos dois eixos, em momentos diferentes (nota fiscal e entrega). Por isso os totais não devem ser somados. Valores "sem centro" são movimentos de antes da regra de centro de custo ou ainda sem definição.</p>
+
+<script>
+  (function () {
+    var unidade = document.getElementById('f-unidade'), setor = document.getElementById('f-setor');
+    function filtrar() {
+      // unidade manda: setores e centros mostram só os dela
+      Array.prototype.forEach.call(setor.options, function (o) {
+        if (!o.value) return;
+        o.hidden = o.disabled = !!unidade.value && o.dataset.filial !== unidade.value;
+      });
+      if (setor.selectedOptions[0] && setor.selectedOptions[0].disabled) setor.value = '';
+      document.querySelectorAll('.centro').forEach(function (l) {
+        var ok = !unidade.value || l.dataset.filial === unidade.value;
+        l.classList.toggle('hidden', !ok);
+        if (!ok) l.querySelector('input').checked = false;
+      });
+      document.querySelectorAll('.grupo').forEach(function (g) {
+        g.classList.toggle('hidden', !!unidade.value && g.dataset.grupo !== unidade.value);
+      });
+      resumir();
+    }
+    function resumir() {
+      var marcados = document.querySelectorAll('#centros input:checked').length;
+      document.getElementById('resumo-centros').textContent = marcados ? marcados + (marcados === 1 ? ' centro selecionado' : ' centros selecionados') : 'Todos os centros';
+    }
+    document.getElementById('centros').addEventListener('change', resumir);
+    document.getElementById('limpar-centros').addEventListener('click', function () {
+      document.querySelectorAll('#centros input').forEach(function (c) { c.checked = false; }); resumir();
+    });
+    document.addEventListener('click', function (e) {
+      var d = document.getElementById('seletor-centros');
+      if (d.open && !d.contains(e.target)) d.open = false;
+    });
+    unidade.addEventListener('change', filtrar);
+    filtrar();
+
+    // atalhos de período
+    function iso(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    document.querySelectorAll('.preset').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var hoje = new Date(), de = '', ate = '';
+        if (b.dataset.preset === 'mes') { de = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 1)); ate = iso(hoje); }
+        if (b.dataset.preset === 'anterior') { de = iso(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)); ate = iso(new Date(hoje.getFullYear(), hoje.getMonth(), 0)); }
+        if (b.dataset.preset === '90') { var d90 = new Date(hoje); d90.setDate(d90.getDate() - 90); de = iso(d90); ate = iso(hoje); }
+        if (b.dataset.preset === 'ano') { de = iso(new Date(hoje.getFullYear(), 0, 1)); ate = iso(hoje); }
+        document.getElementById('f-de').value = de; document.getElementById('f-ate').value = ate;
+        document.getElementById('filtros').submit();
+      });
+    });
+  })();
+</script>
 {% endblock %}

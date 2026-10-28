@@ -607,3 +607,59 @@ class CarrinhoSemRecarregarTest(BaseFluxoTest):
             headers={"x-requested-with": "fetch"},
         )
         self.assertEqual(r.status_code, 400)
+
+
+class KanbanArrastavelTest(BaseFluxoTest):
+    def setUp(self):
+        super().setUp()
+        self.est = Usuario.objects.create_user("kan", tenant=self.tenant, password=None)
+        PapelUsuario.objects.create(usuario=self.est, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.client.force_login(self.est)
+
+    def pedido_aprovado(self):
+        pedido = self.novo_pedido("4")
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        aprovar_como_lider(pedido, self.aprovador)
+        pedido.refresh_from_db()
+        return pedido
+
+    def mover(self, pedido, destino):
+        return self.client.post(reverse("pedido_mover", args=[pedido.pk]), {"destino": destino})
+
+    def test_arrastar_para_separacao_muda_direto(self):
+        pedido = self.pedido_aprovado()
+        resposta = self.mover(pedido, "EM_SEPARACAO")
+        self.assertTrue(resposta.json()["ok"])
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.EM_SEPARACAO)
+
+    def test_entrega_pede_dados_e_o_sistema_recusa_o_resto(self):
+        pedido = self.pedido_aprovado()
+        self.assertEqual(self.mover(pedido, "ENTREGUE").status_code, 400)  # antes precisa separar
+        self.mover(pedido, "EM_SEPARACAO")
+        resposta = self.mover(pedido, "ENTREGUE").json()
+        self.assertIn("modal", resposta)  # abre a janela de quantidades
+        self.assertContains(self.client.get(resposta["modal"]), "Entregar agora")
+        recusa = self.mover(pedido, "AGUARDANDO_COMPRA")
+        self.assertEqual(recusa.status_code, 400)
+        self.assertIn("sistema", recusa.json()["mensagem"])
+
+    def test_entrega_pela_janela_aceita_centro_e_volta_para_o_kanban(self):
+        pedido = self.pedido_aprovado()
+        Pedido.objects.filter(pk=pedido.pk).update(centro_custo=None)
+        self.mover(pedido, "EM_SEPARACAO")
+        item = pedido.itens.get()
+        resposta = self.client.post(reverse("pedido_detalhe", args=[pedido.pk]), {
+            "acao": "entregar", f"qtd_{item.pk}": "1", "centro_custo": self.centro.pk,
+            "next": "/suprimentos/?visao=kanban",
+        })
+        self.assertEqual(resposta.status_code, 302)
+        self.assertEqual(resposta["Location"], "/suprimentos/?visao=kanban")
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.ENTREGA_PARCIAL)  # entregou 1 de 4
+        self.assertEqual(pedido.centro_custo, self.centro)
+        # redirecionamento só para o próprio site
+        self.client.post(reverse("pedido_detalhe", args=[pedido.pk]), {"acao": "entregar", f"qtd_{item.pk}": "1", "next": "https://outro.site/"})
+
+    def test_kanban_traz_a_coluna_entregue(self):
+        self.assertContains(self.client.get(reverse("fila_suprimentos"), {"visao": "kanban"}), 'data-status="ENTREGUE"')

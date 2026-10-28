@@ -10,7 +10,7 @@ from pedidos.services import TransicaoInvalida
 
 from .models import Cotacao, ItemCotacao, StatusCotacao
 from .services import (
-    CENTAVOS, _registrar_nos_pedidos, gerar_ordem_automatica, itens_para_cotar, proximo_numero_cotacao,
+    CENTAVOS, _registrar_nos_pedidos, _centro_do_item, gerar_ordem_automatica, itens_para_cotar, proximo_numero_cotacao,
 )
 
 
@@ -52,7 +52,7 @@ def criar_rodada(*, comprador, propostas, observacao="", centros=None):
         ItemCotacao.objects.bulk_create([
             ItemCotacao(
                 cotacao=cotacao, item_pedido=itens[pk], quantidade=itens[pk].pendente, valor_unitario=v,
-                centro_custo=(centros or {}).get(pk) or itens[pk].pedido.centro_custo,
+                centro_custo=_centro_do_item(itens[pk], centros),
             )
             for pk, v in p["precos"].items()
         ])

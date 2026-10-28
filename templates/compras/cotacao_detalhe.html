@@ -3,12 +3,12 @@
 {% block titulo %}Cotação #{{ cotacao.numero }}{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'cotacao_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Cotações</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'cotacao_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Cotações</a>
   <div class="mt-2 flex flex-wrap items-center justify-between gap-3">
     <div>
       <h1 class="text-2xl font-semibold">Cotação #{{ cotacao.numero }} — {{ cotacao.fornecedor }}</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">Registrada por {{ cotacao.comprador }} em {{ cotacao.criada_em|date:"d/m/Y H:i" }}</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Registrada por {{ cotacao.comprador }} em {{ cotacao.criada_em|date:"d/m/Y H:i" }}</p>
     </div>
     <span class="text-sm font-semibold px-4 py-2 rounded-full {{ cotacao.status|badge_status }}">{{ cotacao.get_status_display }}</span>
   </div>
@@ -16,7 +16,7 @@
 {% endblock %}
 
 {% block conteudo %}
-<div class="grid gap-6 lg:grid-cols-[1fr_340px] items-start">
+<div class="grid gap-6 xl:grid-cols-[1fr_340px] items-start">
   <div class="space-y-6">
     <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
       <div class="px-6 pt-5 pb-3"><h2 class="font-semibold text-slate-900 dark:text-slate-100">Itens cotados</h2></div>
@@ -55,14 +55,14 @@
       <form method="post" class="space-y-3">{% csrf_token %}
         {% for pc in pedidos_cotacao %}
         <div class="flex flex-wrap items-center gap-3">
-          <span class="flex-1 min-w-[200px] text-sm text-slate-700 dark:text-slate-200">Pedido #{{ pc.pedido.pk }}</span>
+          <span class="flex-1 min-w-[200px] text-sm text-slate-700 dark:text-slate-200">Pedido #{{ pc.pedido.pk }} · {{ pc.pedido.almoxarifado_destino.filial.sigla }}</span>
           <select name="centro_pedido_{{ pc.pedido.pk }}" class="min-w-[240px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
             <option value="">Selecione…</option>
-            {% for c in centros %}<option value="{{ c.pk }}" {% if pc.centro_id == c.pk %}selected{% endif %}>{{ c }}</option>{% endfor %}
+            {% for c in pc.centros %}<option value="{{ c.pk }}" {% if pc.centro_id == c.pk %}selected{% endif %}>{{ c.nome }}</option>{% endfor %}
           </select>
         </div>
         {% endfor %}
-        <button name="acao" value="definir_centros" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Salvar centros de custo</button>
+        <button name="acao" value="definir_centros" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-teal-600 dark:text-white">Salvar centros de custo</button>
       </form>
     </section>
     {% endif %}
@@ -97,9 +97,9 @@
           {% endfor %}
         </div>
         <input name="motivo" placeholder="Motivo (obrigatório para itens não aprovados)"
-               class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
+               class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm focus:border-teal-700 focus:ring-1 focus:ring-teal-700 dark:bg-slate-800 dark:border-slate-600 dark:text-slate-100">
         <div class="flex flex-wrap gap-3">
-          <button name="acao" value="decidir_itens" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Confirmar decisão por item</button>
+          <button name="acao" value="decidir_itens" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-teal-600 dark:text-white">Confirmar decisão por item</button>
           <button name="acao" value="aprovar" class="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold px-6 py-2.5 transition">Aprovar tudo</button>
           <button name="acao" value="recusar" class="rounded-xl bg-red-50 hover:bg-red-100 text-red-700 text-sm font-semibold px-6 py-2.5 transition dark:bg-red-950 dark:text-red-300">Recusar tudo</button>
         </div>
@@ -111,11 +111,11 @@
     <div class="flex flex-wrap gap-3">
       {% if cotacao.status == 'APROVADA' and not ordem %}
       <form method="post">{% csrf_token %}
-        <button name="acao" value="gerar_ordem" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Gerar ordem de compra</button>
+        <button name="acao" value="gerar_ordem" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-teal-600 dark:text-white">Gerar ordem de compra</button>
       </form>
       {% endif %}
       {% if ordem %}
-      <a href="{% url 'ordem_detalhe' ordem.pk %}" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-white dark:text-black">Abrir ordem de compra #{{ ordem.numero }}</a>
+      <a href="{% url 'ordem_detalhe' ordem.pk %}" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white text-sm font-semibold px-6 py-3 transition dark:bg-teal-600 dark:text-white">Abrir ordem de compra #{{ ordem.numero }}</a>
       {% elif cotacao.ativa %}
       <form method="post">{% csrf_token %}
         <button name="acao" value="cancelar" class="rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 text-sm font-semibold px-6 py-3 transition dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700">Cancelar cotação</button>

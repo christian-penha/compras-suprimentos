@@ -3,38 +3,51 @@
 {% block titulo %}Controle de estoque{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
   <div class="flex flex-wrap items-center justify-between gap-4">
     <div>
       <h1 class="text-2xl font-semibold">{% if almoxarifado_sel %}Estoque — {{ almoxarifado_sel.nome }}{% else %}Controle de estoque{% endif %}</h1>
-      <p class="text-sm text-[#9a9a9a] mt-1">{% if almoxarifado_sel %}{{ almoxarifado_sel.filial.nome }}{% if almoxarifado_sel.central %} · estoque central{% endif %} · saldo, mínimo e valor.{% else %}Saldo, mínimo e valor por almoxarifado.{% endif %}</p>
+      <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{% if almoxarifado_sel %}{{ almoxarifado_sel.filial.nome }}{% if almoxarifado_sel.central %} · estoque central{% endif %} · saldo, mínimo e valor.{% else %}Saldo, mínimo e valor por almoxarifado.{% endif %}</p>
     </div>
-    <a href="{% url 'entrada_planilha' %}" class="inline-flex items-center gap-2 rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">Entrada por planilha</a>
+    <a href="{% url 'entrada_planilha' %}" class="inline-flex items-center gap-2 rounded-xl bg-teal-700 text-white text-sm font-semibold px-4 py-2.5 hover:bg-teal-800 transition">Entrada por planilha</a>
   </div>
 
   <form method="get" class="mt-5 flex flex-wrap gap-3">
     {% if situacao %}<input type="hidden" name="situacao" value="{{ situacao }}">{% endif %}
     <div class="relative flex-1 min-w-[220px]">
-      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#7a7a7a]"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
+      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"><path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"/></svg>
       <input name="q" value="{{ busca }}" placeholder="Buscar por produto, código ou especificação…" autocomplete="off"
-             class="w-full rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] pl-11 pr-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
+             class="w-full rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 pl-11 pr-4 py-3 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
     </div>
-    <select name="filial" onchange="this.form.submit()"
-            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+    <select name="filial" id="f-unidade" onchange="filtrarAlmox(); this.form.submit()"
+            class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
       <option value="">Todas as filiais</option>
       {% for f in filiais %}<option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
     </select>
-    <select name="almoxarifado" onchange="this.form.submit()"
-            class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+    <select name="almoxarifado" id="f-almox" onchange="this.form.submit()"
+            class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
       <option value="">Todos os almoxarifados</option>
-      {% for a in almoxarifados %}<option value="{{ a.pk }}" {% if almoxarifado_id == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}
+      {% for a in almoxarifados %}<option value="{{ a.pk }}" data-filial="{{ a.filial_id }}" {% if almoxarifado_id == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}
     </select>
-    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
+    <button class="rounded-xl bg-teal-700 text-white text-sm font-semibold px-5 py-3 hover:bg-teal-800 transition">Filtrar</button>
   </form>
 </div>
 {% endblock %}
 
 {% block conteudo %}
+<script>
+  // o almoxarifado só lista os da unidade escolhida
+  function filtrarAlmox() {
+    var unidade = document.getElementById('f-unidade'), almox = document.getElementById('f-almox');
+    if (!unidade || !almox) return;
+    Array.prototype.forEach.call(almox.options, function (o) {
+      if (!o.value) return;
+      o.hidden = o.disabled = !!unidade.value && o.dataset.filial !== unidade.value;
+    });
+    if (almox.selectedOptions[0] && almox.selectedOptions[0].disabled) almox.value = '';
+  }
+  document.addEventListener('DOMContentLoaded', filtrarAlmox);
+</script>
 <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 mb-6">
   <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700">
     <p class="text-3xl font-semibold text-slate-900 dark:text-white">{{ kpis.itens }}</p>
@@ -55,9 +68,9 @@
 </div>
 
 <div class="flex flex-wrap gap-2 mb-5">
-  <a href="?{{ qs_situacao }}" class="rounded-full px-4 py-1.5 text-sm font-medium border transition {% if not situacao %}bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white{% else %}bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">Todos</a>
+  <a href="?{{ qs_situacao }}" class="rounded-full px-4 py-1.5 text-sm font-medium border transition {% if not situacao %}bg-teal-700 text-white border-teal-700 dark:bg-teal-600 dark:text-white dark:border-teal-600{% else %}bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">Todos</a>
   {% for chave, rotulo in situacoes %}
-  <a href="?{% if qs_situacao %}{{ qs_situacao }}&{% endif %}situacao={{ chave }}" class="rounded-full px-4 py-1.5 text-sm font-medium border transition {% if situacao == chave %}bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900 dark:border-white{% else %}bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">
+  <a href="?{% if qs_situacao %}{{ qs_situacao }}&{% endif %}situacao={{ chave }}" class="rounded-full px-4 py-1.5 text-sm font-medium border transition {% if situacao == chave %}bg-teal-700 text-white border-teal-700 dark:bg-teal-600 dark:text-white dark:border-teal-600{% else %}bg-white text-slate-600 border-slate-200 hover:border-slate-400 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700{% endif %}">
     {{ rotulo }}{% for c, n in contagem.items %}{% if c == chave %} <span class="opacity-60">{{ n }}</span>{% endif %}{% endfor %}
   </a>
   {% endfor %}

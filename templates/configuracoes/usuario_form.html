@@ -2,10 +2,10 @@
 {% block titulo %}{% if instancia %}Editar usuário{% else %}Novo usuário{% endif %}{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
-  <a href="{% url 'config_usuario_lista' %}" class="text-sm text-[#9a9a9a] hover:text-white transition">← Usuários</a>
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'config_usuario_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Usuários</a>
   <h1 class="text-2xl font-semibold mt-2">{% if instancia %}{{ instancia.nome_completo|default:instancia.username }}{% else %}Novo usuário{% endif %}</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Dados de acesso, onde a pessoa atua e o que ela pode acessar no sistema.</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Dados de acesso, onde a pessoa atua e o que ela pode acessar no sistema.</p>
 </div>
 {% endblock %}
 
@@ -19,7 +19,7 @@
 
 <form method="post" class="pb-24">
   {% csrf_token %}
-  <div class="grid gap-6 lg:grid-cols-[1fr_380px] items-start">
+  <div class="grid gap-6 xl:grid-cols-[1fr_380px] items-start">
 
     <div class="space-y-6">
       {# ------------------------------------------------ acesso #}
@@ -29,7 +29,7 @@
           <div>
             <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Usuário</label>
             {{ form.username }}
-            {% for erro in form.username.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+            {% for erro in form.username.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
           </div>
           <div>
             <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Nome completo</label>
@@ -38,7 +38,7 @@
           <div>
             <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">E-mail</label>
             {{ form.email }}
-            {% for erro in form.email.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+            {% for erro in form.email.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
           </div>
           <div>
             <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Telefone</label>
@@ -48,7 +48,7 @@
             <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Senha</label>
             {{ form.senha }}
             <p class="text-xs text-slate-400 mt-1">{% if instancia %}Deixe em branco para manter a senha atual.{% else %}Defina a senha inicial do usuário.{% endif %}</p>
-            {% for erro in form.senha.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+            {% for erro in form.senha.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
           </div>
         </div>
       </section>
@@ -92,7 +92,7 @@
         <div id="almox" class="mt-4 flex flex-wrap gap-2">
           {% for opcao in form.almoxarifados %}
           {% ifchanged opcao.data.value.instance.filial_id %}<p class="basis-full mt-2 first:mt-0 text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ opcao.data.value.instance.filial.nome }}</p>{% endifchanged %}
-          <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-2.5 text-sm cursor-pointer transition hover:border-slate-400 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60 dark:text-slate-100">
+          <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-2.5 text-sm cursor-pointer transition hover:border-slate-400 has-[:checked]:border-teal-700 has-[:checked]:bg-teal-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-teal-500 dark:has-[:checked]:bg-teal-900/30 dark:text-slate-100">
             <input type="checkbox" name="{{ opcao.data.name }}" value="{{ opcao.data.value }}" {% if opcao.data.selected %}checked{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900">
             <span class="font-medium">{{ opcao.data.value.instance.nome }}{% if opcao.data.value.instance.central %} <span class="text-xs font-normal text-slate-400">· central</span>{% endif %}</span>
           </label>
@@ -114,7 +114,7 @@
         </div>
         <div id="unidades" class="mt-4 grid gap-2 sm:grid-cols-2">
           {% for opcao in form.filiais_permitidas %}
-          <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm cursor-pointer transition hover:border-slate-400 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60 dark:text-slate-100">
+          <label class="flex items-center gap-3 rounded-xl border border-slate-200 px-4 py-3 text-sm cursor-pointer transition hover:border-slate-400 has-[:checked]:border-teal-700 has-[:checked]:bg-teal-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-teal-500 dark:has-[:checked]:bg-teal-900/30 dark:text-slate-100">
             <input type="checkbox" name="{{ opcao.data.name }}" value="{{ opcao.data.value }}" {% if opcao.data.selected %}checked{% endif %} class="h-4 w-4 rounded border-slate-300 text-slate-900">
             <span class="font-medium">{{ opcao.choice_label }}</span>
           </label>
@@ -134,7 +134,7 @@
           <p class="text-slate-500 dark:text-slate-400">Todos fazem pedidos e acompanham os seus. Sempre ativo.</p>
         </div>
 
-        <label class="mt-3 flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer transition hover:border-slate-400 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:border-slate-700 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60">
+        <label class="mt-3 flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer transition hover:border-slate-400 has-[:checked]:border-teal-700 has-[:checked]:bg-teal-50 dark:border-slate-700 dark:has-[:checked]:border-teal-500 dark:has-[:checked]:bg-teal-900/30">
           {{ form.eh_aprovador }}
           <span class="text-sm">
             <span class="block font-medium text-slate-900 dark:text-slate-100">Aprovador</span>
@@ -145,7 +145,7 @@
         <p class="mt-5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">Módulos que administra</p>
         <div class="mt-2 space-y-2">
           {% for opcao in form.modulos %}
-          <label class="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer transition hover:border-slate-400 has-[:checked]:border-slate-900 has-[:checked]:bg-slate-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-white dark:has-[:checked]:bg-slate-700/60">
+          <label class="flex items-start gap-3 rounded-xl border border-slate-200 px-4 py-3 cursor-pointer transition hover:border-slate-400 has-[:checked]:border-teal-700 has-[:checked]:bg-teal-50 dark:border-slate-700 dark:hover:border-slate-500 dark:has-[:checked]:border-teal-500 dark:has-[:checked]:bg-teal-900/30">
             <input type="checkbox" name="{{ opcao.data.name }}" value="{{ opcao.data.value }}" {% if opcao.data.selected %}checked{% endif %} class="mt-0.5 h-4 w-4 rounded border-slate-300 text-slate-900">
             <span class="text-sm">
               <span class="block font-medium text-slate-900 dark:text-slate-100">{{ opcao.choice_label }}</span>
@@ -166,13 +166,13 @@
             <span class="text-amber-800 dark:text-amber-300">Acesso total: configurações, usuários, alçadas e todos os módulos.</span>
           </span>
         </label>
-        {% for erro in form.eh_superadmin.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+        {% for erro in form.eh_superadmin.errors %}<p class="text-xs text-red-600 mt-1 dark:text-red-400">{{ erro }}</p>{% endfor %}
       </section>
 
       <section class="bg-white rounded-2xl border border-slate-200 p-6 space-y-3 dark:bg-slate-800 dark:border-slate-700">
         <h2 class="font-semibold text-slate-900 dark:text-slate-100">Situação</h2>
         <label class="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">{{ form.ativo_no_sistema }} Usuário ativo</label>
-        {% for erro in form.ativo_no_sistema.errors %}<p class="text-xs text-red-600">{{ erro }}</p>{% endfor %}
+        {% for erro in form.ativo_no_sistema.errors %}<p class="text-xs text-red-600 dark:text-red-400">{{ erro }}</p>{% endfor %}
         <label class="flex items-center gap-3 text-sm text-slate-700 dark:text-slate-300">{{ form.is_staff }} Acesso ao admin do Django</label>
       </section>
     </aside>
@@ -180,13 +180,29 @@
 
   <div class="fixed inset-x-0 bottom-0 z-10 border-t border-slate-200 bg-white/95 px-4 sm:px-8 py-3 backdrop-blur dark:bg-slate-900/95 dark:border-slate-700">
     <div class="flex items-center gap-3 lg:pl-64">
-      <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar usuário</button>
+      <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-semibold px-6 py-2.5 transition dark:bg-teal-600 dark:text-white dark:hover:bg-teal-500">Salvar usuário</button>
       <a href="{% url 'config_usuario_lista' %}" class="text-sm text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white">Cancelar</a>
     </div>
   </div>
 </form>
 
+{{ form.setor_filial|json_script:"setor-filial" }}
 <script>
+  // o setor só mostra os da unidade escolhida
+  (function () {
+    var filial = document.getElementById('{{ form.filial.id_for_label }}'), setor = document.getElementById('{{ form.setor.id_for_label }}');
+    if (!filial || !setor) return;
+    var mapa = JSON.parse(document.getElementById('setor-filial').textContent);
+    function filtrar() {
+      Array.prototype.forEach.call(setor.options, function (o) {
+        if (!o.value) return;
+        o.hidden = o.disabled = !!filial.value && String(mapa[o.value]) !== filial.value;
+      });
+      if (setor.selectedOptions[0] && setor.selectedOptions[0].disabled) setor.value = '';
+    }
+    filial.addEventListener('change', filtrar);
+    filtrar();
+  })();
   document.querySelectorAll('[data-marcar-grupo]').forEach(function (b) {
     b.addEventListener('click', function () {
       var marcar = b.dataset.valor === 'todas';

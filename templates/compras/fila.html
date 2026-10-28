@@ -2,14 +2,14 @@
 {% block titulo %}Fila de compras{% endblock %}
 
 {% block cabecalho %}
-<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6">
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
   <h1 class="text-2xl font-semibold">Fila de compras</h1>
-  <p class="text-sm text-[#9a9a9a] mt-1">Itens sem estoque aguardando cotação. Selecione os itens e cote com um ou mais fornecedores.</p>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Itens sem estoque aguardando cotação. Selecione os itens e cote com um ou mais fornecedores.</p>
   <form method="get" class="mt-5 flex flex-wrap gap-3">
     <input type="hidden" name="agrupar" value="{{ agrupar }}">
     <input name="q" value="{{ busca }}" placeholder="Buscar por produto ou requisitante…" autocomplete="off"
-           class="flex-1 min-w-[220px] rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white placeholder-[#7a7a7a] focus:outline-none focus:ring-2 focus:ring-white">
-    <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Buscar</button>
+           class="flex-1 min-w-[220px] rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 placeholder-slate-400 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700">
+    <button class="rounded-xl bg-teal-700 text-white text-sm font-semibold px-5 py-3 hover:bg-teal-800 transition">Buscar</button>
     {% include "compras/_alternar.html" %}
   </form>
 </div>
@@ -55,7 +55,7 @@
 
   <div class="sticky bottom-4 mt-6 flex flex-wrap justify-end gap-3">
     <button formaction="{% url 'solicitacao_cotacao' %}" class="rounded-xl bg-white border border-slate-200 text-slate-900 font-semibold px-6 py-3 shadow-xl hover:bg-slate-50 transition dark:bg-slate-800 dark:border-slate-700 dark:text-white">Gerar pedido ao fornecedor</button>
-    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-semibold px-6 py-3 shadow-xl transition dark:bg-white dark:text-black">Cotar itens selecionados</button>
+    <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-semibold px-6 py-3 shadow-xl transition dark:bg-teal-600 dark:text-white">Cotar itens selecionados</button>
   </div>
 </form>
 <script>
