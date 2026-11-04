@@ -185,3 +185,20 @@ class SugestaoProduto(TenantModel):
 
     def __str__(self):
         return self.nome
+
+
+class MensagemPedido(models.Model):
+    """Conversa do pedido entre requisitante, aprovadores, compras e estoque."""
+
+    pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name="mensagens")
+    autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="mensagens_pedido")
+    texto = models.TextField(max_length=1000)
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "mensagem do pedido"
+        verbose_name_plural = "mensagens do pedido"
+        ordering = ["criado_em"]
+
+    def __str__(self):
+        return f"#{self.pedido_id} {self.autor}: {self.texto[:30]}"

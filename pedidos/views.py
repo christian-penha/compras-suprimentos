@@ -19,7 +19,7 @@ from tenancy.models import Almoxarifado, CentroCusto, Evento, Filial, centros_da
 
 from . import cart
 from .forms import PedidoForm, almoxarifados_do_usuario
-from .models import EventoPedido, ItemPedido, OrigemAtendimento, Pedido, StatusPedido
+from .models import EventoPedido, ItemPedido, MensagemPedido, OrigemAtendimento, Pedido, StatusPedido
 from .services import (
     SemPermissao,
     TransicaoInvalida,
@@ -343,6 +343,12 @@ def pedido_detalhe(request, pk):
         messages.error(request, "Você não tem acesso a esse pedido.")
         return redirect("painel")
 
+    if request.method == "POST" and request.POST.get("acao") == "mensagem":
+        texto = request.POST.get("texto", "").strip()[:1000]
+        if texto:
+            MensagemPedido.objects.create(pedido=pedido, autor=usuario, texto=texto)
+        return redirect(reverse("pedido_detalhe", args=[pedido.pk]) + "#chat")
+
     if request.method == "POST":
         acao = request.POST.get("acao")
         observacao = request.POST.get("observacao", "")
@@ -425,6 +431,7 @@ def pedido_detalhe(request, pk):
             "pode_aprovar": pode_aprovar(usuario, pedido),
             "compras_do_pedido": compras,
             "etapas": _etapas_do_pedido(pedido, compras, tem_compra),
+            "mensagens": pedido.mensagens.select_related("autor"),
             "e_gestor": e_gestor,
             "ve_fornecedor": e_gestor or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS),
             "centros": (
@@ -595,6 +602,35 @@ def relatorio_eventos(request):
             "alguma_sem_custo": any(l["sem_custo"] for l in linhas),
         },
     )
+
+
+@requer_papel(Papel.ADMINISTRADOR, modulo=(Modulo.ESTOQUE, Modulo.COMPRAS))
+def relatorio_orcamento(request):
+    """Previsão financeira: orçamento mês a mês de cada centro, com o limite já recalculado."""
+    from datetime import date
+
+    from tenancy.previsao import plano
+
+    filial_id = request.GET.get("filial", "")
+    centros = CentroCusto.objects.filter(ativo=True).exclude(orcamento_modo="SEM").select_related("filial", "pai")
+    if filial_id.isdigit():
+        centros = centros.filter(filial_id=filial_id)
+    hoje = date.today()
+    quadros = []
+    for c in centros.order_by("filial__nome", "pai__nome", "nome"):
+        meses = plano(c, hoje)
+        for m in meses:
+            m["saldo"] = m["limite"] - m["gasto"]
+            m["recalculado"] = m["limite"] != m["base"]
+            m["atual"] = (m["ano"], m["mes"]) == (hoje.year, hoje.month)
+            m["estourou"] = m["gasto"] > m["limite"]
+        quadros.append({
+            "centro": c, "meses": meses,
+            "total_gasto": sum((m["gasto"] for m in meses), Decimal("0")),
+        })
+    return render(request, "pedidos/relatorio_orcamento.html", {
+        "quadros": quadros, "filiais": Filial.objects.filter(ativo=True), "filial_id": filial_id,
+    })
 
 
 @requer_papel(Papel.ADMINISTRADOR, modulo=(Modulo.ESTOQUE, Modulo.COMPRAS))

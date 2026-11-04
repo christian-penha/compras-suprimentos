@@ -132,6 +132,10 @@ class CentroCusto(TenantModel):
         max_length=20, choices=TipoCentroCusto.choices, default=TipoCentroCusto.OPERACIONAL
     )
     ativo = models.BooleanField(default=True)
+    # Subconta: um nível só (a conta pai não tem pai); o gasto da subconta sobe para a conta.
+    pai = models.ForeignKey(
+        "self", on_delete=models.PROTECT, null=True, blank=True, related_name="subcontas"
+    )
     # Orçamento (ver tenancy/orcamento.py): TOTAL = `orcamento_valor` dividido em
     # `orcamento_meses` meses a partir de `orcamento_inicio`; MENSAL = `orcamento_valor` por mês.
     orcamento_modo = models.CharField(
@@ -154,6 +158,8 @@ class CentroCusto(TenantModel):
         ]
 
     def __str__(self):
+        if self.pai_id:
+            return f"{self.filial.sigla} — {self.pai.nome} › {self.nome}"
         return f"{self.filial.sigla} — {self.nome}"
 
 

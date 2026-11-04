@@ -243,5 +243,28 @@
       {% endfor %}
     </ol>
   </aside>
+
+  <section id="chat" class="xl:col-span-2 bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <h2 class="font-semibold text-slate-900 mb-4 dark:text-slate-100">Conversa do pedido</h2>
+    <div class="space-y-3 max-h-96 overflow-y-auto mb-4">
+      {% for m in mensagens %}
+      <div class="flex {% if m.autor_id == request.user.pk %}justify-end{% endif %}">
+        <div class="max-w-[80%] rounded-2xl px-4 py-2.5 text-sm {% if m.autor_id == request.user.pk %}bg-teal-700 text-white{% else %}bg-slate-100 text-slate-800 dark:bg-slate-700 dark:text-slate-100{% endif %}">
+          <p class="text-[11px] font-semibold opacity-80">{{ m.autor }} · {{ m.criado_em|date:"d/m H:i" }}</p>
+          <p class="whitespace-pre-line">{{ m.texto }}</p>
+        </div>
+      </div>
+      {% empty %}
+      <p class="text-sm text-slate-400">Nenhuma mensagem ainda. Use este espaço para tirar dúvidas sobre o pedido.</p>
+      {% endfor %}
+    </div>
+    <form method="post" class="flex gap-3">
+      {% csrf_token %}
+      <input type="hidden" name="acao" value="mensagem">
+      <input name="texto" maxlength="1000" required autocomplete="off" placeholder="Escreva uma mensagem…" aria-label="Mensagem"
+             class="flex-1 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm text-slate-900 focus:border-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-700/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100">
+      <button class="rounded-xl bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800">Enviar</button>
+    </form>
+  </section>
 </div>
 {% endblock %}

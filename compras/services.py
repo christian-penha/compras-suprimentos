@@ -12,6 +12,7 @@ from pedidos.models import EventoPedido, ItemPedido, OrigemAtendimento, StatusPe
 from pedidos.services import SemPermissao, TransicaoInvalida, liberar_itens_comprados, reavaliar_pedido, validar_centro_da_unidade
 from tenancy.context import obter_tenant_atual_id
 from tenancy.models import Almoxarifado, Empresa
+from tenancy.previsao import avisos_de_estouro
 
 from .models import (
     AndamentoOrdem,
@@ -112,18 +113,26 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
             "Nenhuma faixa de alçada cobre este valor — cadastre as faixas de alçada."
         )
     automatica = alcada.papel_aprovador == PapelAlcada.AUTOMATICA
+    centros_dos_itens = {i.pk: _centro_do_item(i, centros) for i in itens}
+    aviso = _aviso_de_orcamento([(centros_dos_itens[i.pk], i.pendente * precos[i.pk]) for i in itens])
+    if aviso and not observacao.strip():
+        raise TransicaoInvalida(
+            f"Esta compra ultrapassa o orçamento do mês ({aviso}). Informe a justificativa no campo de observação."
+        )
+    if aviso and automatica:
+        alcada, automatica = _alcada_do_estouro(alcada, comprador.tenant), False
 
     cotacao = Cotacao.objects.create(
         tenant=comprador.tenant, fornecedor=fornecedor, comprador=comprador,
         numero=proximo_numero_cotacao(comprador.tenant, {i.pedido_id for i in itens}),
         valor_frete=valor_frete, valor_total=total, alcada=alcada, observacao=observacao,
-        status=StatusCotacao.APROVADA if automatica else StatusCotacao.AGUARDANDO_ALCADA,
+        aviso_orcamento=aviso, status=StatusCotacao.APROVADA if automatica else StatusCotacao.AGUARDANDO_ALCADA,
         decidida_em=timezone.now() if automatica else None,
     )
     ItemCotacao.objects.bulk_create([
         ItemCotacao(
             cotacao=cotacao, item_pedido=i, quantidade=i.pendente, valor_unitario=precos[i.pk],
-            centro_custo=_centro_do_item(i, centros),
+            centro_custo=centros_dos_itens[i.pk],
         )
         for i in itens
     ])
@@ -138,6 +147,20 @@ def criar_cotacao(*, comprador, fornecedor, precos, valor_frete=Decimal("0"), ob
     if automatica:
         gerar_ordem_automatica(cotacao)
     return cotacao
+
+
+def _aviso_de_orcamento(pares):
+    return " | ".join(avisos_de_estouro(pares))[:500]
+
+
+def _alcada_do_estouro(alcada, tenant):
+    """Estouro de orçamento não é aprovado sozinho: sobe para a menor faixa com aprovador."""
+    acima = Alcada.todos_os_tenants.filter(tenant=tenant, filial=alcada.filial, ativo=True).exclude(
+        papel_aprovador=PapelAlcada.AUTOMATICA
+    ).order_by("valor_min").first()
+    if acima is None:
+        raise TransicaoInvalida("Compra acima do orçamento e nenhuma faixa de alçada com aprovador cadastrada.")
+    return acima
 
 
 def filiais_da_cotacao(cotacao):

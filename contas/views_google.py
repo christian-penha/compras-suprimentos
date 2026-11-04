@@ -112,6 +112,9 @@ def auth_google_callback(request):
 class LoginComGoogleOpcional(LoginView):
     """Tela de login padrão (usuário/senha) + botão do Google quando configurado."""
 
+    # já logado em /entrar/ misturava o menu da sessão com o formulário
+    redirect_authenticated_user = True
+
     def get_context_data(self, **kwargs):
         ctx = super().get_context_data(**kwargs)
         ctx["google_login_ativo"] = google_configurado()

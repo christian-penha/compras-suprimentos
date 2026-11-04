@@ -9,3 +9,5 @@ db.sqlite3
 tools/
 privado/
 .claude/
+comparacao_glide_x_sistema.csv
+instalar_notebook.zip

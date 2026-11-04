@@ -45,6 +45,8 @@ class Cotacao(TenantModel):
     )
     decidida_em = models.DateTimeField(null=True, blank=True)
     motivo_recusa = models.CharField(max_length=300, blank=True)
+    # Preenchido quando a compra passa do orçamento do mês de algum centro (vai para a alçada).
+    aviso_orcamento = models.CharField(max_length=500, blank=True)
     # Propostas de fornecedores concorrentes pelos mesmos itens compartilham a rodada.
     rodada = models.PositiveIntegerField(null=True, blank=True, db_index=True)
     criada_em = models.DateTimeField(auto_now_add=True)

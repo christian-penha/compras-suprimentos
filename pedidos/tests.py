@@ -663,3 +663,24 @@ class KanbanArrastavelTest(BaseFluxoTest):
 
     def test_kanban_traz_a_coluna_entregue(self):
         self.assertContains(self.client.get(reverse("fila_suprimentos"), {"visao": "kanban"}), 'data-status="ENTREGUE"')
+
+
+class ConversaDoPedidoTest(BaseFluxoTest):
+    def test_requisitante_e_estoque_conversam_e_estranho_nao_acessa(self):
+        pedido = self.novo_pedido("1")
+        self.client.force_login(self.requisitante)
+        url = reverse("pedido_detalhe", args=[pedido.pk])
+        self.client.post(url, {"acao": "mensagem", "texto": "  Preciso até sexta  "})
+        self.client.post(url, {"acao": "mensagem", "texto": "   "})  # vazia é ignorada
+        self.assertEqual(pedido.mensagens.count(), 1)
+        self.assertContains(self.client.get(url), "Preciso até sexta")
+
+        est = Usuario.objects.create_user("chat_est", tenant=self.tenant, password=None)
+        PapelUsuario.objects.create(usuario=est, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.client.force_login(est)
+        self.assertContains(self.client.get(url), "Preciso até sexta")
+
+        estranho = Usuario.objects.create_user("chat_x", tenant=self.tenant, password=None)
+        self.client.force_login(estranho)
+        self.client.post(url, {"acao": "mensagem", "texto": "intruso"})
+        self.assertEqual(pedido.mensagens.count(), 1)

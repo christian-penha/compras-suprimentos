@@ -290,14 +290,15 @@ class CentroCustoForm(forms.ModelForm):
 
     class Meta:
         model = CentroCusto
-        fields = ["filial", "nome", "ativo", "orcamento_modo", "orcamento_valor", "orcamento_meses", "orcamento_inicio"]
+        fields = ["filial", "pai", "nome", "ativo", "orcamento_modo", "orcamento_valor", "orcamento_meses", "orcamento_inicio"]
         labels = {
-            "filial": "Filial", "nome": "Nome do centro de custo", "ativo": "Ativo",
+            "filial": "Filial", "pai": "Conta pai (opcional)", "nome": "Nome do centro de custo", "ativo": "Ativo",
             "orcamento_modo": "Orçamento", "orcamento_valor": "Valor (R$)",
             "orcamento_meses": "Dividir em quantos meses",
         }
         widgets = {
             "filial": forms.Select(attrs={"class": CAMPO}),
+            "pai": forms.Select(attrs={"class": CAMPO}),
             "nome": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Pedagógico, Manutenção"}),
             "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
             "orcamento_modo": forms.Select(attrs={"class": CAMPO}),
@@ -309,11 +310,46 @@ class CentroCustoForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
         self.fields["orcamento_modo"].required = False  # ausente = sem orçamento
+        # só contas de topo podem ser pai (um nível de subconta)
+        pais = CentroCusto.objects.filter(pai__isnull=True, ativo=True).select_related("filial")
+        if self.instance.pk:
+            pais = pais.exclude(pk=self.instance.pk)
+        self.fields["pai"].queryset = self.pais = pais
+
+    def _validar_pai(self, dados):
+        pai = dados.get("pai")
+        if pai is None:
+            return
+        if pai.filial_id != dados["filial"].pk:
+            self.add_error("pai", "A conta pai precisa ser da mesma filial.")
+        elif self.instance.pk and self.instance.subcontas.exists():
+            self.add_error("pai", "Este centro já tem subcontas; não pode ser subconta de outro.")
+
+    def _validar_soma_das_subcontas(self, dados):
+        """Soma dos orçamentos das subcontas no mês atual não passa do orçamento da conta pai."""
+        from datetime import date
+
+        from tenancy.orcamento import orcamento_do_mes
+
+        pai, hoje = dados.get("pai"), date.today()
+        limite = orcamento_do_mes(pai, hoje.year, hoje.month) if pai else None
+        if limite is None:
+            return
+        proprio = CentroCusto(
+            orcamento_modo=dados["orcamento_modo"], orcamento_valor=dados.get("orcamento_valor"),
+            orcamento_inicio=dados.get("orcamento_inicio"), orcamento_meses=dados.get("orcamento_meses"),
+        )
+        soma = orcamento_do_mes(proprio, hoje.year, hoje.month) or 0
+        for irma in pai.subcontas.exclude(pk=self.instance.pk):
+            soma += orcamento_do_mes(irma, hoje.year, hoje.month) or 0
+        if soma > limite:
+            self.add_error("orcamento_valor", f"A soma das subcontas (R$ {soma:.2f}) passa do orçamento da conta pai (R$ {limite:.2f}) no mês.")
 
     def clean(self):
         dados = super().clean()
         if self.errors:
             return dados
+        self._validar_pai(dados)
         modo = dados["orcamento_modo"] = dados.get("orcamento_modo") or ModoOrcamento.SEM_ORCAMENTO
         valor, meses, inicio = dados.get("orcamento_valor"), dados.get("orcamento_meses"), dados.get("orcamento_inicio")
         if modo == ModoOrcamento.SEM_ORCAMENTO:
@@ -330,6 +366,8 @@ class CentroCustoForm(forms.ModelForm):
             dados["orcamento_meses"] = dados["orcamento_inicio"] = None
         if dados.get("orcamento_inicio"):
             dados["orcamento_inicio"] = dados["orcamento_inicio"].replace(day=1)
+        if not self.errors:
+            self._validar_soma_das_subcontas(dados)
         return dados
 
 

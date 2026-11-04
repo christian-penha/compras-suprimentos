@@ -10,7 +10,7 @@ from pedidos.services import TransicaoInvalida
 
 from .models import Cotacao, ItemCotacao, StatusCotacao
 from .services import (
-    CENTAVOS, _registrar_nos_pedidos, _centro_do_item, gerar_ordem_automatica, itens_para_cotar, proximo_numero_cotacao,
+    CENTAVOS, _registrar_nos_pedidos, _centro_do_item, _aviso_de_orcamento, _alcada_do_estouro, gerar_ordem_automatica, itens_para_cotar, proximo_numero_cotacao,
 )
 
 
@@ -108,6 +108,10 @@ def fechar_rodada(rodada, comprador, escolhas):
         if alcada is None:
             raise TransicaoInvalida("Nenhuma faixa de alçada cobre este valor — cadastre as faixas de alçada.")
         automatica = alcada.papel_aprovador == PapelAlcada.AUTOMATICA
+        aviso = _aviso_de_orcamento([(i.centro_custo, i.subtotal) for i in ganhos])
+        if aviso and automatica:
+            alcada, automatica = _alcada_do_estouro(alcada, comprador.tenant), False
+        cotacao.aviso_orcamento = aviso
         cotacao.valor_total, cotacao.alcada = total, alcada
         cotacao.numero = proximo_numero_cotacao(comprador.tenant, {p.pk for p in pedidos})
         cotacao.status = StatusCotacao.APROVADA if automatica else StatusCotacao.AGUARDANDO_ALCADA

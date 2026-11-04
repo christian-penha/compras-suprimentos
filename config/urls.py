@@ -37,6 +37,7 @@ urlpatterns = [
     path("estoque/entrada-planilha/modelo/", estoque_views.entrada_modelo, name="entrada_modelo"),
     path("estoque/posicao/", estoque_views.posicao_estoque, name="posicao_estoque"),
     path("relatorios/centros-custo/", pedidos_views.relatorio_centros, name="relatorio_centros"),
+    path("relatorios/orcamento/", pedidos_views.relatorio_orcamento, name="relatorio_orcamento"),
     path("relatorios/eventos/", pedidos_views.relatorio_eventos, name="relatorio_eventos"),
     path("compras/", include("compras.urls")),
     path("configuracoes/", include("configuracoes.urls")),

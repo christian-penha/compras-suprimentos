@@ -654,3 +654,55 @@ class CentroDeCustoDaUnidadeTest(BaseComprasTest):
         self.assertEqual(Pedido.objects.get(pk=pedido.pk).centro_custo_id, antes)
         pagina = self.client.get(reverse("pedido_detalhe", args=[pedido.pk]))
         self.assertNotIn(de_fora, list(pagina.context["centros"]))  # a lista só traz centros da unidade
+
+
+class OrcamentoEExtrapolacaoTest(BaseComprasTest):
+    def orcar(self, centro, valor, meses=12):
+        from datetime import date
+
+        hoje = date.today()
+        centro.orcamento_modo, centro.orcamento_valor, centro.orcamento_meses = "TOTAL", Decimal(valor), meses
+        centro.orcamento_inicio = date(hoje.year, hoje.month, 1)
+        centro.save()
+
+    def test_estouro_recalcula_os_meses_seguintes(self):
+        # R$ 1.200 em 12 meses; gastou 100 nos 7 primeiros e 200 no 8º -> 4 meses restantes de R$ 75
+        from datetime import date
+        from unittest import mock
+
+        from tenancy.previsao import plano
+
+        self.orcar(self.centro, "1200")
+        inicio = self.centro.orcamento_inicio
+        gastos = {(inicio.year + (inicio.month - 1 + i) // 12, (inicio.month - 1 + i) % 12 + 1): Decimal(g)
+                  for i, g in enumerate([100] * 7 + [200])}
+        hoje = date(inicio.year + 1, (inicio.month - 1 + 8) % 12 + 1, 1)  # 9º mês do período
+        with mock.patch("tenancy.previsao.gasto_do_mes", side_effect=lambda c, a, m: gastos.get((a, m), Decimal("0"))):
+            linhas = plano(self.centro, hoje)
+        self.assertEqual(linhas[7]["limite"], Decimal("100.00"))
+        self.assertEqual([l["limite"] for l in linhas[8:]], [Decimal("75.00")] * 4)
+
+    def test_compra_acima_do_orcamento_exige_justificativa_e_vai_para_alcada(self):
+        self.orcar(self.centro, "120")  # R$ 10 por mês
+        _, item = self.pedido_sem_estoque("5")
+        with self.assertRaises(TransicaoInvalida):  # R$ 100 passa do mês, sem justificativa
+            self.cotar(item, "20.00")
+        cotacao = services.criar_cotacao(
+            comprador=self.comprador, fornecedor=self.fornecedor, precos={item.pk: Decimal("20.00")},
+            observacao="Reposição urgente",
+        )
+        self.assertEqual(cotacao.status, StatusCotacao.AGUARDANDO_ALCADA)  # abaixo de R$ 300, mas estourou
+        self.assertIn("limite do mês", cotacao.aviso_orcamento)
+
+    def test_gasto_da_subconta_conta_na_conta_pai(self):
+        from tenancy.models import CentroCusto
+        from tenancy.previsao import avisos_de_estouro
+
+        self.orcar(self.centro, "120")
+        sub = CentroCusto.objects.create(
+            tenant=self.tenant, filial=self.centro.filial, nome="Material", pai=self.centro
+        )
+        self.assertEqual(avisos_de_estouro([(sub, Decimal("5"))]), [])
+        avisos = avisos_de_estouro([(sub, Decimal("50"))])
+        self.assertEqual(len(avisos), 1)
+        self.assertIn(self.centro.nome, avisos[0])

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block titulo %}Orçamento{% endblock %}
+{% block cabecalho %}
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6 flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Orçamento</h1>
+    <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Previsão mês a mês por centro de custo. Gasto = compras aprovadas no mês, incluindo as subcontas.</p>
+  </div>
+  {% include "_filtros.html" with filiais=filiais filial_id=filial_id placeholder="" %}
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="space-y-6">
+  {% for q in quadros %}
+  <section class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <div class="px-6 py-4 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 dark:text-slate-100">{{ q.centro }}</h2>
+      <p class="text-sm text-slate-500 dark:text-slate-400">Gasto no período: <strong class="text-slate-800 dark:text-slate-100">R$ {{ q.total_gasto|floatformat:2 }}</strong></p>
+    </div>
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+          <tr><th class="px-6 py-2.5 font-medium">Mês</th><th class="px-3 py-2.5 font-medium text-right">Previsto inicial</th><th class="px-3 py-2.5 font-medium text-right">Limite atual</th><th class="px-3 py-2.5 font-medium text-right">Gasto</th><th class="px-6 py-2.5 font-medium text-right">Saldo</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700 dark:text-slate-100">
+          {% for m in q.meses %}
+          <tr class="{% if m.atual %}bg-teal-50/60 dark:bg-teal-950/30{% endif %}">
+            <td class="px-6 py-2.5">{{ m.mes|stringformat:"02d" }}/{{ m.ano }}{% if m.atual %} <span class="ml-1 text-[11px] font-semibold text-teal-700 dark:text-teal-400">atual</span>{% endif %}</td>
+            <td class="px-3 py-2.5 text-right text-slate-500 dark:text-slate-400">R$ {{ m.base|floatformat:2 }}</td>
+            <td class="px-3 py-2.5 text-right">R$ {{ m.limite|floatformat:2 }}{% if m.recalculado %} <span title="Recalculado após estouro em mês anterior" class="text-[11px] font-semibold text-amber-600 dark:text-amber-400">recalculado</span>{% endif %}</td>
+            <td class="px-3 py-2.5 text-right">R$ {{ m.gasto|floatformat:2 }}</td>
+            <td class="px-6 py-2.5 text-right font-medium {% if m.estourou %}text-red-600 dark:text-red-400{% endif %}">R$ {{ m.saldo|floatformat:2 }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% empty %}
+  <p class="text-center py-16 text-sm text-slate-500 dark:text-slate-400">Nenhum centro com orçamento. Defina em Configurações → Centros de custo.</p>
+  {% endfor %}
+</div>
+{% endblock %}
