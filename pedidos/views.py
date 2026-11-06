@@ -9,24 +9,34 @@ from django.db.models import Count, Q, Sum
 from django.http import JsonResponse
 from django.urls import reverse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from cadastros.models import Categoria, Produto
 from contas.models import Modulo, Papel
 from contas.permissoes import requer_papel
 from estoque.models import Movimentacao, SaldoEstoque, TipoMovimentacao
 from estoque.services import EstoqueInsuficiente
-from tenancy.models import Almoxarifado, CentroCusto, Evento, Filial, centros_da_filial
+from tenancy.models import Almoxarifado, CentroCusto, ConfiguracaoSLA, Evento, Filial, centros_da_filial
 
 from . import cart
 from .forms import PedidoForm, almoxarifados_do_usuario
-from .models import EventoPedido, ItemPedido, MensagemPedido, OrigemAtendimento, Pedido, StatusPedido
+from .models import EventoPedido, ItemPedido, OrigemAtendimento, Pedido, StatusPedido
 from .services import (
     SemPermissao,
     TransicaoInvalida,
     aprovar_como_lider,
+    candidatos_similares,
+    cancelar_item,
+    cancelar_pedido,
+    enviar_mensagem,
     entregar,
+    papel_na_conversa,
     pode_aprovar,
+    pode_cancelar,
+    pode_participar,
+    responder_similar,
     saldo_no_almoxarifado,
+    sugerir_similar,
     validar_centro_da_unidade,
     transicionar,
 )
@@ -42,9 +52,10 @@ FILA_SUPRIMENTOS = [
 def painel(request):
     usuario = request.user
     contexto = {
-        "meus_pedidos": Pedido.objects.filter(requisitante=usuario, ativo=True)[:5],
+        "meus_pedidos": Pedido.objects.filter(requisitante=usuario, ativo=True)
+        .exclude(status=StatusPedido.CANCELADO)[:5],
         "qtd_meus_abertos": Pedido.objects.filter(requisitante=usuario, ativo=True)
-        .exclude(status__in=[StatusPedido.CONCLUIDO, StatusPedido.RECUSADO]).count(),
+        .exclude(status__in=[StatusPedido.CONCLUIDO, StatusPedido.RECUSADO, StatusPedido.CANCELADO]).count(),
     }
     setores_liderados = usuario.setores_liderados.values_list("id", flat=True)
     if setores_liderados or usuario.is_superuser:
@@ -214,7 +225,7 @@ def checkout(request):
         messages.error(request, "Seu carrinho está vazio.")
         return redirect("catalogo")
 
-    form = PedidoForm(request.POST or None, usuario=request.user)
+    form = PedidoForm(request.POST or None, usuario=request.user, itens=itens_carrinho)
     if not form.almoxarifados:
         messages.error(
             request,
@@ -249,7 +260,7 @@ def checkout(request):
 
     cobertura = _estoque_dos_itens(itens_carrinho, form.almoxarifados)
     return render(request, "pedidos/checkout.html", {
-        "form": form, "itens": itens_carrinho, "cobertura": cobertura,
+        "form": form, "itens": itens_carrinho, "cobertura": cobertura, "sla_json": form.sla_json,
         "estoque_json": {
             str(a.pk): {str(i["produto"].pk): float(e["saldo"]) for i in itens_carrinho for e in i["estoques"] if e["almoxarifado"].pk == a.pk}
             for a in form.almoxarifados
@@ -268,8 +279,15 @@ def _filtrar_pedidos(request, pedidos):
         pedidos = pedidos.filter(filtro | Q(pk=busca)) if busca.isdigit() else pedidos.filter(filtro)
     if filial_id:
         pedidos = pedidos.filter(almoxarifado_destino__filial_id=filial_id)
+    # Cancelados não atrapalham a operação: só aparecem quando se escolhe esse status.
+    status = request.GET.get("status", "")
+    if status in StatusPedido.values:
+        pedidos = pedidos.filter(status=status)
+    else:
+        status = ""
+        pedidos = pedidos.exclude(status=StatusPedido.CANCELADO)
     filiais = Filial.objects.filter(ativo=True).order_by("nome")
-    return pedidos, {"busca": busca, "filial_id": filial_id, "filiais": filiais}
+    return pedidos, {"busca": busca, "filial_id": filial_id, "filiais": filiais, "status": status}
 
 
 @login_required
@@ -278,7 +296,9 @@ def pedido_lista(request):
         "almoxarifado_destino__filial", "motivo"
     )
     pedidos, ctx = _filtrar_pedidos(request, pedidos)
-    return render(request, "pedidos/lista.html", {"pedidos": pedidos, **ctx})
+    return render(request, "pedidos/lista.html", {
+        "pedidos": pedidos, "status_opcoes": StatusPedido.choices, **ctx,
+    })
 
 
 def _eventos_sem_repeticao(pedido):
@@ -326,6 +346,28 @@ def _compras_do_pedido(pedido):
     )
 
 
+def _itens_com_similares(pedido, usuario):
+    """Itens do pedido; para suprimentos, cada item sem estoque traz os similares com saldo."""
+    from .services import e_suprimentos
+
+    itens = list(pedido.itens.select_related("produto", "similar_sugerido", "similar_sugerido_por", "produto_original"))
+    sugere = e_suprimentos(usuario)
+    for item in itens:
+        item.candidatos = candidatos_similares(item) if sugere else []
+    return itens
+
+
+def _mensagens_do_pedido(pedido):
+    """Mensagens com o papel de quem escreveu (calculado uma vez por autor)."""
+    papeis = {}
+    resultado = []
+    for m in pedido.mensagens.select_related("autor"):
+        if m.autor_id not in papeis:
+            papeis[m.autor_id] = papel_na_conversa(m.autor, pedido)
+        resultado.append({"mensagem": m, "papel": papeis[m.autor_id]})
+    return resultado
+
+
 @login_required
 def pedido_detalhe(request, pk):
     pedido = get_object_or_404(
@@ -339,15 +381,9 @@ def pedido_detalhe(request, pk):
         or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.ESTOQUE)
     )
     pode_consultar = e_gestor or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS)
-    if not (usuario == pedido.requisitante or pode_aprovar(usuario, pedido) or pode_consultar):
+    if not (pode_consultar or pode_participar(usuario, pedido)):
         messages.error(request, "Você não tem acesso a esse pedido.")
         return redirect("painel")
-
-    if request.method == "POST" and request.POST.get("acao") == "mensagem":
-        texto = request.POST.get("texto", "").strip()[:1000]
-        if texto:
-            MensagemPedido.objects.create(pedido=pedido, autor=usuario, texto=texto)
-        return redirect(reverse("pedido_detalhe", args=[pedido.pk]) + "#chat")
 
     if request.method == "POST":
         acao = request.POST.get("acao")
@@ -406,6 +442,31 @@ def pedido_detalhe(request, pk):
             elif acao == "concluir":
                 transicionar(pedido, StatusPedido.CONCLUIDO, usuario)
                 messages.success(request, "Recebimento confirmado. Pedido concluído.")
+            elif acao == "mensagem":
+                enviar_mensagem(pedido, usuario, request.POST.get("texto", ""))
+                messages.success(request, "Mensagem enviada.")
+                return redirect(f"{reverse('pedido_detalhe', args=[pedido.pk])}#conversa")
+            elif acao == "sugerir_similar":
+                item = get_object_or_404(ItemPedido, pk=request.POST.get("item") or 0, pedido=pedido)
+                similar = get_object_or_404(Produto, pk=request.POST.get("similar") or 0)
+                sugerir_similar(item, similar, usuario)
+                messages.success(request, f"Similar sugerido ao requisitante: {similar}.")
+            elif acao == "responder_similar":
+                item = get_object_or_404(ItemPedido, pk=request.POST.get("item") or 0, pedido=pedido)
+                aceitar = request.POST.get("resposta") == "aceitar"
+                responder_similar(item, usuario, aceitar, observacao)
+                messages.success(request, "Similar aceito: o item foi trocado." if aceitar else "Similar recusado.")
+            elif acao == "cancelar_pedido":
+                cancelar_pedido(pedido, usuario, observacao)
+                messages.success(request, f"Pedido #{pedido.pk} cancelado.")
+            elif acao == "cancelar_item":
+                item = get_object_or_404(ItemPedido, pk=request.POST.get("item") or 0, pedido=pedido)
+                cancelar_item(item, usuario, observacao)
+                pedido.refresh_from_db()
+                if pedido.status == StatusPedido.CANCELADO:
+                    messages.success(request, f"Era o último item: o pedido #{pedido.pk} foi cancelado.")
+                else:
+                    messages.success(request, f"Item {item.produto} cancelado.")
         except (TransicaoInvalida, SemPermissao, EstoqueInsuficiente) as e:
             messages.error(request, str(e))
         volta = request.POST.get("next", "")
@@ -419,7 +480,7 @@ def pedido_detalhe(request, pk):
         request, "pedidos/detalhe.html",
         {
             "pedido": pedido,
-            "itens": pedido.itens.select_related("produto"),
+            "itens": _itens_com_similares(pedido, usuario),
             "tem_item_de_compra": tem_compra,
             "itens_entrega": [
                 {"item": i, "saldo": saldo_no_almoxarifado(i.produto, pedido.almoxarifado_destino)}
@@ -431,9 +492,11 @@ def pedido_detalhe(request, pk):
             "pode_aprovar": pode_aprovar(usuario, pedido),
             "compras_do_pedido": compras,
             "etapas": _etapas_do_pedido(pedido, compras, tem_compra),
-            "mensagens": pedido.mensagens.select_related("autor"),
             "e_gestor": e_gestor,
             "ve_fornecedor": e_gestor or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS),
+            "pode_cancelar": pode_cancelar(usuario, pedido),
+            "mensagens": _mensagens_do_pedido(pedido),
+            "sla": ConfiguracaoSLA.atual(),
             "centros": (
                 centros_da_filial(pedido.almoxarifado_destino.filial_id, pedido.centro_custo_id) if e_gestor else []
             ),
@@ -538,7 +601,7 @@ def relatorio_eventos(request):
 
     validos = Pedido.objects.filter(
         evento_id__in=[e.pk for e in eventos], ativo=True
-    ).exclude(status__in=[StatusPedido.RASCUNHO, StatusPedido.RECUSADO])
+    ).exclude(status__in=[StatusPedido.RASCUNHO, StatusPedido.RECUSADO, StatusPedido.CANCELADO])
     entregas = Movimentacao.objects.filter(
         pedido__in=validos, tipo__in=[TipoMovimentacao.SAIDA, TipoMovimentacao.TRANSFERENCIA]
     )

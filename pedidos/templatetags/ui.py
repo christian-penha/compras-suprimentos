@@ -12,6 +12,7 @@ BADGES = {
     "ENTREGA_PARCIAL": "bg-sky-50 text-sky-700 border border-sky-200 dark:text-sky-400 dark:bg-sky-950 dark:border-sky-800",
     "ENTREGUE": "bg-emerald-50 text-emerald-700 border border-emerald-200 dark:text-emerald-400 dark:bg-emerald-950 dark:border-emerald-800",
     "CONCLUIDO": "bg-emerald-100 text-emerald-800 dark:text-emerald-300 dark:bg-emerald-900/50",
+    "CANCELADO": "bg-slate-200 text-slate-600 border border-slate-300 dark:bg-slate-700 dark:text-slate-300 dark:border-slate-600",
     "EMITIDA": "bg-slate-100 text-slate-700 dark:bg-slate-700 dark:text-slate-200",
     "COMPRA_EFETUADA": "bg-blue-50 text-blue-700 border border-blue-200 dark:text-blue-400 dark:bg-blue-950 dark:border-blue-800",
     "EM_TRANSITO": "bg-sky-50 text-sky-700 border border-sky-200 dark:text-sky-400 dark:bg-sky-950 dark:border-sky-800",
@@ -37,6 +38,7 @@ EVENTOS = {
     "ENTREGA_PARCIAL": "Entregue parcialmente",
     "ENTREGUE": "Entregue",
     "CONCLUIDO": "Concluído",
+    "CANCELADO": "Pedido cancelado",
 }
 
 

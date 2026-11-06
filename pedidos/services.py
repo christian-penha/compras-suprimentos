@@ -2,16 +2,18 @@ from decimal import Decimal
 
 from django.db import transaction
 
-from contas.models import ModoAprovacaoSetor, RegraAprovacaoEmpresa
+from contas.models import ModoAprovacaoSetor, Modulo, Papel, RegraAprovacaoEmpresa
 from estoque.models import SaldoEstoque
 from estoque.services import registrar_saida
 from tenancy.models import Almoxarifado
 from pedidos.models import (
     AprovacaoLider,
     EventoPedido,
+    MensagemPedido,
     OrigemAtendimento,
     Pedido,
     StatusPedido,
+    StatusSimilar,
 )
 
 
@@ -32,6 +34,16 @@ TRANSICOES = {
     StatusPedido.ENTREGA_PARCIAL: {StatusPedido.ENTREGUE, StatusPedido.ENTREGA_PARCIAL},
     StatusPedido.ENTREGUE: {StatusPedido.CONCLUIDO},
 }
+
+# Cancelamento (motivo obrigatório; o pedido cancelado sai das listas de operação):
+# - o requisitante cancela só até a aprovação do setor;
+# - aprovadores (líderes do setor) e suprimentos, até a entrega.
+STATUS_CANCELAVEL_PELO_REQUISITANTE = {StatusPedido.RASCUNHO, StatusPedido.ENVIADO}
+STATUS_CANCELAVEL_PELA_OPERACAO = STATUS_CANCELAVEL_PELO_REQUISITANTE | {
+    StatusPedido.APROVADO_UNIDADE, StatusPedido.AGUARDANDO_COMPRA, StatusPedido.EM_SEPARACAO,
+}
+for _origem in STATUS_CANCELAVEL_PELA_OPERACAO:
+    TRANSICOES.setdefault(_origem, set()).add(StatusPedido.CANCELADO)
 
 
 def lideres_do_setor(usuario):
@@ -287,3 +299,265 @@ def entregar(pedido, usuario, quantidades=None):
 def saldo_no_almoxarifado(produto, almoxarifado):
     saldo = SaldoEstoque.objects.filter(produto=produto, almoxarifado=almoxarifado).first()
     return saldo.quantidade if saldo else 0
+
+
+# ------------------------------------------------------------------ cancelamento
+
+def e_suprimentos(usuario):
+    return (
+        usuario.is_superuser or usuario.tem_papel(Papel.SUPERADMIN)
+        or usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.ESTOQUE)
+    )
+
+
+def pode_cancelar(usuario, pedido):
+    """Pode cancelar o pedido (ou itens dele) neste momento? Depende de quem é o usuário e do status."""
+    if pedido.status in STATUS_CANCELAVEL_PELA_OPERACAO and (
+        e_suprimentos(usuario) or pode_aprovar(usuario, pedido)
+    ):
+        return True
+    return usuario == pedido.requisitante and pedido.status in STATUS_CANCELAVEL_PELO_REQUISITANTE
+
+
+def _cotacoes_em_andamento(itens):
+    """Cotações ainda vivas (em comparação, na alçada ou aprovadas) que incluem esses itens."""
+    from compras.models import ItemCotacao, StatusCotacao
+
+    vivas = [StatusCotacao.EM_COMPARACAO, StatusCotacao.AGUARDANDO_ALCADA, StatusCotacao.APROVADA]
+    return sorted({
+        ic.cotacao.numero for ic in ItemCotacao.objects.filter(
+            item_pedido__in=itens, cotacao__status__in=vivas
+        ).select_related("cotacao")
+    })
+
+
+def _validar_cancelamento(usuario, pedido, motivo, itens):
+    if not (motivo or "").strip():
+        raise TransicaoInvalida("Informe o motivo do cancelamento.")
+    if pedido.status == StatusPedido.CANCELADO:
+        raise TransicaoInvalida("Este pedido já foi cancelado.")
+    if pedido.status not in STATUS_CANCELAVEL_PELA_OPERACAO:
+        raise TransicaoInvalida("O pedido já foi entregue (ou encerrado) e não pode mais ser cancelado.")
+    if not pode_cancelar(usuario, pedido):
+        if usuario == pedido.requisitante:
+            raise SemPermissao("Depois da aprovação, o cancelamento é feito pelo aprovador ou por suprimentos.")
+        raise SemPermissao("Você não pode cancelar este pedido.")
+    if any(i.quantidade_entregue > 0 for i in itens):
+        raise TransicaoInvalida("Já houve entrega de itens — não é possível cancelar o que foi entregue.")
+    em_cotacao = _cotacoes_em_andamento(itens)
+    if em_cotacao:
+        numeros = ", ".join(f"#{n}" for n in em_cotacao)
+        raise TransicaoInvalida(
+            f"Há item em cotação em andamento ({numeros}). Recuse ou cancele a cotação antes de cancelar."
+        )
+
+
+@transaction.atomic
+def cancelar_pedido(pedido, usuario, motivo):
+    """Cancela o pedido inteiro. O pedido continua consultável, só sai das filas e da operação."""
+    itens = list(pedido.itens.filter(cancelado=False))
+    _validar_cancelamento(usuario, pedido, motivo, itens)
+    motivo = motivo.strip()
+    for item in itens:
+        item.cancelado = True
+        item.motivo_cancelamento = f"Pedido cancelado: {motivo}"[:300]
+        item.save(update_fields=["cancelado", "motivo_cancelamento"])
+    pedido.motivo_cancelamento = motivo[:500]
+    pedido.cancelado_por = usuario
+    pedido.save(update_fields=["motivo_cancelamento", "cancelado_por"])
+    _aplicar_transicao(pedido, StatusPedido.CANCELADO, usuario, f"Pedido cancelado: {motivo}", classificar=False)
+    return pedido
+
+
+@transaction.atomic
+def cancelar_item(item, usuario, motivo):
+    """Cancela um item do pedido. Se era o último item ativo, o pedido inteiro é cancelado."""
+    pedido = item.pedido
+    if item.cancelado:
+        raise TransicaoInvalida("Este item já foi cancelado.")
+    _validar_cancelamento(usuario, pedido, motivo, [item])
+    motivo = motivo.strip()
+    item.cancelado = True
+    item.motivo_cancelamento = motivo[:300]
+    item.save(update_fields=["cancelado", "motivo_cancelamento"])
+    EventoPedido.objects.create(
+        pedido=pedido, de_status=pedido.status, para_status=pedido.status, usuario=usuario,
+        observacao=f"Item cancelado — {item.produto}: {motivo}",
+    )
+    if not pedido.itens.filter(cancelado=False).exists():
+        pedido.motivo_cancelamento = f"Todos os itens foram cancelados. Último motivo: {motivo}"[:500]
+        pedido.cancelado_por = usuario
+        pedido.save(update_fields=["motivo_cancelamento", "cancelado_por"])
+        _aplicar_transicao(
+            pedido, StatusPedido.CANCELADO, usuario,
+            "Todos os itens foram cancelados — pedido cancelado.", classificar=False,
+        )
+    elif pedido.status in (
+        StatusPedido.AGUARDANDO_COMPRA, StatusPedido.APROVADO_UNIDADE, StatusPedido.EM_SEPARACAO,
+    ):
+        reavaliar_pedido(pedido, usuario)
+    return item
+
+
+# ------------------------------------------------------------------ conversa do pedido
+
+def aprovador_de_compra_do_pedido(usuario, pedido):
+    """É aprovador (setor/alçada) de alguma cotação que inclui itens deste pedido?"""
+    from compras.models import Cotacao
+    from compras.services import aprovadores_da_cotacao
+
+    cotacoes = Cotacao.objects.filter(itens__item_pedido__pedido=pedido).distinct().select_related("alcada")
+    return any(usuario.pk in {u.pk for u in aprovadores_da_cotacao(c)} for c in cotacoes)
+
+
+def e_comprador(usuario):
+    return usuario.tem_papel(Papel.ADMINISTRADOR, Modulo.COMPRAS)
+
+
+def pode_participar(usuario, pedido):
+    """Quem acompanha o pedido e participa da conversa: o requisitante, os aprovadores do setor,
+    suprimentos, compras e os aprovadores das compras ligadas ao pedido."""
+    return (
+        usuario == pedido.requisitante or pode_aprovar(usuario, pedido) or e_suprimentos(usuario)
+        or e_comprador(usuario) or aprovador_de_compra_do_pedido(usuario, pedido)
+    )
+
+
+def papel_na_conversa(usuario, pedido):
+    if usuario == pedido.requisitante:
+        return "Requisitante"
+    if e_suprimentos(usuario):
+        return "Suprimentos"
+    if e_comprador(usuario):
+        return "Compras"
+    if pode_aprovar(usuario, pedido):
+        return "Aprovador"
+    if aprovador_de_compra_do_pedido(usuario, pedido):
+        return "Aprovador da compra"
+    return ""
+
+
+def enviar_mensagem(pedido, usuario, texto):
+    texto = (texto or "").strip()
+    if not texto:
+        raise TransicaoInvalida("Escreva a mensagem antes de enviar.")
+    if len(texto) > MensagemPedido.TAMANHO_MAXIMO:
+        raise TransicaoInvalida(f"A mensagem passa de {MensagemPedido.TAMANHO_MAXIMO} caracteres.")
+    if not pode_participar(usuario, pedido):
+        raise SemPermissao("Você não participa deste pedido.")
+    return MensagemPedido.objects.create(pedido=pedido, autor=usuario, texto=texto)
+
+
+# ------------------------------------------------------------------ produto similar
+
+STATUS_ACEITA_SIMILAR = {StatusPedido.APROVADO_UNIDADE, StatusPedido.AGUARDANDO_COMPRA, StatusPedido.EM_SEPARACAO}
+
+
+def _mensagem(pedido, usuario, texto):
+    MensagemPedido.objects.create(pedido=pedido, autor=usuario, texto=texto[: MensagemPedido.TAMANHO_MAXIMO])
+
+
+def item_aceita_similar(item):
+    """Item sem estoque (vai para compra), ainda não entregue e sem sugestão pendente."""
+    return (
+        not item.cancelado and item.quantidade_entregue == 0
+        and item.origem_atendimento == OrigemAtendimento.COMPRA
+        and item.similar_status != StatusSimilar.PENDENTE
+        and item.pedido.status in STATUS_ACEITA_SIMILAR
+    )
+
+
+def candidatos_similares(item):
+    """Similares vinculados ao produto do item que têm saldo para atender o pedido inteiro."""
+    from cadastros.similares import similares_de
+
+    if not item_aceita_similar(item):
+        return []
+    destino = item.pedido.almoxarifado_destino
+    candidatos = []
+    for similar in similares_de(item.produto):
+        saldo = saldo_no_almoxarifado(similar, destino)
+        if saldo >= item.quantidade:
+            candidatos.append({"produto": similar, "saldo": saldo})
+    return candidatos
+
+
+@transaction.atomic
+def sugerir_similar(item, similar, usuario):
+    """Suprimentos sugere trocar o produto sem estoque por um similar (vínculo cadastrado por eles)."""
+    pedido = item.pedido
+    if not e_suprimentos(usuario):
+        raise SemPermissao("Só suprimentos sugere produto similar.")
+    if not item_aceita_similar(item):
+        raise TransicaoInvalida("Este item não aceita sugestão de similar agora.")
+    candidato = next((c for c in candidatos_similares(item) if c["produto"].pk == similar.pk), None)
+    if candidato is None:
+        raise TransicaoInvalida(
+            f"{similar} não é um similar vinculado a {item.produto} ou não tem saldo suficiente em "
+            f"{pedido.almoxarifado_destino.nome}."
+        )
+    if _cotacoes_em_andamento([item]):
+        raise TransicaoInvalida("O item está em cotação em andamento — recuse ou cancele a cotação antes.")
+
+    item.similar_sugerido, item.similar_status = similar, StatusSimilar.PENDENTE
+    item.similar_sugerido_por, item.similar_resposta = usuario, ""
+    item.save(update_fields=["similar_sugerido", "similar_status", "similar_sugerido_por", "similar_resposta"])
+    EventoPedido.objects.create(
+        pedido=pedido, de_status=pedido.status, para_status=pedido.status, usuario=usuario,
+        observacao=f"Similar sugerido para {item.produto}: {similar}.",
+    )
+    _mensagem(
+        pedido, usuario,
+        f"Sugestão de produto similar para «{item.produto}»: «{similar}» "
+        f"(há {candidato['saldo']:g} em {pedido.almoxarifado_destino.nome}). "
+        "Aceite ou recuse no item do pedido.",
+    )
+    return item
+
+
+@transaction.atomic
+def responder_similar(item, usuario, aceitar, observacao=""):
+    """O requisitante aceita (o item passa a ser o similar, atendido pelo estoque) ou recusa."""
+    pedido = item.pedido
+    if usuario != pedido.requisitante:
+        raise SemPermissao("Só o requisitante responde à sugestão de similar.")
+    if item.similar_status != StatusSimilar.PENDENTE or item.similar_sugerido_id is None:
+        raise TransicaoInvalida("Não há sugestão de similar aguardando resposta neste item.")
+    observacao = (observacao or "").strip()[:300]
+    similar, original = item.similar_sugerido, item.produto
+
+    if not aceitar:
+        item.similar_status, item.similar_resposta = StatusSimilar.RECUSADO, observacao
+        item.save(update_fields=["similar_status", "similar_resposta"])
+        EventoPedido.objects.create(
+            pedido=pedido, de_status=pedido.status, para_status=pedido.status, usuario=usuario,
+            observacao=f"Similar recusado ({similar}) — o item segue para compra.",
+        )
+        _mensagem(pedido, usuario, f"Recusei o similar «{similar}»" + (f": {observacao}" if observacao else "."))
+        return item
+
+    if pedido.itens.filter(produto=similar).exclude(pk=item.pk).exists():
+        raise TransicaoInvalida(
+            f"O pedido já tem «{similar}» em outro item. Cancele um dos itens ou ajuste a quantidade antes."
+        )
+    if saldo_no_almoxarifado(similar, pedido.almoxarifado_destino) < item.quantidade:
+        raise TransicaoInvalida(f"O saldo de «{similar}» mudou e não atende mais o pedido.")
+    if _cotacoes_em_andamento([item]):
+        raise TransicaoInvalida("O item entrou em cotação — recuse ou cancele a cotação antes de trocar.")
+
+    item.produto_original = original
+    item.produto = similar
+    item.origem_atendimento = OrigemAtendimento.ESTOQUE
+    item.similar_status, item.similar_resposta = StatusSimilar.ACEITO, observacao
+    item.save(update_fields=["produto_original", "produto", "origem_atendimento", "similar_status", "similar_resposta"])
+    EventoPedido.objects.create(
+        pedido=pedido, de_status=pedido.status, para_status=pedido.status, usuario=usuario,
+        observacao=f"Similar aceito: {original} → {similar}.",
+    )
+    _mensagem(pedido, usuario, f"Aceitei o similar: «{original}» foi trocado por «{similar}».")
+    if pedido.status == StatusPedido.AGUARDANDO_COMPRA:
+        _aplicar_transicao(
+            pedido, StatusPedido.APROVADO_UNIDADE, usuario,
+            "Similar aceito — pedido liberado para separação.", classificar=False,
+        )
+    return item

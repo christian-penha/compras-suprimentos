@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block titulo %}Feriados e recessos{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Feriados e recessos</h1>
+    <p class="text-sm text-[#9a9a9a] mt-1">Dias sem trabalho (feriados, recessos escolares e emendas). Não contam como dia útil no prazo dos pedidos.</p>
+  </div>
+  <div class="flex flex-wrap items-center gap-3">
+    <a href="{% url 'config_sla' %}" class="inline-flex items-center rounded-xl border border-[#2c2c2c] text-white text-sm font-semibold px-4 py-2.5 hover:bg-white/5 transition">Prazos (SLA)</a>
+    <a href="{% url 'config_periodo_novo' %}" class="inline-flex items-center rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">+ Novo período</a>
+  </div>
+  <form method="get" class="basis-full mt-1 flex flex-wrap gap-3">
+    <select name="ano" onchange="this.form.submit()" class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+      {% for a in anos %}<option value="{{ a }}" {% if a == ano %}selected{% endif %}>{{ a }}</option>{% endfor %}
+    </select>
+    <select name="tipo" onchange="this.form.submit()" class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+      <option value="">Todos os tipos</option>
+      {% for valor, rotulo in tipos %}<option value="{{ valor }}" {% if tipo == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<form method="post" action="{% url 'config_periodo_importar' %}" class="mb-6 flex flex-wrap items-center gap-3 bg-white rounded-2xl border border-slate-200 p-4 dark:bg-slate-800 dark:border-slate-700">
+  {% csrf_token %}
+  <input type="hidden" name="ano" value="{{ ano }}">
+  <p class="text-sm text-slate-600 dark:text-slate-300 flex-1 min-w-[240px]">Adicionar de uma vez os feriados nacionais de {{ ano }} (inclui Carnaval, Sexta-feira Santa e Corpus Christi). Os que já existem não são duplicados.</p>
+  <button class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-5 py-2.5 transition dark:bg-white dark:text-black">Importar feriados nacionais de {{ ano }}</button>
+</form>
+
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+  {% for p in periodos %}
+  <article class="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col dark:bg-slate-800 dark:border-slate-700{% if not p.ativo %} opacity-60{% endif %}">
+    <p class="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{{ p.get_tipo_display }}</p>
+    <h2 class="text-lg font-semibold text-slate-900 dark:text-slate-100">{{ p.nome }}</h2>
+    <p class="text-sm text-slate-500 dark:text-slate-400">
+      {% if p.inicio == p.fim %}{{ p.inicio|date:"d/m/Y" }}{% else %}{{ p.inicio|date:"d/m/Y" }} a {{ p.fim|date:"d/m/Y" }} · {{ p.dias }} dias{% endif %}
+    </p>
+    <p class="text-xs text-slate-400 mt-1">{% if p.filial %}Só {{ p.filial.nome }}{% else %}Todas as filiais{% endif %}</p>
+    <div class="mt-5 flex gap-2">
+      <a href="{% url 'config_periodo_editar' p.pk %}" class="flex-1 block text-center rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 text-sm font-semibold py-2.5 transition dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-700">Editar</a>
+      <form method="post" action="{% url 'config_periodo_excluir' p.pk %}" onsubmit="return confirm('Excluir {{ p.nome|escapejs }}?');">
+        {% csrf_token %}
+        <button class="rounded-xl border border-red-200 text-red-700 hover:bg-red-50 text-sm font-semibold px-4 py-2.5 transition dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950">Excluir</button>
+      </form>
+    </div>
+  </article>
+  {% empty %}
+  <p class="col-span-full text-center py-16 text-sm text-slate-500 dark:text-slate-400">Nenhum período cadastrado em {{ ano }}. Use "Importar feriados nacionais" ou "+ Novo período".</p>
+  {% endfor %}
+</div>
+{% endblock %}

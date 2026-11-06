@@ -225,3 +225,74 @@ def centros_da_filial(filial_id, atual_id=None):
     return CentroCusto.objects.filter(
         models.Q(filial_id=filial_id, ativo=True) | models.Q(pk=atual_id)
     ).select_related("filial").order_by("nome")
+
+
+class ConfiguracaoSLA(TenantModel):
+    """Prazos de atendimento, em dias úteis, contados a partir do pedido (uma linha por tenant).
+    Sem linha cadastrada valem os padrões abaixo: 3 dias úteis pelo estoque, 7 se precisar comprar."""
+
+    PADRAO_ESTOQUE = 3
+    PADRAO_COMPRA = 7
+
+    prazo_estoque_dias = models.PositiveSmallIntegerField(
+        default=PADRAO_ESTOQUE, help_text="Pedido atendido por itens que já estão em estoque"
+    )
+    prazo_compra_dias = models.PositiveSmallIntegerField(
+        default=PADRAO_COMPRA, help_text="Pedido com algum item que precisa ser comprado"
+    )
+
+    class Meta:
+        verbose_name = "configuração de SLA"
+        verbose_name_plural = "configurações de SLA"
+        constraints = [
+            models.UniqueConstraint(fields=["tenant"], name="sla_unico_por_tenant"),
+        ]
+
+    def __str__(self):
+        return f"SLA: estoque {self.prazo_estoque_dias}d úteis · compra {self.prazo_compra_dias}d úteis"
+
+    @classmethod
+    def atual(cls):
+        """Configuração do tenant corrente, ou uma instância (não salva) com os padrões."""
+        return cls.objects.first() or cls()
+
+
+class TipoPeriodoNaoUtil(models.TextChoices):
+    FERIADO = "FERIADO", "Feriado"
+    RECESSO = "RECESSO", "Recesso"
+    EMENDA = "EMENDA", "Emenda (enforcamento)"
+
+
+class PeriodoNaoUtil(TenantModel):
+    """Dias em que a operação não trabalha e que não contam como dia útil no SLA: feriados,
+    recessos escolares e emendas. De um único dia (fim = início) ou um intervalo; vale para
+    todo o grupo ou só para uma filial."""
+
+    nome = models.CharField(max_length=100)
+    tipo = models.CharField(
+        max_length=10, choices=TipoPeriodoNaoUtil.choices, default=TipoPeriodoNaoUtil.FERIADO
+    )
+    inicio = models.DateField()
+    fim = models.DateField()
+    filial = models.ForeignKey(
+        Filial, on_delete=models.CASCADE, null=True, blank=True, related_name="periodos_nao_uteis",
+        help_text="Vazio = vale para todas as filiais",
+    )
+    ativo = models.BooleanField(default=True)
+
+    class Meta:
+        verbose_name = "período sem trabalho"
+        verbose_name_plural = "períodos sem trabalho"
+        ordering = ["inicio", "nome"]
+        constraints = [
+            models.CheckConstraint(condition=models.Q(fim__gte=models.F("inicio")), name="periodo_fim_apos_inicio"),
+        ]
+
+    def __str__(self):
+        if self.inicio == self.fim:
+            return f"{self.nome} ({self.inicio:%d/%m/%Y})"
+        return f"{self.nome} ({self.inicio:%d/%m/%Y} a {self.fim:%d/%m/%Y})"
+
+    @property
+    def dias(self):
+        return (self.fim - self.inicio).days + 1

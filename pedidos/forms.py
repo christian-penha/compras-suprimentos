@@ -1,11 +1,13 @@
 from django import forms
 from django.utils import timezone
 
+from tenancy.calendario import prazos_sla
 from tenancy.models import Almoxarifado, Evento, Filial, MotivoRequisicao
 
 from cadastros.models import Produto
 
 from .models import Pedido, PrioridadePedido, SugestaoProduto
+from .services import saldo_no_almoxarifado
 
 CAMPO = (
     "w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm "
@@ -66,8 +68,9 @@ class PedidoForm(forms.ModelForm):
             "evento": forms.Select(attrs={"class": CAMPO}),
         }
 
-    def __init__(self, *args, usuario, **kwargs):
+    def __init__(self, *args, usuario, itens=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.itens = itens or []  # itens do carrinho: [{"produto", "quantidade"}]
         self.almoxarifados = almoxarifados_do_usuario(usuario)
         self.filiais = Filial.objects.filter(pk__in={a.filial_id for a in self.almoxarifados}).order_by("nome")
         self.fields["filial_destino"].queryset = self.filiais
@@ -97,10 +100,42 @@ class PedidoForm(forms.ModelForm):
             raise forms.ValidationError("A data desejada não pode estar no passado.")
         return data
 
+    def prazo_sla(self, almoxarifado, prazos=None):
+        """SLA aplicável ao almoxarifado: pelo estoque se ele atende todos os itens do carrinho,
+        senão o de compra. Devolve {"origem", "minimo"} (data mais cedo permitida)."""
+        prazos = prazos or prazos_sla(almoxarifado.filial)
+        coberto = all(
+            saldo_no_almoxarifado(i["produto"], almoxarifado) >= i["quantidade"] for i in self.itens
+        )
+        origem = "estoque" if coberto else "compra"
+        return {"origem": origem, "minimo": prazos[origem]}
+
+    @property
+    def sla_json(self):
+        """Para o front mostrar o prazo mínimo de cada almoxarifado (a validação real é no servidor)."""
+        resultado = {}
+        for a in self.almoxarifados:
+            sla = self.prazo_sla(a)
+            resultado[str(a.pk)] = {
+                "origem": sla["origem"], "minimo": sla["minimo"].isoformat(),
+                "minimo_br": sla["minimo"].strftime("%d/%m/%Y"),
+            }
+        return resultado
+
     def clean(self):
         dados = super().clean()
         motivo, evento = dados.get("motivo"), dados.get("evento")
         filial, almoxarifado = dados.get("filial_destino"), dados.get("almoxarifado_destino")
+        data = dados.get("data_desejada")
+        if data and almoxarifado and not self.has_error("data_desejada"):
+            sla = self.prazo_sla(almoxarifado)
+            if data < sla["minimo"]:
+                por = "pelo estoque" if sla["origem"] == "estoque" else "por compra (algum item não tem saldo)"
+                self.add_error(
+                    "data_desejada",
+                    f"Fora do prazo (SLA): para um pedido atendido {por}, a data mais cedo é "
+                    f"{sla['minimo']:%d/%m/%Y}, contando só dias úteis.",
+                )
         # uma unidade não pede no almoxarifado de outra
         if filial and almoxarifado and almoxarifado.filial_id != filial.pk:
             self.add_error("almoxarifado_destino", "Este almoxarifado não pertence à unidade escolhida.")

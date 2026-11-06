@@ -15,6 +15,13 @@ class StatusPedido(models.TextChoices):
     ENTREGA_PARCIAL = "ENTREGA_PARCIAL", "Entregue parcialmente"
     ENTREGUE = "ENTREGUE", "Entregue"
     CONCLUIDO = "CONCLUIDO", "Concluído"
+    CANCELADO = "CANCELADO", "Cancelado"
+
+
+class StatusSimilar(models.TextChoices):
+    PENDENTE = "PENDENTE", "Aguardando resposta do requisitante"
+    ACEITO = "ACEITO", "Aceito"
+    RECUSADO = "RECUSADO", "Recusado"
 
 
 class OrigemAtendimento(models.TextChoices):
@@ -57,6 +64,11 @@ class Pedido(models.Model):
     criado_em = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
     ativo = models.BooleanField(default=True)
+    # Cancelamento do pedido inteiro (o histórico fica em EventoPedido; aqui o resumo para exibir).
+    motivo_cancelamento = models.CharField(max_length=500, blank=True)
+    cancelado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
 
     class Meta:
         verbose_name = "pedido"
@@ -87,6 +99,19 @@ class ItemPedido(models.Model):
     # Eliminado na alçada de compra: sai do pedido sem ser entregue nem recotado.
     cancelado = models.BooleanField(default=False)
     motivo_cancelamento = models.CharField(max_length=300, blank=True)
+    # Substituição por produto similar quando falta estoque: suprimentos sugere, o requisitante decide.
+    similar_sugerido = models.ForeignKey(
+        Produto, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    similar_status = models.CharField(max_length=10, choices=StatusSimilar.choices, blank=True)
+    similar_sugerido_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    similar_resposta = models.CharField(max_length=300, blank=True)
+    produto_original = models.ForeignKey(
+        Produto, on_delete=models.PROTECT, null=True, blank=True, related_name="+",
+        help_text="Produto pedido originalmente, quando o item foi trocado por um similar",
+    )
 
     class Meta:
         verbose_name = "item do pedido"
@@ -121,7 +146,7 @@ class EventoPedido(models.Model):
     class Meta:
         verbose_name = "evento do pedido"
         verbose_name_plural = "eventos do pedido"
-        ordering = ["criado_em"]
+        ordering = ["criado_em", "pk"]
 
     def __str__(self):
         return f"#{self.pedido_id}: {self.de_status or '—'} → {self.para_status}"
@@ -188,7 +213,10 @@ class SugestaoProduto(TenantModel):
 
 
 class MensagemPedido(models.Model):
-    """Conversa do pedido entre requisitante, aprovadores, compras e estoque."""
+    """Conversa formal do pedido entre requisitante, aprovadores, compradores e suprimentos.
+    Só se acrescenta: mensagem enviada não é editada nem apagada."""
+
+    TAMANHO_MAXIMO = 1000
 
     pedido = models.ForeignKey(Pedido, on_delete=models.CASCADE, related_name="mensagens")
     autor = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="mensagens_pedido")
@@ -198,7 +226,15 @@ class MensagemPedido(models.Model):
     class Meta:
         verbose_name = "mensagem do pedido"
         verbose_name_plural = "mensagens do pedido"
-        ordering = ["criado_em"]
+        ordering = ["criado_em", "pk"]
 
     def __str__(self):
-        return f"#{self.pedido_id} {self.autor}: {self.texto[:30]}"
+        return f"#{self.pedido_id} — {self.autor}: {self.texto[:40]}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None:
+            raise ValueError("Mensagem enviada não pode ser editada.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise ValueError("Mensagem enviada não pode ser apagada.")
