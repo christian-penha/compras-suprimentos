@@ -21,6 +21,13 @@
 <div class="grid gap-6 lg:grid-cols-[1fr_340px] items-start">
   <div class="space-y-6">
 
+    {% if pedido.status == 'CANCELADO' %}
+    <section class="rounded-2xl border border-slate-300 bg-slate-100 px-6 py-5 text-sm text-slate-700 dark:bg-slate-900 dark:border-slate-600 dark:text-slate-200">
+      <p class="font-semibold">Pedido cancelado{% if pedido.cancelado_por %} por {{ pedido.cancelado_por }}{% endif %}</p>
+      {% if pedido.motivo_cancelamento %}<p class="mt-1">Motivo: {{ pedido.motivo_cancelamento }}</p>{% endif %}
+    </section>
+    {% endif %}
+
     <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
       <h2 class="font-semibold text-slate-900 mb-4 dark:text-slate-100">Informações do pedido</h2>
       <dl class="grid gap-x-6 gap-y-5 sm:grid-cols-2 text-sm">
@@ -75,6 +82,7 @@
             <th class="px-6 py-3 font-medium text-right">Qtd</th>
             <th class="px-6 py-3 font-medium text-right">Entregue</th>
             <th class="px-6 py-3 font-medium">Atendimento</th>
+            {% if pode_cancelar %}<th class="px-6 py-3 font-medium"></th>{% endif %}
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
@@ -87,13 +95,59 @@
             </td>
             <td class="px-6 py-3.5">
               {% if item.origem_atendimento == 'ESTOQUE' %}
-                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>Estoque · 72h</span>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-emerald-700 dark:text-emerald-400"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>Estoque · {{ sla.prazo_estoque_dias }} dias úteis</span>
               {% elif item.origem_atendimento == 'COMPRA' %}
-                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400"><span class="h-2 w-2 rounded-full bg-amber-500"></span>Compra · 7 dias úteis</span>
+                <span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400"><span class="h-2 w-2 rounded-full bg-amber-500"></span>Compra · {{ sla.prazo_compra_dias }} dias úteis</span>
               {% else %}
                 <span class="text-xs text-slate-400">Aguardando aprovação</span>
               {% endif %}
+              {% if item.produto_original %}
+                <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Trocado pelo similar (pedido original: {{ item.produto_original.nome }}).</p>
+              {% endif %}
+              {% if item.similar_status == 'PENDENTE' %}
+              <div class="mt-2 rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs text-violet-700 dark:bg-violet-950 dark:border-violet-900 dark:text-violet-200">
+                <p><b>Similar sugerido:</b> {{ item.similar_sugerido }}{% if item.similar_sugerido_por %} · por {{ item.similar_sugerido_por }}{% endif %}</p>
+                {% if user == pedido.requisitante %}
+                <form method="post" class="mt-2 flex flex-wrap gap-2">{% csrf_token %}
+                  <input type="hidden" name="item" value="{{ item.pk }}">
+                  <input name="observacao" maxlength="300" placeholder="Comentário (opcional)" class="w-40 rounded-lg border border-violet-200 px-2 py-1 text-xs text-slate-800 dark:bg-slate-800 dark:border-violet-900 dark:text-slate-100">
+                  <button name="resposta" value="aceitar" class="rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1">Aceitar</button>
+                  <button name="resposta" value="recusar" class="rounded-lg border border-red-200 text-red-700 hover:bg-red-50 font-semibold px-3 py-1 dark:border-red-900 dark:text-red-400">Recusar</button>
+                  <input type="hidden" name="acao" value="responder_similar">
+                </form>
+                {% else %}<p class="mt-1">Aguardando resposta do requisitante.</p>{% endif %}
+              </div>
+              {% elif item.similar_status == 'RECUSADO' %}
+              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Similar recusado ({{ item.similar_sugerido }}){% if item.similar_resposta %}: {{ item.similar_resposta }}{% endif %}.</p>
+              {% endif %}
+              {% if item.candidatos %}
+              <details class="mt-2">
+                <summary class="text-xs font-semibold text-violet-700 dark:text-violet-300">Sugerir produto similar</summary>
+                <form method="post" class="mt-2 flex flex-wrap gap-2">{% csrf_token %}
+                  <input type="hidden" name="item" value="{{ item.pk }}">
+                  <select name="similar" class="rounded-lg border border-slate-200 px-2 py-1 text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+                    {% for c in item.candidatos %}<option value="{{ c.produto.pk }}">{{ c.produto }} — saldo {{ c.saldo|floatformat:"-3" }}</option>{% endfor %}
+                  </select>
+                  <button name="acao" value="sugerir_similar" class="rounded-lg bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold px-3 py-1">Sugerir ao requisitante</button>
+                </form>
+              </details>
+              {% endif %}
             </td>
+            {% if pode_cancelar %}
+            <td class="px-6 py-3.5 text-right">
+              {% if not item.cancelado and item.quantidade_entregue == 0 %}
+              <details class="text-left">
+                <summary class="text-xs font-semibold text-red-700 dark:text-red-400">Cancelar item</summary>
+                <form method="post" class="mt-2 flex gap-2">{% csrf_token %}
+                  <input type="hidden" name="item" value="{{ item.pk }}">
+                  <input name="observacao" required maxlength="300" placeholder="Motivo do cancelamento"
+                         class="w-44 rounded-xl border border-slate-200 px-3 py-2 text-xs dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+                  <button name="acao" value="cancelar_item" class="rounded-xl border border-red-200 text-red-700 hover:bg-red-50 text-xs font-semibold px-3 py-2 transition dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950">Confirmar</button>
+                </form>
+              </details>
+              {% endif %}
+            </td>
+            {% endif %}
           </tr>
           {% endfor %}
         </tbody>
@@ -193,6 +247,44 @@
         {% endif %}
       </section>
       {% endif %}
+    {% endif %}
+
+    <section id="conversa" class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <h2 class="font-semibold text-slate-900 mb-1 dark:text-slate-100">Conversa do pedido</h2>
+      <p class="text-sm text-slate-500 mb-4 dark:text-slate-400">Comunicação formal entre requisitante, aprovadores, compras e suprimentos. As mensagens ficam registradas e não podem ser editadas.</p>
+      <ul class="space-y-3 mb-5">
+        {% for m in mensagens %}
+        <li class="rounded-xl px-4 py-3 text-sm {% if m.mensagem.autor_id == user.pk %}bg-slate-100 dark:bg-slate-700{% else %}bg-slate-50 border border-slate-100 dark:bg-slate-900/40 dark:border-slate-700{% endif %}">
+          <p class="flex flex-wrap items-center gap-2">
+            <span class="font-semibold text-slate-900 dark:text-slate-100">{{ m.mensagem.autor }}</span>
+            {% if m.papel %}<span class="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{{ m.papel }}</span>{% endif %}
+            <span class="text-xs text-slate-400">{{ m.mensagem.criado_em|date:"d/m/Y H:i" }}</span>
+          </p>
+          <p class="mt-1 text-slate-800 dark:text-slate-200">{{ m.mensagem.texto|linebreaksbr }}</p>
+        </li>
+        {% empty %}
+        <li class="text-sm text-slate-400">Nenhuma mensagem ainda.</li>
+        {% endfor %}
+      </ul>
+      <form method="post" class="space-y-3">{% csrf_token %}
+        <textarea name="texto" rows="3" required maxlength="1000" placeholder="Escreva uma mensagem sobre este pedido…"
+                  class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100"></textarea>
+        <button name="acao" value="mensagem" class="rounded-xl bg-black hover:bg-zinc-800 text-white text-sm font-semibold px-6 py-2.5 transition dark:bg-white dark:text-black">Enviar mensagem</button>
+      </form>
+    </section>
+
+    {% if pode_cancelar %}
+    <section class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+      <details>
+        <summary class="font-semibold text-red-700 dark:text-red-400">Cancelar pedido</summary>
+        <p class="text-sm text-slate-500 mt-3 mb-3 dark:text-slate-400">O pedido inteiro é cancelado e sai das filas. O motivo é obrigatório e fica registrado no histórico.</p>
+        <form method="post" class="space-y-3">{% csrf_token %}
+          <input name="observacao" required maxlength="500" placeholder="Motivo do cancelamento"
+                 class="w-full rounded-xl border border-slate-200 px-4 py-3 text-sm focus:border-slate-900 focus:ring-1 focus:ring-slate-900 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-100">
+          <button name="acao" value="cancelar_pedido" class="rounded-xl border border-red-200 text-red-700 hover:bg-red-50 text-sm font-semibold px-6 py-2.5 transition dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950">Cancelar este pedido</button>
+        </form>
+      </details>
+    </section>
     {% endif %}
 
     {% if pedido.status == 'ENTREGUE' and user == pedido.requisitante %}

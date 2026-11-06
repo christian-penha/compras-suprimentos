@@ -22,6 +22,7 @@ urlpatterns = [
     path("suprimentos/produtos/", produtos_views.produto_lista, name="produto_lista"),
     path("suprimentos/produtos/novo/", produtos_views.produto_form, name="produto_novo"),
     path("suprimentos/produtos/<int:pk>/", produtos_views.produto_form, name="produto_editar"),
+    path("suprimentos/produtos/<int:pk>/similares/", produtos_views.produto_similar_acao, name="produto_similar"),
     path("suprimentos/sugestoes/", produtos_views.sugestoes_lista, name="sugestoes_lista"),
     path("suprimentos/sugestoes/<int:pk>/recusar/", produtos_views.sugestao_recusar, name="sugestao_recusar"),
     path("carrinho/", pedidos_views.carrinho_ver, name="carrinho_ver"),

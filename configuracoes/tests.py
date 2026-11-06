@@ -255,3 +255,70 @@ class OrcamentoCentroCustoTest(TenantTestCase):
         self.assertTrue(form.is_valid(), form.errors)
         self.assertIsNone(form.cleaned_data["orcamento_meses"])
         self.assertIsNone(form.cleaned_data["orcamento_inicio"])
+
+
+class SlaEFeriadosTelasTest(TenantTestCase):
+    def setUp(self):
+        super().setUp()
+        from contas.models import Papel, PapelUsuario
+        from django.urls import reverse
+        self.reverse = reverse
+        self.admin = Usuario.objects.create_user("adm2", password="x", tenant=self.tenant)
+        PapelUsuario.objects.create(usuario=self.admin, papel=Papel.SUPERADMIN)
+        self.client.force_login(self.admin)
+
+    def test_salva_e_reabre_o_sla(self):
+        from tenancy.models import ConfiguracaoSLA
+        r = self.client.post(self.reverse("config_sla"), {"prazo_estoque_dias": 2, "prazo_compra_dias": 9})
+        self.assertEqual(r.status_code, 302)
+        sla = ConfiguracaoSLA.objects.get()
+        self.assertEqual((sla.prazo_estoque_dias, sla.prazo_compra_dias), (2, 9))
+        self.client.post(self.reverse("config_sla"), {"prazo_estoque_dias": 4, "prazo_compra_dias": 10})
+        self.assertEqual(ConfiguracaoSLA.objects.count(), 1)  # edita, não duplica
+        self.assertContains(self.client.get(self.reverse("config_sla")), 'value="10"')
+
+    def test_compra_menor_que_estoque_e_recusado(self):
+        r = self.client.post(self.reverse("config_sla"), {"prazo_estoque_dias": 5, "prazo_compra_dias": 2})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "não pode ser menor")
+
+    def test_cria_periodo_de_um_dia_e_de_intervalo(self):
+        from datetime import date
+        from tenancy.models import PeriodoNaoUtil
+        self.client.post(self.reverse("config_periodo_novo"), {
+            "nome": "Dia do Professor", "tipo": "FERIADO", "inicio": "2026-10-15", "ativo": "on"})
+        um = PeriodoNaoUtil.objects.get(nome="Dia do Professor")
+        self.assertEqual(um.fim, date(2026, 10, 15))
+        self.client.post(self.reverse("config_periodo_novo"), {
+            "nome": "Recesso de julho", "tipo": "RECESSO", "inicio": "2026-07-13", "fim": "2026-07-24", "ativo": "on"})
+        self.assertEqual(PeriodoNaoUtil.objects.get(nome="Recesso de julho").dias, 12)
+
+    def test_fim_antes_do_inicio_e_recusado(self):
+        r = self.client.post(self.reverse("config_periodo_novo"), {
+            "nome": "Errado", "tipo": "RECESSO", "inicio": "2026-07-24", "fim": "2026-07-13", "ativo": "on"})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, "não pode ser antes")
+
+    def test_importa_feriados_nacionais_sem_duplicar(self):
+        from tenancy.models import PeriodoNaoUtil
+        self.client.post(self.reverse("config_periodo_importar"), {"ano": "2026"})
+        total = PeriodoNaoUtil.objects.count()
+        self.assertEqual(total, 13)
+        self.client.post(self.reverse("config_periodo_importar"), {"ano": "2026"})
+        self.assertEqual(PeriodoNaoUtil.objects.count(), total)
+        self.assertContains(self.client.get(self.reverse("config_periodo_lista"), {"ano": 2026}), "Natal")
+
+    def test_exclui_periodo_e_exige_post(self):
+        from tenancy.models import PeriodoNaoUtil
+        from datetime import date
+        p = PeriodoNaoUtil.objects.create(tenant=self.tenant, nome="X", inicio=date(2026, 5, 4), fim=date(2026, 5, 4))
+        self.client.get(self.reverse("config_periodo_excluir", args=[p.pk]))
+        self.assertTrue(PeriodoNaoUtil.objects.filter(pk=p.pk).exists())
+        self.client.post(self.reverse("config_periodo_excluir", args=[p.pk]))
+        self.assertFalse(PeriodoNaoUtil.objects.filter(pk=p.pk).exists())
+
+    def test_so_superadmin_acessa(self):
+        comum = Usuario.objects.create_user("comum2", password="x", tenant=self.tenant)
+        self.client.force_login(comum)
+        for nome in ("config_sla", "config_periodo_lista", "config_periodo_novo"):
+            self.assertEqual(self.client.get(self.reverse(nome)).status_code, 403, nome)

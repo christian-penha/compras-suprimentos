@@ -79,6 +79,7 @@
         <div>
           <label for="{{ form.data_desejada.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1.5 dark:text-slate-300">Data desejada <span class="text-red-500">*</span></label>
           {{ form.data_desejada }}
+          <p id="sla-dica" class="text-xs text-slate-500 mt-1 dark:text-slate-400">Escolha o almoxarifado para ver o prazo mínimo (SLA).</p>
           {% for e in form.data_desejada.errors %}<p class="text-xs text-red-600 mt-1">{{ e }}</p>{% endfor %}
         </div>
 
@@ -126,6 +127,25 @@
 
 {{ form.dados_js|json_script:"dados-checkout" }}
 {{ estoque_json|json_script:"estoque-checkout" }}
+{{ sla_json|json_script:"sla-checkout" }}
+<script>
+  // SLA: a data mais cedo depende do almoxarifado escolhido (estoque x compra, só dias úteis)
+  (function () {
+    var sla = JSON.parse(document.getElementById('sla-checkout').textContent);
+    var almox = document.getElementById('{{ form.almoxarifado_destino.id_for_label }}');
+    var data = document.getElementById('{{ form.data_desejada.id_for_label }}');
+    var dica = document.getElementById('sla-dica');
+    function atualizar() {
+      var s = sla[almox.value];
+      if (!s) { data.removeAttribute('min'); return; }
+      data.min = s.minimo;
+      dica.textContent = 'Prazo mínimo (SLA): ' + s.minimo_br + ' — ' +
+        (s.origem === 'estoque' ? 'atendimento pelo estoque' : 'algum item precisa de compra') + ', só dias úteis.';
+    }
+    almox.addEventListener('change', atualizar);
+    atualizar();
+  })();
+</script>
 <script>
   (function () {
     var dados = JSON.parse(document.getElementById('dados-checkout').textContent);

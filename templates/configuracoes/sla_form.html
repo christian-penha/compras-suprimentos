@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block titulo %}Prazos de atendimento (SLA){% endblock %}
+{% block cabecalho %}
+<div class="bg-[#0a0a0a] text-white border-b border-[#232323] px-4 sm:px-8 py-6 flex flex-wrap items-center justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold">Prazos de atendimento (SLA)</h1>
+    <p class="text-sm text-[#9a9a9a] mt-1">Definem a data mais cedo que um pedido pode pedir. Contam só dias úteis: sem fins de semana, feriados e recessos.</p>
+  </div>
+  <a href="{% url 'config_periodo_lista' %}" class="inline-flex items-center rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-4 py-2.5 hover:bg-slate-200 transition">Feriados e recessos</a>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<form method="post" class="max-w-2xl">
+  {% csrf_token %}
+  <div class="bg-white rounded-2xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-2 dark:bg-slate-800 dark:border-slate-700">
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">{{ form.prazo_estoque_dias.label }}</label>
+      {{ form.prazo_estoque_dias }}
+      <p class="text-xs text-slate-400 mt-1">Padrão: {{ padrao_estoque }} dias úteis.</p>
+      {% for erro in form.prazo_estoque_dias.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+    </div>
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">{{ form.prazo_compra_dias.label }}</label>
+      {{ form.prazo_compra_dias }}
+      <p class="text-xs text-slate-400 mt-1">Padrão: {{ padrao_compra }} dias úteis.</p>
+      {% for erro in form.prazo_compra_dias.errors %}<p class="text-xs text-red-600 mt-1">{{ erro }}</p>{% endfor %}
+    </div>
+    <p class="sm:col-span-2 text-sm text-slate-500 dark:text-slate-400">No checkout, o pedido usa o prazo do estoque quando todos os itens têm saldo no almoxarifado escolhido e o prazo de compra quando algum item precisa ser comprado.</p>
+  </div>
+  <div class="flex items-center gap-3 mt-6">
+    <button class="rounded-xl bg-black hover:bg-zinc-800 text-white font-medium px-5 py-2.5 transition dark:bg-white dark:text-black dark:hover:bg-slate-200">Salvar</button>
+  </div>
+</form>
+{% endblock %}

@@ -11,7 +11,9 @@ from contas.models import (
     Setor,
 )
 from cadastros.models import Fornecedor
-from tenancy.models import Almoxarifado, CentroCusto, Empresa, Evento, Filial, ModoOrcamento
+from tenancy.models import (
+    Almoxarifado, CentroCusto, ConfiguracaoSLA, Empresa, Evento, Filial, ModoOrcamento, PeriodoNaoUtil,
+)
 
 Usuario = get_user_model()
 
@@ -391,4 +393,63 @@ class AlmoxarifadoForm(forms.ModelForm):
             self.add_error("central", "O sistema precisa de um almoxarifado central. Marque outro como central primeiro.")
         if central and not ativo:
             self.add_error("ativo", "O almoxarifado central não pode ser desativado.")
+        return dados
+
+
+class ConfiguracaoSLAForm(forms.ModelForm):
+    class Meta:
+        model = ConfiguracaoSLA
+        fields = ["prazo_estoque_dias", "prazo_compra_dias"]
+        labels = {
+            "prazo_estoque_dias": "Pedido atendido pelo estoque (dias úteis)",
+            "prazo_compra_dias": "Pedido que precisa de compra (dias úteis)",
+        }
+        widgets = {
+            "prazo_estoque_dias": forms.NumberInput(attrs={"class": CAMPO, "min": "0", "max": "90"}),
+            "prazo_compra_dias": forms.NumberInput(attrs={"class": CAMPO, "min": "0", "max": "90"}),
+        }
+
+    def clean(self):
+        dados = super().clean()
+        estoque, compra = dados.get("prazo_estoque_dias"), dados.get("prazo_compra_dias")
+        if estoque is not None and compra is not None and compra < estoque:
+            self.add_error("prazo_compra_dias", "O prazo de compra não pode ser menor que o do estoque.")
+        return dados
+
+
+class PeriodoNaoUtilForm(forms.ModelForm):
+    fim = forms.DateField(
+        label="Último dia", required=False,
+        widget=forms.DateInput(attrs={"class": CAMPO, "type": "date"}, format="%Y-%m-%d"),
+        help_text="Deixe em branco para um dia só.",
+    )
+
+    class Meta:
+        model = PeriodoNaoUtil
+        fields = ["nome", "tipo", "inicio", "fim", "filial", "ativo"]
+        labels = {
+            "nome": "Nome", "tipo": "Tipo", "inicio": "Primeiro dia",
+            "filial": "Vale para", "ativo": "Ativo",
+        }
+        widgets = {
+            "nome": forms.TextInput(attrs={"class": CAMPO, "placeholder": "ex.: Recesso de julho, Emenda do Corpus Christi"}),
+            "tipo": forms.Select(attrs={"class": CAMPO}),
+            "inicio": forms.DateInput(attrs={"class": CAMPO, "type": "date"}, format="%Y-%m-%d"),
+            "filial": forms.Select(attrs={"class": CAMPO}),
+            "ativo": forms.CheckboxInput(attrs={"class": CAMPO_CHECK}),
+        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["filial"].queryset = Filial.objects.filter(ativo=True)
+        self.fields["filial"].required = False
+        self.fields["filial"].empty_label = "Todas as filiais"
+
+    def clean(self):
+        dados = super().clean()
+        inicio = dados.get("inicio")
+        if inicio and not dados.get("fim"):
+            dados["fim"] = inicio
+        if inicio and dados.get("fim") and dados["fim"] < inicio:
+            self.add_error("fim", "O último dia não pode ser antes do primeiro.")
         return dados

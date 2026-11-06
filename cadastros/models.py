@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 
 
@@ -125,3 +126,26 @@ class Feriado(models.Model):
 
     def __str__(self):
         return f"{self.data:%d/%m/%Y} — {self.descricao}"
+
+
+class ProdutoSimilar(models.Model):
+    """Vínculo manual (feito por suprimentos) entre dois produtos que podem substituir um ao outro
+    quando falta estoque. O par é simétrico: guardado uma vez só, com o menor id em `produto`."""
+
+    produto = models.ForeignKey(Produto, on_delete=models.CASCADE, related_name="+")
+    similar = models.ForeignKey(Produto, on_delete=models.CASCADE, related_name="+")
+    criado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name="+"
+    )
+    criado_em = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "produto similar"
+        verbose_name_plural = "produtos similares"
+        constraints = [
+            models.UniqueConstraint(fields=["produto", "similar"], name="par_similar_unico"),
+            models.CheckConstraint(condition=models.Q(produto__lt=models.F("similar")), name="par_similar_ordenado"),
+        ]
+
+    def __str__(self):
+        return f"{self.produto} ≈ {self.similar}"

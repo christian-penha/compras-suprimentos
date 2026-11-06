@@ -8,5 +8,11 @@
     {% for f in filiais %}<option value="{{ f.pk }}" {% if filial_id == f.pk|stringformat:"s" %}selected{% endif %}>{{ f.nome }}</option>{% endfor %}
   </select>
   {% endif %}
+  {% if status_opcoes %}
+  <select name="status" onchange="this.form.submit()" aria-label="Situação do pedido" class="rounded-xl border border-[#2c2c2c] bg-[#1c1c1c] px-4 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-white">
+    <option value="">Em andamento (sem cancelados)</option>
+    {% for valor, rotulo in status_opcoes %}<option value="{{ valor }}" {% if status == valor %}selected{% endif %}>{{ rotulo }}</option>{% endfor %}
+  </select>
+  {% endif %}
   <button class="rounded-xl bg-white text-[#0a0a0a] text-sm font-semibold px-5 py-3 hover:bg-slate-200 transition">Filtrar</button>
 </form>

@@ -8,6 +8,7 @@ from django.utils import timezone
 from django.utils.http import urlencode
 
 from cadastros.models import Categoria, Produto
+from cadastros.similares import SimilarInvalido, desvincular, similares_de, vincular
 from contas.models import Modulo, Papel
 from contas.permissoes import requer_papel
 
@@ -100,4 +101,34 @@ def produto_form(request, pk=None):
             sugestao.save()
         messages.success(request, "Produto salvo.")
         return redirect("sugestoes_lista" if sugestao else "produto_lista")
-    return render(request, "pedidos/produto_form.html", {"form": form, "instancia": instancia, "sugestao": sugestao})
+    similares, busca_similar, resultados = [], request.GET.get("busca_similar", "").strip(), []
+    if instancia:
+        similares = list(similares_de(instancia, apenas_ativos=False))
+        if busca_similar:
+            resultados = list(
+                Produto.objects.filter(ativo=True)
+                .filter(Q(nome__icontains=busca_similar) | Q(codigo__icontains=busca_similar)
+                        | Q(especificacao__icontains=busca_similar))
+                .exclude(pk__in=[instancia.pk, *[x.pk for x in similares]])[:15]
+            )
+    return render(request, "pedidos/produto_form.html", {
+        "form": form, "instancia": instancia, "sugestao": sugestao,
+        "similares": similares, "busca_similar": busca_similar, "resultados_similar": resultados,
+    })
+
+
+@requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+def produto_similar_acao(request, pk):
+    produto = get_object_or_404(Produto, pk=pk)
+    if request.method == "POST":
+        outro = get_object_or_404(Produto, pk=request.POST.get("outro") or 0)
+        try:
+            if request.POST.get("acao") == "desvincular":
+                desvincular(produto, outro)
+                messages.success(request, f"{outro} não é mais similar de {produto}.")
+            else:
+                vincular(produto, outro, request.user)
+                messages.success(request, f"{outro} agora é similar de {produto}.")
+        except SimilarInvalido as e:
+            messages.error(request, str(e))
+    return redirect("produto_editar", pk=produto.pk)

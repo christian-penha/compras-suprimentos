@@ -305,7 +305,7 @@ class CheckoutFormTest(BaseFluxoTest):
             "almoxarifado_destino": self.filial.almoxarifado_padrao().pk,
             "observacao": "Material para a semana",
             "prioridade": "NORMAL",
-            "data_desejada": (timezone.localdate() + timedelta(days=3)).isoformat(),
+            "data_desejada": (timezone.localdate() + timedelta(days=30)).isoformat(),
             "motivo": self.motivo.pk,
         }
         base.update(sobrescrever)
@@ -607,3 +607,492 @@ class CarrinhoSemRecarregarTest(BaseFluxoTest):
             headers={"x-requested-with": "fetch"},
         )
         self.assertEqual(r.status_code, 400)
+
+
+class SlaDaDataDesejadaTest(BaseFluxoTest):
+    """A data desejada precisa respeitar o SLA (estoque x compra), em dias úteis."""
+
+    def setUp(self):
+        super().setUp()
+        self.padrao = self.filial.almoxarifado_padrao()
+        registrar_entrada(
+            produto=self.produto, destino=self.padrao, quantidade=Decimal("50"),
+            valor_unitario=Decimal("10.00"), responsavel=self.suprimentos,
+        )
+
+    def dados(self, data):
+        return {
+            "filial_destino": self.filial.pk,
+            "almoxarifado_destino": self.padrao.pk,
+            "observacao": "Material",
+            "prioridade": "NORMAL",
+            "data_desejada": data.isoformat(),
+            "motivo": self.motivo.pk,
+        }
+
+    def itens(self, quantidade):
+        return [{"produto": self.produto, "quantidade": Decimal(quantidade)}]
+
+    def minimos(self):
+        from tenancy.calendario import prazos_sla
+        return prazos_sla(self.filial)
+
+    def test_pedido_coberto_pelo_estoque_usa_o_prazo_do_estoque(self):
+        minimo = self.minimos()["estoque"]
+        ok = PedidoForm(self.dados(minimo), usuario=self.requisitante, itens=self.itens("10"))
+        self.assertTrue(ok.is_valid(), ok.errors)
+        cedo = PedidoForm(self.dados(minimo - timedelta(days=1)), usuario=self.requisitante, itens=self.itens("10"))
+        self.assertFalse(cedo.is_valid())
+        self.assertIn("data_desejada", cedo.errors)
+
+    def test_item_sem_saldo_usa_o_prazo_de_compra(self):
+        prazos = self.minimos()
+        # 500 > saldo (50): precisa comprar. A data do estoque já não basta.
+        form = PedidoForm(self.dados(prazos["estoque"]), usuario=self.requisitante, itens=self.itens("500"))
+        self.assertFalse(form.is_valid())
+        self.assertIn("compra", str(form.errors["data_desejada"]))
+        ok = PedidoForm(self.dados(prazos["compra"]), usuario=self.requisitante, itens=self.itens("500"))
+        self.assertTrue(ok.is_valid(), ok.errors)
+
+    def test_prazo_configurado_vale_no_lugar_do_padrao(self):
+        from tenancy.models import ConfiguracaoSLA
+        ConfiguracaoSLA.objects.create(tenant=self.tenant, prazo_estoque_dias=10, prazo_compra_dias=15)
+        minimo = self.minimos()["estoque"]
+        antigo_padrao = self.minimos()["estoque"] - timedelta(days=5)
+        self.assertFalse(
+            PedidoForm(self.dados(antigo_padrao), usuario=self.requisitante, itens=self.itens("10")).is_valid()
+        )
+        self.assertTrue(PedidoForm(self.dados(minimo), usuario=self.requisitante, itens=self.itens("10")).is_valid())
+
+    def test_recesso_empurra_o_prazo_minimo(self):
+        from tenancy.models import PeriodoNaoUtil
+        antes = self.minimos()["estoque"]
+        hoje = timezone.localdate()
+        PeriodoNaoUtil.objects.create(
+            tenant=self.tenant, nome="Recesso", inicio=hoje + timedelta(days=1), fim=hoje + timedelta(days=14),
+        )
+        depois = self.minimos()["estoque"]
+        self.assertGreater(depois, antes + timedelta(days=10))
+        self.assertFalse(
+            PedidoForm(self.dados(antes), usuario=self.requisitante, itens=self.itens("10")).is_valid()
+        )
+
+
+class CancelamentoDePedidoTest(BaseFluxoTest):
+    """Requisitante cancela até a aprovação; aprovador e suprimentos, até a entrega. Motivo sempre."""
+
+    def setUp(self):
+        super().setUp()
+        from .services import cancelar_item, cancelar_pedido, pode_cancelar
+        self.cancelar_pedido, self.cancelar_item, self.pode_cancelar = cancelar_pedido, cancelar_item, pode_cancelar
+        PapelUsuario.objects.create(usuario=self.suprimentos, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.estranho = Usuario.objects.create_user("estranho", password="x", tenant=self.tenant)
+
+    def enviado(self):
+        pedido = self.novo_pedido()
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        return pedido
+
+    def aprovado(self):
+        pedido = self.enviado()
+        aprovar_como_lider(pedido, self.aprovador)
+        pedido.refresh_from_db()
+        return pedido
+
+    def test_requisitante_cancela_antes_da_aprovacao_com_motivo(self):
+        pedido = self.enviado()
+        self.cancelar_pedido(pedido, self.requisitante, "Não preciso mais")
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.CANCELADO)
+        self.assertEqual(pedido.motivo_cancelamento, "Não preciso mais")
+        self.assertEqual(pedido.cancelado_por, self.requisitante)
+        self.assertTrue(all(i.cancelado for i in pedido.itens.all()))
+        ultimo = pedido.eventos.last()
+        self.assertEqual(ultimo.para_status, StatusPedido.CANCELADO)
+        self.assertIn("Não preciso mais", ultimo.observacao)
+
+    def test_motivo_e_obrigatorio(self):
+        pedido = self.enviado()
+        for vazio in ("", "   "):
+            with self.assertRaises(TransicaoInvalida):
+                self.cancelar_pedido(pedido, self.requisitante, vazio)
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.ENVIADO)
+
+    def test_requisitante_nao_cancela_depois_da_aprovacao(self):
+        pedido = self.aprovado()
+        self.assertFalse(self.pode_cancelar(self.requisitante, pedido))
+        with self.assertRaises(SemPermissao):
+            self.cancelar_pedido(pedido, self.requisitante, "Desisti")
+
+    def test_aprovador_cancela_ate_a_entrega(self):
+        pedido = self.aprovado()
+        self.cancelar_pedido(pedido, self.aprovador, "Fora do orçamento")
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.CANCELADO)
+
+    def test_aprovador_cancela_pedido_ainda_em_aprovacao(self):
+        pedido = self.enviado()
+        self.cancelar_pedido(pedido, self.aprovador, "Duplicado")
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.CANCELADO)
+
+    def test_suprimentos_cancela_em_separacao_mas_nao_depois_de_entregar(self):
+        pedido = self.aprovado()
+        transicionar(pedido, StatusPedido.EM_SEPARACAO, self.suprimentos)
+        self.assertTrue(self.pode_cancelar(self.suprimentos, pedido))
+
+        outro = self.aprovado()
+        transicionar(outro, StatusPedido.EM_SEPARACAO, self.suprimentos)
+        entregar(outro, self.suprimentos)
+        outro.refresh_from_db()
+        self.assertFalse(self.pode_cancelar(self.suprimentos, outro))
+        with self.assertRaises(TransicaoInvalida):
+            self.cancelar_pedido(outro, self.suprimentos, "Tarde demais")
+
+        self.cancelar_pedido(pedido, self.suprimentos, "Produto descontinuado")
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.CANCELADO)
+
+    def test_quem_nao_participa_nao_cancela(self):
+        pedido = self.enviado()
+        self.assertFalse(self.pode_cancelar(self.estranho, pedido))
+        with self.assertRaises(SemPermissao):
+            self.cancelar_pedido(pedido, self.estranho, "Quero cancelar")
+
+    def test_pedido_cancelado_nao_cancela_de_novo(self):
+        pedido = self.enviado()
+        self.cancelar_pedido(pedido, self.requisitante, "Teste")
+        with self.assertRaises(TransicaoInvalida):
+            self.cancelar_pedido(pedido, self.aprovador, "De novo")
+
+    def test_cancelar_um_item_mantem_o_resto_e_o_ultimo_cancela_o_pedido(self):
+        pedido = self.novo_pedido()
+        outro_produto = Produto.objects.create(nome="Cola", especificacao="90g", categoria=self.categoria)
+        ItemPedido.objects.create(pedido=pedido, produto=outro_produto, quantidade=Decimal("2"))
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        primeiro, segundo = list(pedido.itens.order_by("pk"))
+
+        self.cancelar_item(primeiro, self.requisitante, "Já tenho")
+        primeiro.refresh_from_db()
+        pedido.refresh_from_db()
+        self.assertTrue(primeiro.cancelado)
+        self.assertEqual(pedido.status, StatusPedido.ENVIADO)
+
+        self.cancelar_item(segundo, self.requisitante, "Também não")
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.CANCELADO)
+
+    def test_item_em_cotacao_em_andamento_bloqueia_o_cancelamento(self):
+        from unittest import mock
+        pedido = self.aprovado()
+        with mock.patch("pedidos.services._cotacoes_em_andamento", return_value=[12]):
+            with self.assertRaisesMessage(TransicaoInvalida, "#12"):
+                self.cancelar_pedido(pedido, self.aprovador, "Quero cancelar")
+        pedido.refresh_from_db()
+        self.assertNotEqual(pedido.status, StatusPedido.CANCELADO)
+
+    def test_cancelados_ficam_fora_das_listas_ate_filtrar_por_status(self):
+        ativo = self.enviado()
+        cancelado = self.enviado()
+        self.cancelar_pedido(cancelado, self.requisitante, "Erro")
+        self.client.force_login(self.requisitante)
+
+        lista = self.client.get(reverse("pedido_lista"))
+        self.assertContains(lista, f"Pedido #{ativo.pk}")
+        self.assertNotContains(lista, f"Pedido #{cancelado.pk}")
+
+        so_cancelados = self.client.get(reverse("pedido_lista"), {"status": "CANCELADO"})
+        self.assertContains(so_cancelados, f"Pedido #{cancelado.pk}")
+        self.assertNotContains(so_cancelados, f"Pedido #{ativo.pk}")
+
+    def test_painel_nao_conta_pedido_cancelado_como_em_andamento(self):
+        pedido = self.enviado()
+        self.client.force_login(self.requisitante)
+        antes = self.client.get(reverse("painel")).context["qtd_meus_abertos"]
+        self.cancelar_pedido(pedido, self.requisitante, "Erro")
+        depois = self.client.get(reverse("painel")).context["qtd_meus_abertos"]
+        self.assertEqual(depois, antes - 1)
+
+    def test_cancelar_pela_tela_do_pedido(self):
+        pedido = self.enviado()
+        self.client.force_login(self.requisitante)
+        sem_motivo = self.client.post(reverse("pedido_detalhe", args=[pedido.pk]),
+                                      {"acao": "cancelar_pedido", "observacao": ""}, follow=True)
+        self.assertContains(sem_motivo, "Informe o motivo")
+        self.client.post(reverse("pedido_detalhe", args=[pedido.pk]),
+                         {"acao": "cancelar_pedido", "observacao": "Mudou o planejamento"})
+        pedido.refresh_from_db()
+        self.assertEqual(pedido.status, StatusPedido.CANCELADO)
+        detalhe = self.client.get(reverse("pedido_detalhe", args=[pedido.pk]))
+        self.assertContains(detalhe, "Pedido cancelado")
+        self.assertContains(detalhe, "Mudou o planejamento")
+
+    def test_pedido_cancelado_nao_entra_na_fila_de_compras(self):
+        from compras.services import itens_para_cotar
+        pedido = self.novo_pedido(quantidade="500")  # sem saldo: iria para compra
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        aprovar_como_lider(pedido, self.aprovador)
+        self.assertIn(pedido.pk, {i.pedido_id for i in itens_para_cotar()})
+        pedido.refresh_from_db()
+        self.cancelar_pedido(pedido, self.aprovador, "Não vamos comprar")
+        self.assertNotIn(pedido.pk, {i.pedido_id for i in itens_para_cotar()})
+
+
+class ConversaDoPedidoTest(BaseFluxoTest):
+    def setUp(self):
+        super().setUp()
+        from .services import enviar_mensagem, papel_na_conversa, pode_participar
+        self.enviar, self.papel, self.pode = enviar_mensagem, papel_na_conversa, pode_participar
+        PapelUsuario.objects.create(usuario=self.suprimentos, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.comprador = Usuario.objects.create_user("comp", password="x", tenant=self.tenant)
+        PapelUsuario.objects.create(usuario=self.comprador, papel=Papel.ADMINISTRADOR, modulo=Modulo.COMPRAS)
+        self.estranho = Usuario.objects.create_user("estranho", password="x", tenant=self.tenant)
+        self.pedido = self.novo_pedido()
+        transicionar(self.pedido, StatusPedido.ENVIADO, self.requisitante)
+
+    def test_participantes_conversam_e_ficam_registrados_em_ordem(self):
+        self.enviar(self.pedido, self.requisitante, "Preciso para a feira de ciências")
+        self.enviar(self.pedido, self.aprovador, "Pode detalhar a quantidade?")
+        self.enviar(self.pedido, self.suprimentos, "Temos em estoque")
+        self.enviar(self.pedido, self.comprador, "Sem compra necessária")
+        textos = list(self.pedido.mensagens.values_list("texto", flat=True))
+        self.assertEqual(textos, [
+            "Preciso para a feira de ciências", "Pode detalhar a quantidade?",
+            "Temos em estoque", "Sem compra necessária",
+        ])
+
+    def test_papel_de_cada_um_na_conversa(self):
+        self.assertEqual(self.papel(self.requisitante, self.pedido), "Requisitante")
+        self.assertEqual(self.papel(self.aprovador, self.pedido), "Aprovador")
+        self.assertEqual(self.papel(self.suprimentos, self.pedido), "Suprimentos")
+        self.assertEqual(self.papel(self.comprador, self.pedido), "Compras")
+        self.assertEqual(self.papel(self.estranho, self.pedido), "")
+
+    def test_quem_nao_participa_nao_escreve(self):
+        self.assertFalse(self.pode(self.estranho, self.pedido))
+        with self.assertRaises(SemPermissao):
+            self.enviar(self.pedido, self.estranho, "Oi")
+        self.assertEqual(self.pedido.mensagens.count(), 0)
+
+    def test_aprovador_de_compra_do_pedido_participa(self):
+        from unittest import mock
+        with mock.patch("pedidos.services.aprovador_de_compra_do_pedido", return_value=True):
+            self.assertTrue(self.pode(self.estranho, self.pedido))
+
+    def test_mensagem_vazia_ou_grande_demais_e_recusada(self):
+        for texto in ("", "   \n "):
+            with self.assertRaises(TransicaoInvalida):
+                self.enviar(self.pedido, self.requisitante, texto)
+        with self.assertRaises(TransicaoInvalida):
+            self.enviar(self.pedido, self.requisitante, "x" * 1001)
+        self.assertEqual(self.pedido.mensagens.count(), 0)
+
+    def test_mensagem_nao_pode_ser_editada_nem_apagada(self):
+        msg = self.enviar(self.pedido, self.requisitante, "Original")
+        msg.texto = "Alterada"
+        with self.assertRaises(ValueError):
+            msg.save()
+        with self.assertRaises(ValueError):
+            msg.delete()
+        msg.refresh_from_db()
+        self.assertEqual(msg.texto, "Original")
+
+    def test_conversa_pela_tela_do_pedido(self):
+        url = reverse("pedido_detalhe", args=[self.pedido.pk])
+        self.client.force_login(self.requisitante)
+        self.client.post(url, {"acao": "mensagem", "texto": "Urgente para segunda"})
+        self.client.force_login(self.aprovador)
+        pagina = self.client.get(url)
+        self.assertContains(pagina, "Conversa do pedido")
+        self.assertContains(pagina, "Urgente para segunda")
+        self.assertContains(pagina, "Requisitante")
+        self.client.post(url, {"acao": "mensagem", "texto": "Aprovado, pode seguir"})
+        self.assertEqual(self.pedido.mensagens.count(), 2)
+
+    def test_estranho_nao_ve_nem_escreve_pela_tela(self):
+        url = reverse("pedido_detalhe", args=[self.pedido.pk])
+        self.client.force_login(self.estranho)
+        self.client.post(url, {"acao": "mensagem", "texto": "Intruso"})
+        self.assertEqual(self.pedido.mensagens.count(), 0)
+        self.assertRedirects(self.client.get(url), reverse("painel"))
+
+    def test_pedido_cancelado_continua_com_a_conversa_consultavel(self):
+        from .services import cancelar_pedido
+        self.enviar(self.pedido, self.requisitante, "Pedido por engano")
+        cancelar_pedido(self.pedido, self.requisitante, "Engano")
+        self.client.force_login(self.requisitante)
+        pagina = self.client.get(reverse("pedido_detalhe", args=[self.pedido.pk]))
+        self.assertContains(pagina, "Pedido por engano")
+
+
+class ProdutosSimilaresTest(BaseFluxoTest):
+    """Suprimentos vincula produtos similares; sem estoque, sugere a troca; o requisitante decide."""
+
+    def setUp(self):
+        super().setUp()
+        from cadastros.similares import SimilarInvalido, desvincular, similares_de, vincular
+        from .services import (
+            SemPermissao as _Sem, candidatos_similares, responder_similar, sugerir_similar,
+        )
+        self.vincular, self.desvincular, self.similares_de = vincular, desvincular, similares_de
+        self.SimilarInvalido = SimilarInvalido
+        self.candidatos, self.sugerir, self.responder = candidatos_similares, sugerir_similar, responder_similar
+        PapelUsuario.objects.create(usuario=self.suprimentos, papel=Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
+        self.similar = Produto.objects.create(nome="Argila Branca", especificacao="pacote 1kg", categoria=self.categoria)
+        registrar_entrada(
+            produto=self.similar, destino=self.destino, quantidade=Decimal("600"),
+            valor_unitario=Decimal("12.00"), responsavel=self.suprimentos,
+        )
+        self.vincular(self.produto, self.similar, self.suprimentos)
+
+    def pedido_sem_estoque(self, quantidade="500"):
+        pedido = self.novo_pedido(quantidade=quantidade)  # 50 em estoque: 500 vai para compra
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        aprovar_como_lider(pedido, self.aprovador)
+        pedido.refresh_from_db()
+        return pedido, pedido.itens.get()
+
+    # --- vínculo
+    def test_vinculo_vale_nos_dois_sentidos_e_nao_duplica(self):
+        self.assertEqual(list(self.similares_de(self.produto)), [self.similar])
+        self.assertEqual(list(self.similares_de(self.similar)), [self.produto])
+        with self.assertRaises(self.SimilarInvalido):
+            self.vincular(self.similar, self.produto)  # mesmo par, ordem invertida
+        with self.assertRaises(self.SimilarInvalido):
+            self.vincular(self.produto, self.produto)
+
+    def test_desvincular_remove_o_par_nos_dois_sentidos(self):
+        self.desvincular(self.similar, self.produto)
+        self.assertEqual(list(self.similares_de(self.produto)), [])
+        self.assertEqual(list(self.similares_de(self.similar)), [])
+
+    def test_similar_inativo_nao_e_oferecido(self):
+        self.similar.ativo = False
+        self.similar.save()
+        self.assertEqual(list(self.similares_de(self.produto)), [])
+
+    # --- candidatos
+    def test_candidato_precisa_de_saldo_para_o_pedido_inteiro(self):
+        pedido, item = self.pedido_sem_estoque("500")
+        self.assertEqual([c["produto"] for c in self.candidatos(item)], [self.similar])
+        pedido2, item2 = self.pedido_sem_estoque("700")  # similar só tem 600
+        self.assertEqual(self.candidatos(item2), [])
+
+    def test_item_com_estoque_nao_recebe_sugestao(self):
+        pedido = self.novo_pedido("10")
+        transicionar(pedido, StatusPedido.ENVIADO, self.requisitante)
+        aprovar_como_lider(pedido, self.aprovador)
+        self.assertEqual(self.candidatos(pedido.itens.get()), [])
+
+    # --- sugestão
+    def test_suprimentos_sugere_e_fica_registrado_no_historico_e_na_conversa(self):
+        pedido, item = self.pedido_sem_estoque()
+        self.sugerir(item, self.similar, self.suprimentos)
+        item.refresh_from_db()
+        self.assertEqual(item.similar_status, "PENDENTE")
+        self.assertEqual(item.similar_sugerido, self.similar)
+        self.assertIn("Similar sugerido", pedido.eventos.last().observacao)
+        self.assertIn("Argila Branca", pedido.mensagens.get().texto)
+        self.assertEqual(pedido.mensagens.get().autor, self.suprimentos)
+
+    def test_so_suprimentos_sugere_e_so_um_similar_vinculado(self):
+        pedido, item = self.pedido_sem_estoque()
+        with self.assertRaises(SemPermissao):
+            self.sugerir(item, self.similar, self.requisitante)
+        outro = Produto.objects.create(nome="Massinha", especificacao="500g", categoria=self.categoria)
+        with self.assertRaises(TransicaoInvalida):
+            self.sugerir(item, outro, self.suprimentos)  # não vinculado
+
+    def test_nao_sugere_duas_vezes_enquanto_pendente(self):
+        pedido, item = self.pedido_sem_estoque()
+        self.sugerir(item, self.similar, self.suprimentos)
+        item.refresh_from_db()
+        with self.assertRaises(TransicaoInvalida):
+            self.sugerir(item, self.similar, self.suprimentos)
+
+    # --- resposta
+    def test_aceitar_troca_o_produto_e_libera_o_pedido_para_separacao(self):
+        pedido, item = self.pedido_sem_estoque()
+        self.assertEqual(pedido.status, StatusPedido.AGUARDANDO_COMPRA)
+        self.sugerir(item, self.similar, self.suprimentos)
+        item.refresh_from_db()
+        self.responder(item, self.requisitante, True)
+        item.refresh_from_db()
+        pedido.refresh_from_db()
+        self.assertEqual(item.produto, self.similar)
+        self.assertEqual(item.produto_original, self.produto)
+        self.assertEqual(item.origem_atendimento, OrigemAtendimento.ESTOQUE)
+        self.assertEqual(item.similar_status, "ACEITO")
+        self.assertEqual(pedido.status, StatusPedido.APROVADO_UNIDADE)
+
+    def test_recusar_mantem_o_item_para_compra(self):
+        pedido, item = self.pedido_sem_estoque()
+        self.sugerir(item, self.similar, self.suprimentos)
+        item.refresh_from_db()
+        self.responder(item, self.requisitante, False, "Preciso da marca original")
+        item.refresh_from_db()
+        pedido.refresh_from_db()
+        self.assertEqual(item.similar_status, "RECUSADO")
+        self.assertEqual(item.produto, self.produto)
+        self.assertEqual(item.origem_atendimento, OrigemAtendimento.COMPRA)
+        self.assertEqual(pedido.status, StatusPedido.AGUARDANDO_COMPRA)
+        self.assertIn("Preciso da marca original", pedido.mensagens.last().texto)
+
+    def test_so_o_requisitante_responde(self):
+        pedido, item = self.pedido_sem_estoque()
+        self.sugerir(item, self.similar, self.suprimentos)
+        item.refresh_from_db()
+        for quem in (self.aprovador, self.suprimentos):
+            with self.assertRaises(SemPermissao):
+                self.responder(item, quem, True)
+
+    def test_aceitar_sem_sugestao_pendente_e_recusado(self):
+        pedido, item = self.pedido_sem_estoque()
+        with self.assertRaises(TransicaoInvalida):
+            self.responder(item, self.requisitante, True)
+
+    def test_aceitar_bloqueia_se_o_pedido_ja_tem_o_similar(self):
+        pedido, item = self.pedido_sem_estoque()
+        ItemPedido.objects.create(pedido=pedido, produto=self.similar, quantidade=Decimal("1"))
+        self.sugerir(item, self.similar, self.suprimentos)
+        item.refresh_from_db()
+        with self.assertRaises(TransicaoInvalida):
+            self.responder(item, self.requisitante, True)
+
+    def test_aceitar_bloqueia_se_o_saldo_do_similar_acabou(self):
+        pedido, item = self.pedido_sem_estoque()
+        self.sugerir(item, self.similar, self.suprimentos)
+        registrar_saida(produto=self.similar, origem=self.destino, quantidade=Decimal("300"),
+                        responsavel=self.suprimentos)
+        item.refresh_from_db()
+        with self.assertRaises(TransicaoInvalida):
+            self.responder(item, self.requisitante, True)
+
+    # --- telas
+    def test_fluxo_pela_tela_do_pedido(self):
+        pedido, item = self.pedido_sem_estoque()
+        url = reverse("pedido_detalhe", args=[pedido.pk])
+        self.client.force_login(self.suprimentos)
+        self.assertContains(self.client.get(url), "Sugerir produto similar")
+        self.client.post(url, {"acao": "sugerir_similar", "item": item.pk, "similar": self.similar.pk})
+        self.client.force_login(self.requisitante)
+        pagina = self.client.get(url)
+        self.assertContains(pagina, "Similar sugerido")
+        self.assertContains(pagina, "Aceitar")
+        self.client.post(url, {"acao": "responder_similar", "item": item.pk, "resposta": "aceitar"})
+        item.refresh_from_db()
+        self.assertEqual(item.produto, self.similar)
+
+    def test_vincular_pela_tela_do_produto_so_para_suprimentos(self):
+        outro = Produto.objects.create(nome="Massinha", especificacao="500g", categoria=self.categoria)
+        url = reverse("produto_similar", args=[self.produto.pk])
+        self.client.force_login(self.requisitante)
+        self.assertEqual(self.client.post(url, {"outro": outro.pk, "acao": "vincular"}).status_code, 403)
+        self.client.force_login(self.suprimentos)
+        self.client.post(url, {"outro": outro.pk, "acao": "vincular"})
+        self.assertIn(outro, list(self.similares_de(self.produto)))
+        self.client.post(url, {"outro": outro.pk, "acao": "desvincular"})
+        self.assertNotIn(outro, list(self.similares_de(self.produto)))
+        busca = self.client.get(reverse("produto_editar", args=[self.produto.pk]), {"busca_similar": "Massinha"})
+        self.assertContains(busca, "Vincular")

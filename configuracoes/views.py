@@ -2,6 +2,7 @@ from django.contrib import messages
 from django.contrib.auth import get_user_model
 from django.db.models import ProtectedError, Q
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from cadastros.models import Fornecedor
 from contas.models import Alcada, AprovadorAlcada, PapelAlcada, Papel, Setor
@@ -9,9 +10,11 @@ from contas.alcadas import (
     TabelaInvalida, criar_tabela_propria, ler_linhas, salvar_tabela, tabela_ativa, voltar_ao_padrao,
 )
 from contas.permissoes import requer_papel
-from tenancy.models import Almoxarifado, CentroCusto, Empresa, Evento, Filial
+from tenancy.models import (
+    Almoxarifado, CentroCusto, ConfiguracaoSLA, Empresa, Evento, Filial, PeriodoNaoUtil, TipoPeriodoNaoUtil,
+)
 
-from .forms import AlmoxarifadoForm, CentroCustoForm, EmpresaForm, EventoForm, FilialForm, FornecedorForm, SetorForm, UsuarioForm
+from .forms import AlmoxarifadoForm, CentroCustoForm, ConfiguracaoSLAForm, PeriodoNaoUtilForm, EmpresaForm, EventoForm, FilialForm, FornecedorForm, SetorForm, UsuarioForm
 
 Usuario = get_user_model()
 
@@ -373,3 +376,81 @@ def almoxarifado_excluir(request, pk):
                 "Desative-o para tirá-lo de uso.",
             )
     return redirect("config_almoxarifado_lista")
+
+
+@requer_papel(Papel.SUPERADMIN)
+def sla_form(request):
+    instancia = ConfiguracaoSLA.objects.first()
+    form = ConfiguracaoSLAForm(request.POST or None, instance=instancia)
+    if request.method == "POST" and form.is_valid():
+        if not form.instance.tenant_id:
+            form.instance.tenant = request.user.tenant
+        form.save()
+        messages.success(request, "Prazos de atendimento salvos.")
+        return redirect("config_sla")
+    return render(request, "configuracoes/sla_form.html", {
+        "form": form, "padrao_estoque": ConfiguracaoSLA.PADRAO_ESTOQUE, "padrao_compra": ConfiguracaoSLA.PADRAO_COMPRA,
+    })
+
+
+@requer_papel(Papel.SUPERADMIN)
+def periodo_lista(request):
+    from datetime import date
+
+    hoje = date.today()
+    ano = request.GET.get("ano", "")
+    ano = int(ano) if ano.isdigit() and 2000 <= int(ano) <= 2100 else hoje.year
+    periodos = PeriodoNaoUtil.objects.select_related("filial").filter(inicio__year__lte=ano, fim__year__gte=ano)
+    tipo = request.GET.get("tipo", "")
+    if tipo in TipoPeriodoNaoUtil.values:
+        periodos = periodos.filter(tipo=tipo)
+    return render(request, "configuracoes/periodo_lista.html", {
+        "periodos": periodos, "ano": ano, "tipo": tipo, "tipos": TipoPeriodoNaoUtil.choices,
+        "anos": range(hoje.year - 1, hoje.year + 3),
+    })
+
+
+@requer_papel(Papel.SUPERADMIN)
+def periodo_form(request, pk=None):
+    instancia = get_object_or_404(PeriodoNaoUtil, pk=pk) if pk else None
+    form = PeriodoNaoUtilForm(request.POST or None, instance=instancia)
+    if request.method == "POST" and form.is_valid():
+        if not form.instance.tenant_id:
+            form.instance.tenant = request.user.tenant
+        form.save()
+        messages.success(request, "Período salvo com sucesso.")
+        return redirect("config_periodo_lista")
+    return render(request, "configuracoes/periodo_form.html", {"form": form, "instancia": instancia})
+
+
+@requer_papel(Papel.SUPERADMIN)
+def periodo_excluir(request, pk):
+    periodo = get_object_or_404(PeriodoNaoUtil, pk=pk)
+    if request.method == "POST":
+        periodo.delete()
+        messages.success(request, "Período excluído.")
+    return redirect("config_periodo_lista")
+
+
+@requer_papel(Papel.SUPERADMIN)
+def periodo_importar_nacionais(request):
+    from tenancy.calendario import feriados_nacionais
+
+    if request.method != "POST":
+        return redirect("config_periodo_lista")
+    ano = request.POST.get("ano", "")
+    if not (ano.isdigit() and 2000 <= int(ano) <= 2100):
+        messages.error(request, "Informe um ano válido.")
+        return redirect("config_periodo_lista")
+    novos = 0
+    for data, nome in feriados_nacionais(int(ano)):
+        _, criado = PeriodoNaoUtil.objects.get_or_create(
+            inicio=data, fim=data, nome=nome, filial=None,
+            defaults={"tipo": TipoPeriodoNaoUtil.FERIADO, "tenant": request.user.tenant},
+        )
+        novos += criado
+    if novos:
+        messages.success(request, f"{novos} feriado(s) nacional(is) de {ano} adicionado(s).")
+    else:
+        messages.success(request, f"Os feriados nacionais de {ano} já estavam cadastrados.")
+    return redirect(f"{reverse('config_periodo_lista')}?ano={ano}")
