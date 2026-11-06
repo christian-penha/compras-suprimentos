@@ -253,6 +253,12 @@ class OrcamentoCentroCustoTest(TenantTestCase):
         form = CentroCustoForm(self.dados(
             orcamento_modo="MENSAL", orcamento_valor="250", orcamento_meses="12", orcamento_inicio="2026-03"))
         self.assertTrue(form.is_valid(), form.errors)
+        # no mensal o período é mantido: define os meses da grade mês a mês
+        self.assertEqual(form.cleaned_data["orcamento_meses"], 12)
+        self.assertEqual(form.cleaned_data["orcamento_inicio"], date(2026, 3, 1))
+        # sem período completo, o mensal fica sem grade (vale o padrão em qualquer mês)
+        form = CentroCustoForm(self.dados(orcamento_modo="MENSAL", orcamento_valor="250", orcamento_meses="12"))
+        self.assertTrue(form.is_valid(), form.errors)
         self.assertIsNone(form.cleaned_data["orcamento_meses"])
         self.assertIsNone(form.cleaned_data["orcamento_inicio"])
 
@@ -322,3 +328,104 @@ class SlaEFeriadosTelasTest(TenantTestCase):
         self.client.force_login(comum)
         for nome in ("config_sla", "config_periodo_lista", "config_periodo_novo"):
             self.assertEqual(self.client.get(self.reverse(nome)).status_code, 403, nome)
+
+
+class OrcamentoMesAMesETest(TenantTestCase):
+    def setUp(self):
+        super().setUp()
+        from tenancy.models import CentroCusto
+        from contas.models import Papel, PapelUsuario
+        from django.urls import reverse
+        self.reverse = reverse
+        self.admin = Usuario.objects.create_user("adm_mes", password="x", tenant=self.tenant)
+        PapelUsuario.objects.create(usuario=self.admin, papel=Papel.SUPERADMIN)
+        self.client.force_login(self.admin)
+        self.filial = Filial.objects.get(sigla="CP")
+        self.CentroCusto = CentroCusto
+
+    def salvar(self, extra=None, pk=None, **campos):
+        dados = {"filial": self.filial.pk, "nome": "Meses", "ativo": "on", **campos, **(extra or {})}
+        url = self.reverse("config_centro_editar", args=[pk]) if pk else self.reverse("config_centro_novo")
+        return self.client.post(url, dados)
+
+    def test_total_com_meses_fixos_redistribui_o_resto(self):
+        from decimal import Decimal
+        from tenancy.orcamento import orcamento_do_mes
+        r = self.salvar({"mes_2026-01": "500"}, orcamento_modo="TOTAL", orcamento_valor="1000",
+                        orcamento_meses="3", orcamento_inicio="2026-01")
+        self.assertEqual(r.status_code, 302, getattr(r, "context", None) and r.context["form"].errors)
+        c = self.CentroCusto.objects.get(nome="Meses")
+        self.assertEqual([orcamento_do_mes(c, 2026, m) for m in (1, 2, 3)],
+                         [Decimal("500.00"), Decimal("250.00"), Decimal("250.00")])
+
+    def test_total_nao_aceita_meses_acima_do_total_nem_soma_que_nao_fecha(self):
+        r = self.salvar({"mes_2026-01": "800", "mes_2026-02": "300"}, orcamento_modo="TOTAL",
+                        orcamento_valor="1000", orcamento_meses="3", orcamento_inicio="2026-01")
+        self.assertEqual(r.status_code, 200)
+        r = self.salvar({"mes_2026-01": "400", "mes_2026-02": "300"}, orcamento_modo="TOTAL",
+                        orcamento_valor="1000", orcamento_meses="2", orcamento_inicio="2026-01")
+        self.assertEqual(r.status_code, 200)  # todos preenchidos e soma 700 != 1000
+        self.assertFalse(self.CentroCusto.objects.filter(nome="Meses").exists())
+
+    def test_mensal_com_mes_diferente_e_reabre_preenchido(self):
+        from decimal import Decimal
+        from tenancy.orcamento import orcamento_do_mes
+        self.salvar({"mes_2026-02": "900"}, orcamento_modo="MENSAL", orcamento_valor="400",
+                    orcamento_meses="3", orcamento_inicio="2026-01")
+        c = self.CentroCusto.objects.get(nome="Meses")
+        self.assertEqual([orcamento_do_mes(c, 2026, m) for m in (1, 2, 3)],
+                         [Decimal("400"), Decimal("900.00"), Decimal("400")])
+        self.assertContains(self.client.get(self.reverse("config_centro_editar", args=[c.pk])), "2026-02")
+        # salvar de novo sem o valor do mês remove o valor próprio
+        self.salvar(pk=c.pk, orcamento_modo="MENSAL", orcamento_valor="400", orcamento_meses="3", orcamento_inicio="2026-01")
+        c.refresh_from_db()
+        self.assertEqual(orcamento_do_mes(c, 2026, 2), Decimal("400"))
+
+    def test_mes_negativo_e_recusado(self):
+        r = self.salvar({"mes_2026-01": "-5"}, orcamento_modo="MENSAL", orcamento_valor="400",
+                        orcamento_meses="2", orcamento_inicio="2026-01")
+        self.assertEqual(r.status_code, 200)
+
+    def test_plano_respeita_mes_fixo(self):
+        from datetime import date
+        from decimal import Decimal
+        from tenancy.models import OrcamentoMes
+        from tenancy.previsao import plano
+        c = self.CentroCusto.objects.create(
+            tenant=self.tenant, filial=self.filial, nome="P", orcamento_modo="TOTAL",
+            orcamento_valor=Decimal("1000"), orcamento_inicio=date(2026, 1, 1), orcamento_meses=4)
+        OrcamentoMes.objects.create(tenant=self.tenant, centro=c, ano_mes=date(2026, 2, 1), valor=Decimal("400"))
+        limites = [l["limite"] for l in plano(c, date(2026, 1, 15))]
+        self.assertEqual(limites, [Decimal("200.00"), Decimal("400.00"), Decimal("200.00"), Decimal("200.00")])
+
+    def test_subconta_aparece_dentro_do_centro_e_nasce_pre_preenchida(self):
+        pai = self.CentroCusto.objects.create(tenant=self.tenant, filial=self.filial, nome="Pai")
+        self.salvar(nome="Filha", pai=pai.pk, orcamento_modo="")
+        filha = self.CentroCusto.objects.get(nome="Filha")
+        self.assertEqual(filha.pai_id, pai.pk)
+        lista = self.client.get(self.reverse("config_centro_lista"))
+        self.assertContains(lista, "Filha")
+        self.assertContains(lista, f"?pai={pai.pk}")
+        topo = [c.pk for c in lista.context["centros"]]
+        self.assertIn(pai.pk, topo)
+        self.assertNotIn(filha.pk, topo)  # a filha vem aninhada na conta pai
+        self.assertContains(self.client.get(self.reverse("config_centro_editar", args=[pai.pk])), "Filha")
+        novo = self.client.get(self.reverse("config_centro_novo"), {"pai": pai.pk})
+        self.assertEqual(novo.context["form"].initial["pai"], pai.pk)
+
+    def test_busca_pela_subconta_mostra_a_conta_pai(self):
+        pai = self.CentroCusto.objects.create(tenant=self.tenant, filial=self.filial, nome="Pai")
+        self.CentroCusto.objects.create(tenant=self.tenant, filial=self.filial, nome="Filha rara", pai=pai)
+        lista = self.client.get(self.reverse("config_centro_lista"), {"q": "rara"})
+        self.assertEqual([c.pk for c in lista.context["centros"]], [pai.pk])
+
+    def test_soma_das_subcontas_em_qualquer_mes_nao_passa_do_pai(self):
+        from datetime import date
+        from decimal import Decimal
+        pai = self.CentroCusto.objects.create(
+            tenant=self.tenant, filial=self.filial, nome="Pai", orcamento_modo="MENSAL", orcamento_valor=Decimal("1000"))
+        r = self.salvar(nome="F1", pai=pai.pk, orcamento_modo="MENSAL", orcamento_valor="600")
+        self.assertEqual(r.status_code, 302)
+        r = self.salvar(nome="F2", pai=pai.pk, orcamento_modo="MENSAL", orcamento_valor="300",
+                        extra={"mes_2026-03": "500"}, orcamento_meses="3", orcamento_inicio="2026-01")
+        self.assertEqual(r.status_code, 200)  # em março 600 + 500 > 1000

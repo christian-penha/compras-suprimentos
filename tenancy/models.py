@@ -122,7 +122,7 @@ class TipoCentroCusto(models.TextChoices):
 class ModoOrcamento(models.TextChoices):
     SEM_ORCAMENTO = "SEM", "Sem orçamento"
     TOTAL_RATEADO = "TOTAL", "Valor total dividido entre os meses"
-    MENSAL = "MENSAL", "Orçamento mensal fixo"
+    MENSAL = "MENSAL", "Orçamento mensal"
 
 
 class CentroCusto(TenantModel):
@@ -138,6 +138,8 @@ class CentroCusto(TenantModel):
     )
     # Orçamento (ver tenancy/orcamento.py): TOTAL = `orcamento_valor` dividido em
     # `orcamento_meses` meses a partir de `orcamento_inicio`; MENSAL = `orcamento_valor` por mês.
+    # Nos dois modos dá para informar um valor próprio para cada mês (OrcamentoMes); em MENSAL,
+    # `orcamento_inicio`/`orcamento_meses` só definem quais meses aparecem na grade mês a mês.
     orcamento_modo = models.CharField(
         max_length=6, choices=ModoOrcamento.choices, default=ModoOrcamento.SEM_ORCAMENTO
     )
@@ -296,3 +298,25 @@ class PeriodoNaoUtil(TenantModel):
     @property
     def dias(self):
         return (self.fim - self.inicio).days + 1
+
+
+class OrcamentoMes(TenantModel):
+    """Valor próprio de um mês, que se sobrepõe ao rateio ou ao valor mensal padrão do centro
+    (meses de maior custo, por exemplo). No orçamento TOTAL, os meses sem valor próprio dividem
+    o que sobra do total."""
+
+    centro = models.ForeignKey(CentroCusto, on_delete=models.CASCADE, related_name="orcamentos_mes")
+    ano_mes = models.DateField(help_text="Sempre o dia 1 do mês")
+    valor = models.DecimalField(max_digits=14, decimal_places=2)
+
+    class Meta:
+        verbose_name = "orçamento do mês"
+        verbose_name_plural = "orçamentos por mês"
+        ordering = ["ano_mes"]
+        constraints = [
+            models.UniqueConstraint(fields=["centro", "ano_mes"], name="orcamento_unico_por_mes"),
+            models.CheckConstraint(condition=models.Q(valor__gte=0), name="orcamento_mes_nao_negativo"),
+        ]
+
+    def __str__(self):
+        return f"{self.centro} {self.ano_mes:%m/%Y}: R$ {self.valor}"

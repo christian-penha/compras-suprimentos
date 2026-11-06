@@ -173,31 +173,57 @@ def evento_lista(request):
 
 @requer_papel(Papel.SUPERADMIN)
 def centro_lista(request):
-    centros = CentroCusto.objects.select_related("filial").order_by("filial__nome", "nome")
-    busca, filial_id = _filtros(request)
-    if busca:
-        centros = centros.filter(nome__icontains=busca)
-    if filial_id:
-        centros = centros.filter(filial_id=filial_id)
+    """Contas de topo com as subcontas aninhadas; a busca casa com a conta ou com alguma subconta."""
     from tenancy.orcamento import situacao_do_mes
 
-    centros = list(centros)
-    for c in centros:
+    todos = list(CentroCusto.objects.select_related("filial").prefetch_related("orcamentos_mes").order_by("filial__nome", "nome"))
+    busca, filial_id = _filtros(request)
+    termo = busca.lower() if busca else ""
+    for c in todos:
         c.situacao = situacao_do_mes(c)
-    return render(request, "configuracoes/centro_lista.html", {"centros": centros, **_ctx(busca, filial_id)})
+        c.filhas = []
+    por_id = {c.pk: c for c in todos}
+    for c in todos:
+        if c.pai_id in por_id:
+            por_id[c.pai_id].filhas.append(c)
+
+    def casa(c):
+        return not termo or termo in c.nome.lower()
+
+    contas = []
+    for c in todos:
+        if c.pai_id is not None or (filial_id and str(c.filial_id) != str(filial_id)):
+            continue
+        if casa(c) or any(casa(f) for f in c.filhas):
+            contas.append(c)
+    return render(request, "configuracoes/centro_lista.html", {"centros": contas, **_ctx(busca, filial_id)})
 
 
 @requer_papel(Papel.SUPERADMIN)
 def centro_form(request, pk=None):
     instancia = get_object_or_404(CentroCusto, pk=pk) if pk else None
-    form = CentroCustoForm(request.POST or None, instance=instancia)
+    inicial = {}
+    if not instancia and request.GET.get("pai", "").isdigit():
+        pai = CentroCusto.objects.filter(pk=request.GET["pai"], pai__isnull=True).first()
+        if pai:
+            inicial = {"pai": pai.pk, "filial": pai.filial_id}
+    form = CentroCustoForm(request.POST or None, instance=instancia, initial=inicial)
     if request.method == "POST" and form.is_valid():
         if not form.instance.tenant_id:
             form.instance.tenant = request.user.tenant
         form.save()
         messages.success(request, "Centro de custo salvo.")
         return redirect("config_centro_lista")
-    return render(request, "configuracoes/centro_form.html", {"form": form, "instancia": instancia})
+    from tenancy.orcamento import valores_proprios
+
+    subcontas = list(instancia.subcontas.order_by("nome")) if instancia else []
+    if request.method == "POST":  # reexibe o que foi digitado
+        meses_digitados = {k[4:]: v for k, v in request.POST.items() if k.startswith("mes_") and v.strip()}
+    else:
+        meses_digitados = {f"{d:%Y-%m}": str(v) for d, v in valores_proprios(instancia).items()} if instancia else {}
+    return render(request, "configuracoes/centro_form.html", {
+        "form": form, "instancia": instancia, "subcontas": subcontas, "meses_digitados": meses_digitados,
+    })
 
 
 @requer_papel(Papel.SUPERADMIN)

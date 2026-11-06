@@ -296,7 +296,7 @@ class CentroCustoForm(forms.ModelForm):
         labels = {
             "filial": "Filial", "pai": "Conta pai (opcional)", "nome": "Nome do centro de custo", "ativo": "Ativo",
             "orcamento_modo": "Orçamento", "orcamento_valor": "Valor (R$)",
-            "orcamento_meses": "Dividir em quantos meses",
+            "orcamento_meses": "Quantos meses",
         }
         widgets = {
             "filial": forms.Select(attrs={"class": CAMPO}),
@@ -327,28 +327,76 @@ class CentroCustoForm(forms.ModelForm):
         elif self.instance.pk and self.instance.subcontas.exists():
             self.add_error("pai", "Este centro já tem subcontas; não pode ser subconta de outro.")
 
-    def _validar_soma_das_subcontas(self, dados):
-        """Soma dos orçamentos das subcontas no mês atual não passa do orçamento da conta pai."""
-        from datetime import date
-
-        from tenancy.orcamento import orcamento_do_mes
-
-        pai, hoje = dados.get("pai"), date.today()
-        limite = orcamento_do_mes(pai, hoje.year, hoje.month) if pai else None
-        if limite is None:
-            return
-        proprio = CentroCusto(
+    def _centro_simulado(self, dados):
+        """Centro só com os campos de orçamento digitados, para calcular sem salvar."""
+        return CentroCusto(
             orcamento_modo=dados["orcamento_modo"], orcamento_valor=dados.get("orcamento_valor"),
             orcamento_inicio=dados.get("orcamento_inicio"), orcamento_meses=dados.get("orcamento_meses"),
         )
-        soma = orcamento_do_mes(proprio, hoje.year, hoje.month) or 0
-        for irma in pai.subcontas.exclude(pk=self.instance.pk):
-            soma += orcamento_do_mes(irma, hoje.year, hoje.month) or 0
-        if soma > limite:
-            self.add_error("orcamento_valor", f"A soma das subcontas (R$ {soma:.2f}) passa do orçamento da conta pai (R$ {limite:.2f}) no mês.")
+
+    def _ler_meses(self, dados):
+        """Valores digitados na grade mês a mês (campos `mes_AAAA-MM`), só dos meses da janela."""
+        from datetime import date
+        from decimal import Decimal, InvalidOperation
+
+        from tenancy.orcamento import janela_de_meses
+
+        proprios = {}
+        for ano, mes in janela_de_meses(self._centro_simulado(dados)):
+            bruto = (self.data.get(f"mes_{ano}-{mes:02d}") or "").strip().replace(",", ".")
+            if not bruto:
+                continue
+            try:
+                valor = Decimal(bruto)
+            except InvalidOperation:
+                self.add_error(None, f"Valor inválido em {mes:02d}/{ano}.")
+                continue
+            if valor < 0:
+                self.add_error(None, f"O valor de {mes:02d}/{ano} não pode ser negativo.")
+                continue
+            proprios[date(ano, mes, 1)] = valor.quantize(Decimal("0.01"))
+        return proprios
+
+    def _validar_meses(self, dados, proprios):
+        if dados["orcamento_modo"] != ModoOrcamento.TOTAL_RATEADO or not proprios:
+            return
+        from tenancy.orcamento import janela_de_meses
+
+        soma, total = sum(proprios.values()), dados["orcamento_valor"]
+        todos = len(proprios) == len(janela_de_meses(self._centro_simulado(dados)))
+        if soma > total or (todos and soma != total):
+            self.add_error(None, (
+                f"Os meses somam R$ {soma:.2f} e o total é R$ {total:.2f}: "
+                + ("a soma dos meses não pode passar do total." if soma > total
+                   else "com todos os meses preenchidos a soma precisa fechar no total (deixe um mês em branco para ele absorver a diferença).")
+            ))
+
+    def _validar_soma_das_subcontas(self, dados, proprios):
+        """Em cada mês, a soma dos orçamentos das subcontas não passa do orçamento da conta pai."""
+        from datetime import date
+
+        from tenancy.orcamento import janela_de_meses, orcamento_do_mes
+
+        pai = dados.get("pai")
+        if pai is None or pai.orcamento_valor is None:
+            return
+        proprio = self._centro_simulado(dados)
+        hoje = date.today()
+        meses = {(hoje.year, hoje.month), *janela_de_meses(proprio)}
+        irmas = list(pai.subcontas.exclude(pk=self.instance.pk))
+        for ano, mes in sorted(meses):
+            limite = orcamento_do_mes(pai, ano, mes)
+            if limite is None:
+                continue
+            soma = (orcamento_do_mes(proprio, ano, mes, proprios) or 0) + sum(
+                (orcamento_do_mes(irma, ano, mes) or 0 for irma in irmas), 0)
+            if soma > limite:
+                self.add_error(None, f"Em {mes:02d}/{ano} a soma das subcontas (R$ {soma:.2f}) passa do orçamento da conta pai (R$ {limite:.2f}).")
+                return
 
     def clean(self):
         dados = super().clean()
+        self.proprios = {}
         if self.errors:
             return dados
         self._validar_pai(dados)
@@ -364,13 +412,34 @@ class CentroCustoForm(forms.ModelForm):
                 self.add_error("orcamento_meses", "Informe em quantos meses o valor será dividido.")
             if inicio is None:
                 self.add_error("orcamento_inicio", "Informe o primeiro mês do orçamento.")
-        else:
+        elif not (meses and inicio):
+            # MENSAL sem período: vale o valor padrão em qualquer mês, sem grade mês a mês
             dados["orcamento_meses"] = dados["orcamento_inicio"] = None
         if dados.get("orcamento_inicio"):
             dados["orcamento_inicio"] = dados["orcamento_inicio"].replace(day=1)
         if not self.errors:
-            self._validar_soma_das_subcontas(dados)
+            self.proprios = self._ler_meses(dados)
+        if not self.errors:
+            self._validar_meses(dados, self.proprios)
+        if not self.errors:
+            self._validar_soma_das_subcontas(dados, self.proprios)
         return dados
+
+    def save(self, commit=True):
+        centro = super().save(commit=commit)
+        if commit:
+            self.salvar_meses(centro)
+        return centro
+
+    def salvar_meses(self, centro):
+        """Troca os valores próprios do centro pelos digitados (sem orçamento = nenhum)."""
+        from tenancy.models import OrcamentoMes
+
+        centro.orcamentos_mes.all().delete()
+        OrcamentoMes.objects.bulk_create([
+            OrcamentoMes(tenant_id=centro.tenant_id, centro=centro, ano_mes=ano_mes, valor=valor)
+            for ano_mes, valor in self.proprios.items()
+        ])
 
 
 class FornecedorForm(forms.ModelForm):

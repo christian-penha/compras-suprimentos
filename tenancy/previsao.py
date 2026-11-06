@@ -12,7 +12,7 @@ from decimal import ROUND_DOWN, Decimal
 from django.db.models import DecimalField, ExpressionWrapper, F, Sum
 
 from .models import ModoOrcamento
-from .orcamento import CENTAVOS
+from .orcamento import CENTAVOS, janela_de_meses, meses_do_periodo, orcamento_do_mes, parcelas_do_total, valores_proprios
 
 
 def _ids_do_centro(centro):
@@ -31,39 +31,52 @@ def gasto_do_mes(centro, ano, mes):
     return total or Decimal("0")
 
 
-def _meses(inicio, n):
-    for i in range(n):
-        m = inicio.month - 1 + i
-        yield inicio.year + m // 12, m % 12 + 1
-
-
 def plano(centro, hoje=None):
-    """Mês a mês: [{'ano','mes','base','limite','gasto'}]. Vazio se não há orçamento."""
+    """Mês a mês: [{'ano','mes','base','limite','gasto'}]. Vazio se não há orçamento.
+
+    No orçamento TOTAL, mês com valor próprio mantém esse limite; os meses livres dividem o que
+    sobra depois do que já foi consumido (o estouro de um mês redistribui para os livres seguintes).
+    No MENSAL cada mês vale o valor próprio ou o padrão; sem período definido, só o mês atual."""
     hoje = hoje or date.today()
     if centro.orcamento_valor is None:
         return []
+    proprios = valores_proprios(centro)
+
+    def gasto(ano, mes):
+        return gasto_do_mes(centro, ano, mes) if (ano, mes) <= (hoje.year, hoje.month) else Decimal("0")
+
     if centro.orcamento_modo == ModoOrcamento.MENSAL:
+        meses = janela_de_meses(centro) or [(hoje.year, hoje.month)]
         return [
-            {"ano": hoje.year, "mes": hoje.month, "base": centro.orcamento_valor,
-             "limite": centro.orcamento_valor, "gasto": gasto_do_mes(centro, hoje.year, hoje.month)}
+            {"ano": a, "mes": m, "base": centro.orcamento_valor,
+             "limite": orcamento_do_mes(centro, a, m, proprios), "gasto": gasto(a, m)}
+            for a, m in meses
         ]
     if centro.orcamento_modo != ModoOrcamento.TOTAL_RATEADO or not (centro.orcamento_inicio and centro.orcamento_meses):
         return []
-    n, total = centro.orcamento_meses, centro.orcamento_valor
-    base = (total / n).quantize(CENTAVOS, rounding=ROUND_DOWN)
+
+    total = centro.orcamento_valor
+    meses = meses_do_periodo(centro.orcamento_inicio, centro.orcamento_meses)
+    base = parcelas_do_total(total, meses, proprios)
     linhas, ja_gasto = [], Decimal("0")
-    for i, (ano, mes) in enumerate(_meses(centro.orcamento_inicio, n)):
-        restante = n - i
-        limite = max(total - ja_gasto, Decimal("0"))
-        limite = limite if restante == 1 else (limite / restante).quantize(CENTAVOS, rounding=ROUND_DOWN)
-        gasto = gasto_do_mes(centro, ano, mes) if (ano, mes) <= (hoje.year, hoje.month) else Decimal("0")
-        linhas.append({"ano": ano, "mes": mes, "base": base, "limite": limite, "gasto": gasto})
-        ja_gasto += max(gasto, limite)
+    for i, (ano, mes) in enumerate(meses):
+        if date(ano, mes, 1) in proprios:
+            limite = proprios[date(ano, mes, 1)]
+        else:
+            livres = [am for am in meses[i:] if date(am[0], am[1], 1) not in proprios]
+            fixos_futuros = sum((proprios[date(a, m, 1)] for a, m in meses[i + 1:] if date(a, m, 1) in proprios), Decimal("0"))
+            disponivel = max(total - ja_gasto - fixos_futuros, Decimal("0"))
+            limite = disponivel if len(livres) == 1 else (disponivel / len(livres)).quantize(CENTAVOS, rounding=ROUND_DOWN)
+        g = gasto(ano, mes)
+        linhas.append({"ano": ano, "mes": mes, "base": base[(ano, mes)], "limite": limite, "gasto": g})
+        ja_gasto += max(g, limite)
     return linhas
 
 
 def limite_do_mes(centro, ano, mes):
     """Limite do mês já recalculado; None se não há orçamento nele."""
+    if centro.orcamento_modo == ModoOrcamento.MENSAL:
+        return orcamento_do_mes(centro, ano, mes)
     return next((l["limite"] for l in plano(centro) if (l["ano"], l["mes"]) == (ano, mes)), None)
 
 

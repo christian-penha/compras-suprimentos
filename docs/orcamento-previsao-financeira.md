@@ -34,7 +34,7 @@ previsão financeira, gestão de orçamento e, mais adiante, controle de patrim�
 
 ## Falta fazer
 
-1. **Orçamento mês a mês específico** (meses de maior custo): hoje só há valor total dividido ou mensal fixo. Ideia: tabela `OrcamentoMes(centro, ano, mes, valor)` que sobrepõe o mês; os meses sem valor próprio dividem o restante.
+1. ~~**Orçamento mês a mês específico**~~ — feito: `tenancy.models.OrcamentoMes` sobrepõe o mês; no TOTAL os meses sem valor próprio dividem o restante, no MENSAL valem o padrão. Grade na tela do centro de custo; `orcamento_do_mes` e `previsao.plano` respeitam os valores próprios. Subcontas aparecem aninhadas na lista e têm atalho "+ Subconta".
 2. **Comprador do setor (cartão):** o setor pode ou não ter a função de comprador; esse usuário lança a compra feita, com método de pagamento e nota fiscal anexada. A compra lançada deve contar no gasto do centro. Ainda sem desenho de telas.
 3. **Previsão financeira:** projeção do ano, gráfico, alertas (ex.: 80% do limite).
 4. **Controle de patrimônio:** mais adiante.
