@@ -13,6 +13,7 @@
       Baixar planilha modelo
     </a>
   </div>
+  {% include "estoque/_abas.html" %}
 
   <ol class="mt-5 flex flex-wrap items-center gap-3 text-xs font-medium">
     <li class="flex items-center gap-2 {% if previa %}text-slate-600 dark:text-slate-300{% else %}text-slate-900 dark:text-white{% endif %}"><span class="h-6 w-6 rounded-full flex items-center justify-center bg-teal-700 text-white {% if not previa %}font-bold{% endif %}">{% if previa %}✓{% else %}1{% endif %}</span>Enviar planilha</li>

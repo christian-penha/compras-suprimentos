@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% load ui %}
+{% block titulo %}Extrato de movimentações{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Extrato de movimentações</h1>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Todas as entradas, saídas, transferências, devoluções e ajustes, da mais recente para a mais antiga.</p>
+  {% include "estoque/_abas.html" %}
+  {% with campo="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700" %}
+  <form method="get" class="mt-5 flex flex-wrap gap-3">
+    <input name="q" value="{{ busca }}" placeholder="Produto ou código…" autocomplete="off" class="flex-1 min-w-[200px] {{ campo }}">
+    <select name="almoxarifado" class="{{ campo }}"><option value="">Todos os almoxarifados</option>{% for a in almoxarifados %}<option value="{{ a.pk }}" {% if almoxarifado_id == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}</select>
+    <select name="tipo" class="{{ campo }}"><option value="">Todos os tipos</option>{% for v, r in tipos %}<option value="{{ v }}" {% if tipo == v %}selected{% endif %}>{{ r }}</option>{% endfor %}</select>
+    <input type="date" name="de" value="{{ de }}" aria-label="De" class="{{ campo }}">
+    <input type="date" name="ate" value="{{ ate }}" aria-label="Até" class="{{ campo }}">
+    <button class="rounded-xl bg-teal-700 text-white text-sm font-semibold px-5 py-3 hover:bg-teal-800 transition">Filtrar</button>
+  </form>
+  {% endwith %}
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+        <tr><th class="px-6 py-3 font-medium">Data</th><th class="px-4 py-3 font-medium">Tipo</th><th class="px-4 py-3 font-medium">Produto</th>
+            <th class="px-4 py-3 font-medium">Origem → Destino</th><th class="px-4 py-3 font-medium text-right">Qtd</th>
+            <th class="px-4 py-3 font-medium text-right">Valor unit.</th><th class="px-6 py-3 font-medium">Responsável / obs.</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for m in pagina %}
+        <tr class="dark:text-slate-100">
+          <td class="px-6 py-3 whitespace-nowrap text-slate-600 dark:text-slate-300">{{ m.criado_em|date:"d/m/Y H:i" }}</td>
+          <td class="px-4 py-3 font-medium">{{ m.get_tipo_display }}</td>
+          <td class="px-4 py-3">{{ m.produto.nome }}<span class="block text-xs text-slate-500 dark:text-slate-400">{{ m.produto.codigo|default:"" }}</span></td>
+          <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{% if m.origem %}{{ m.origem.filial.sigla }} {{ m.origem.nome }}{% else %}—{% endif %} → {% if m.destino %}{{ m.destino.filial.sigla }} {{ m.destino.nome }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right font-semibold">{{ m.quantidade|floatformat:"-3" }}</td>
+          <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">R$ {{ m.valor_unitario|floatformat:2 }}</td>
+          <td class="px-6 py-3 text-slate-600 dark:text-slate-300">{{ m.responsavel }}{% if m.observacao %}<span class="block text-xs text-slate-500 dark:text-slate-400">{{ m.observacao }}</span>{% endif %}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="px-6 py-14 text-center text-sm text-slate-500 dark:text-slate-400">Nenhuma movimentação encontrada.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% paginacao pagina "movimentações" %}
+{% endblock %}

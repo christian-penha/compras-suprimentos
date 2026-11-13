@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block titulo %}Balanço de estoque{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Balanço de estoque</h1>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Contagem física por almoxarifado. O saldo só muda quando você aplica o balanço, e cada diferença vira um ajuste no extrato.</p>
+  {% include "estoque/_abas.html" %}
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<form method="post" class="bg-white rounded-2xl border border-slate-200 p-5 mb-6 flex flex-wrap gap-3 items-end max-w-4xl dark:bg-slate-800 dark:border-slate-700">{% csrf_token %}
+  <div class="min-w-[220px]"><label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Novo balanço em</label>
+    <select name="almoxarifado" required class="w-full rounded-xl border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100">
+      <option value="">Escolha o almoxarifado…</option>{% for a in almoxarifados %}<option value="{{ a.pk }}">{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}</select></div>
+  <div class="flex-1 min-w-[200px]"><label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Observação</label>
+    <input name="observacao" maxlength="300" placeholder="ex.: inventário de fim de semestre" class="w-full rounded-xl border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100"></div>
+  <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-medium px-5 py-2.5 transition">Iniciar contagem</button>
+</form>
+
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  {% for b in balancos %}
+  <a href="{% url 'estoque_balanco_detalhe' b.pk %}" class="px-6 py-4 text-sm flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 last:border-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-700 dark:text-slate-100">
+    <span><span class="font-semibold">#{{ b.pk }}</span> · {{ b.almoxarifado.filial.sigla }} — {{ b.almoxarifado.nome }}{% if b.observacao %} · <span class="text-slate-500 dark:text-slate-400">{{ b.observacao }}</span>{% endif %}</span>
+    <span class="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400">{{ b.criado_em|date:"d/m/Y H:i" }} · {{ b.criado_por }}
+      <span class="rounded-full px-2.5 py-0.5 font-medium {% if b.status == 'EM_CONTAGEM' %}bg-amber-100 text-amber-800{% elif b.status == 'APLICADO' %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-600{% endif %}">{{ b.get_status_display }}</span></span>
+  </a>
+  {% empty %}<p class="px-6 py-14 text-center text-sm text-slate-500 dark:text-slate-400">Nenhum balanço ainda.</p>{% endfor %}
+</div>
+{% endblock %}

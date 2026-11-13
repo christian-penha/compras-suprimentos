@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.conf import settings
 from django.db import models
 
@@ -14,10 +16,15 @@ class SaldoEstoque(models.Model):
     custo_medio = models.DecimalField(max_digits=12, decimal_places=2, default=0)
     estoque_minimo = models.DecimalField(
         max_digits=12, decimal_places=3, null=True, blank=True,
-        help_text="Definido apenas no almoxarifado central",
+        help_text="Abaixo disso o item aparece como crítico na reposição",
     )
     ponto_reposicao = models.DecimalField(
-        max_digits=12, decimal_places=3, null=True, blank=True
+        max_digits=12, decimal_places=3, null=True, blank=True,
+        help_text="Quando o saldo chega aqui, é hora de pedir reposição",
+    )
+    estoque_maximo = models.DecimalField(
+        max_digits=12, decimal_places=3, null=True, blank=True,
+        help_text="Quantidade-alvo ao repor; acima disso há excesso",
     )
 
     class Meta:
@@ -30,6 +37,27 @@ class SaldoEstoque(models.Model):
             models.CheckConstraint(
                 condition=models.Q(quantidade__gte=0), name="saldo_nunca_negativo"
             ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(estoque_minimo__isnull=True) | models.Q(estoque_maximo__isnull=True)
+                    | models.Q(estoque_minimo__lte=models.F("estoque_maximo"))
+                ),
+                name="saldo_minimo_ate_maximo",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(ponto_reposicao__isnull=True) | models.Q(estoque_minimo__isnull=True)
+                    | models.Q(ponto_reposicao__gte=models.F("estoque_minimo"))
+                ),
+                name="saldo_reposicao_acima_do_minimo",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(ponto_reposicao__isnull=True) | models.Q(estoque_maximo__isnull=True)
+                    | models.Q(ponto_reposicao__lte=models.F("estoque_maximo"))
+                ),
+                name="saldo_reposicao_ate_maximo",
+            ),
         ]
 
     def __str__(self):
@@ -38,6 +66,27 @@ class SaldoEstoque(models.Model):
     @property
     def abaixo_do_minimo(self):
         return self.estoque_minimo is not None and self.quantidade < self.estoque_minimo
+
+    @property
+    def acima_do_maximo(self):
+        return self.estoque_maximo is not None and self.quantidade > self.estoque_maximo
+
+    @property
+    def precisa_repor(self):
+        if self.abaixo_do_minimo:
+            return True
+        return self.ponto_reposicao is not None and self.quantidade <= self.ponto_reposicao
+
+    @property
+    def sugestao_reposicao(self):
+        """Quanto pedir para voltar ao alvo (máximo; sem máximo, o ponto de reposição ou o mínimo)."""
+        if not self.precisa_repor:
+            return Decimal("0")
+        alvo = self.estoque_maximo
+        if alvo is None:
+            alvos = [v for v in (self.ponto_reposicao, self.estoque_minimo) if v is not None]
+            alvo = max(alvos) if alvos else Decimal("0")
+        return max(alvo - self.quantidade, Decimal("0"))
 
 
 class TipoMovimentacao(models.TextChoices):
@@ -127,3 +176,57 @@ class DebitoAlmoxarifado(models.Model):
 
     def __str__(self):
         return f"{self.devedor} deve {self.quantidade} × {self.produto} a {self.credor}"
+
+
+class StatusBalanco(models.TextChoices):
+    EM_CONTAGEM = "EM_CONTAGEM", "Em contagem"
+    APLICADO = "APLICADO", "Aplicado"
+    CANCELADO = "CANCELADO", "Cancelado"
+
+
+class Balanco(models.Model):
+    """Inventário de um almoxarifado: congela o saldo do sistema, recebe a contagem física e,
+    ao aplicar, gera um AJUSTE por diferença (nada muda no saldo antes de aplicar)."""
+
+    almoxarifado = models.ForeignKey(Almoxarifado, on_delete=models.PROTECT, related_name="balancos")
+    status = models.CharField(max_length=12, choices=StatusBalanco.choices, default=StatusBalanco.EM_CONTAGEM)
+    observacao = models.CharField(max_length=300, blank=True)
+    criado_por = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="+")
+    criado_em = models.DateTimeField(auto_now_add=True)
+    encerrado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True, related_name="+"
+    )
+    encerrado_em = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "balanço de estoque"
+        verbose_name_plural = "balanços de estoque"
+        ordering = ["-criado_em", "-pk"]
+
+    def __str__(self):
+        return f"Balanço #{self.pk} — {self.almoxarifado}"
+
+
+class ItemBalanco(models.Model):
+    balanco = models.ForeignKey(Balanco, on_delete=models.CASCADE, related_name="itens")
+    produto = models.ForeignKey(Produto, on_delete=models.PROTECT, related_name="+")
+    quantidade_sistema = models.DecimalField(max_digits=12, decimal_places=3)
+    quantidade_contada = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+    # diferença efetivamente ajustada na aplicação (contada − saldo do momento)
+    diferenca_aplicada = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
+
+    class Meta:
+        ordering = ["produto__nome", "pk"]
+        constraints = [
+            models.UniqueConstraint(fields=["balanco", "produto"], name="item_balanco_unico_por_produto"),
+            models.CheckConstraint(
+                condition=models.Q(quantidade_contada__isnull=True) | models.Q(quantidade_contada__gte=0),
+                name="item_balanco_contagem_nao_negativa",
+            ),
+        ]
+
+    @property
+    def diferenca(self):
+        if self.quantidade_contada is None:
+            return None
+        return self.quantidade_contada - self.quantidade_sistema

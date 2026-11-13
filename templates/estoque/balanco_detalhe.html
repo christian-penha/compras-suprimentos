@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block titulo %}Balanço #{{ balanco.pk }}{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <a href="{% url 'estoque_balanco_lista' %}" class="text-sm text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition">← Balanços</a>
+  <h1 class="text-2xl font-semibold mt-2">Balanço #{{ balanco.pk }} — {{ balanco.almoxarifado.nome }}</h1>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{{ balanco.almoxarifado.filial.nome }} · aberto em {{ balanco.criado_em|date:"d/m/Y H:i" }} por {{ balanco.criado_por }} · <strong>{{ balanco.get_status_display }}</strong>{% if balanco.observacao %} · {{ balanco.observacao }}{% endif %}</p>
+  {% include "estoque/_abas.html" %}
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-4 sm:grid-cols-3 mb-6 max-w-3xl">
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700"><p class="text-3xl font-semibold text-slate-900 dark:text-white">{{ itens|length }}</p><p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Itens no balanço</p></div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700"><p class="text-3xl font-semibold text-teal-700 dark:text-teal-400">{{ contados }}</p><p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Já contados</p></div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700"><p class="text-3xl font-semibold text-amber-600 dark:text-amber-500">{{ com_diferenca }}</p><p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Com diferença</p></div>
+</div>
+
+<form method="post">{% csrf_token %}
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+          <tr><th class="px-6 py-3 font-medium">Produto</th><th class="px-4 py-3 font-medium text-right">No sistema</th>
+              <th class="px-4 py-3 font-medium w-36">Contado</th><th class="px-6 py-3 font-medium text-right">Diferença</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          {% for i in itens %}
+          <tr class="dark:text-slate-100">
+            <td class="px-6 py-2.5 font-medium">{{ i.produto.nome }}<span class="block text-xs text-slate-500 font-normal dark:text-slate-400">{{ i.produto.codigo|default:"" }} {{ i.produto.especificacao }}</span></td>
+            <td class="px-4 py-2.5 text-right">{{ i.quantidade_sistema|floatformat:"-3" }}{% if editavel and i.mexeu %}<span class="block text-xs text-amber-600 dark:text-amber-400" title="Houve movimentação depois de iniciar a contagem">saldo agora: {{ i.saldo_atual|floatformat:"-3" }}</span>{% endif %}</td>
+            <td class="px-4 py-2.5">{% if editavel %}<input name="contagem_{{ i.pk }}" inputmode="decimal" value="{% if i.quantidade_contada is not None %}{{ i.quantidade_contada|floatformat:'-3' }}{% endif %}" placeholder="—" class="w-full rounded-lg border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800 px-2 py-1.5 text-sm text-right text-slate-900 dark:text-slate-100 focus:outline-none focus:border-teal-700">
+              {% else %}{{ i.quantidade_contada|floatformat:"-3"|default:"—" }}{% endif %}</td>
+            <td class="px-6 py-2.5 text-right font-semibold {% if i.diferenca and i.diferenca > 0 %}text-emerald-700 dark:text-emerald-400{% elif i.diferenca and i.diferenca < 0 %}text-red-700 dark:text-red-400{% endif %}">
+              {% if i.diferenca_aplicada is not None %}{{ i.diferenca_aplicada|floatformat:"-3" }}{% elif i.diferenca is not None %}{{ i.diferenca|floatformat:"-3" }}{% else %}—{% endif %}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% if editavel %}
+  <div class="flex flex-wrap items-center gap-3 mt-5">
+    <button name="acao" value="salvar" class="rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 font-medium px-5 py-2.5 transition dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">Salvar contagem</button>
+    <button name="acao" value="aplicar" onclick="return confirm('Aplicar o balanço? O saldo dos itens contados será ajustado para a quantidade contada.')" class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-medium px-5 py-2.5 transition">Salvar e aplicar ajustes</button>
+    <button name="acao" value="cancelar" formnovalidate onclick="return confirm('Cancelar este balanço? Nenhum saldo será alterado.')" class="rounded-xl border border-red-200 text-red-700 hover:bg-red-50 font-medium px-5 py-2.5 transition dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950">Cancelar balanço</button>
+    <p class="text-xs text-slate-500 dark:text-slate-400">Itens sem contagem ficam como estão.</p>
+  </div>
+  {% endif %}
+</form>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block titulo %}Movimentar estoque{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Movimentar estoque</h1>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Entrada, saída (baixa) e transferência avulsas, com várias linhas por lançamento. Se uma linha falhar, nenhuma é gravada.</p>
+  {% include "estoque/_abas.html" %}
+</div>
+{% endblock %}
+
+{% block conteudo %}
+{% with campo="w-full rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-3 py-2.5 text-sm text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-teal-700/20 focus:border-teal-700" %}
+<form method="post" class="max-w-4xl space-y-5">{% csrf_token %}
+  <div class="bg-white rounded-2xl border border-slate-200 p-6 grid gap-4 sm:grid-cols-3 dark:bg-slate-800 dark:border-slate-700">
+    <div>
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Tipo</label>
+      <select name="tipo" id="tipo" class="{{ campo }}">
+        {% for v, r in tipos %}<option value="{{ v }}" {% if tipo == v %}selected{% endif %}>{{ r }}</option>{% endfor %}
+      </select>
+    </div>
+    <div>
+      <label id="rot-almox" class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Almoxarifado</label>
+      <select name="almoxarifado" class="{{ campo }}" required>
+        <option value="">Escolha…</option>
+        {% for a in almoxarifados %}<option value="{{ a.pk }}" {% if request.POST.almoxarifado == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}
+      </select>
+    </div>
+    <div id="bloco-destino">
+      <label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Destino</label>
+      <select name="destino" class="{{ campo }}">
+        <option value="">Escolha…</option>
+        {% for a in almoxarifados %}<option value="{{ a.pk }}" {% if request.POST.destino == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}
+      </select>
+    </div>
+    <div class="sm:col-span-3">
+      <label id="rot-obs" class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Observação</label>
+      <input name="observacao" maxlength="300" value="{{ request.POST.observacao }}" class="{{ campo }}" placeholder="ex.: nota fiscal 1234, perda por umidade, reposição da unidade">
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-slate-200 p-6 dark:bg-slate-800 dark:border-slate-700">
+    <table class="w-full text-sm">
+      <thead class="text-left text-slate-500 dark:text-slate-400"><tr>
+        <th class="pb-2 font-medium">Produto</th><th class="pb-2 font-medium w-32">Quantidade</th>
+        <th class="pb-2 font-medium w-36 col-valor">Valor unitário (R$)</th><th class="w-10"></th>
+      </tr></thead>
+      <tbody id="linhas">
+      </tbody>
+    </table>
+    <button type="button" id="mais" class="mt-3 text-sm font-semibold text-teal-700 hover:text-teal-800 dark:text-teal-400">+ Adicionar produto</button>
+  </div>
+
+  <div class="flex items-center gap-3">
+    <button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-medium px-5 py-2.5 transition">Registrar</button>
+  </div>
+</form>
+
+<template id="modelo-linha">
+  <tr>
+    <td class="pr-2 py-1.5"><select name="produto" class="{{ campo }}"><option value="">Escolha…</option>{% for p in produtos %}<option value="{{ p.pk }}">{% if p.codigo %}{{ p.codigo }} · {% endif %}{{ p.nome }} — {{ p.especificacao }} ({{ p.unidade_medida }})</option>{% endfor %}</select></td>
+    <td class="pr-2 py-1.5"><input name="quantidade" inputmode="decimal" class="{{ campo }}" placeholder="0"></td>
+    <td class="pr-2 py-1.5 col-valor"><input name="valor" inputmode="decimal" class="{{ campo }}" placeholder="0,00"></td>
+    <td class="py-1.5"><button type="button" class="remover text-slate-400 hover:text-red-600" title="Remover linha">✕</button></td>
+  </tr>
+</template>
+
+<h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-8 mb-3">Últimas movimentações</h2>
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700 max-w-4xl">
+  {% for m in recentes %}
+  <div class="px-5 py-3 text-sm flex items-center justify-between gap-3 border-b border-slate-100 last:border-0 dark:border-slate-700 dark:text-slate-100">
+    <span><span class="font-medium">{{ m.get_tipo_display }}</span> · {{ m.quantidade|floatformat:"-3" }} × {{ m.produto.nome }}</span>
+    <span class="text-xs text-slate-500 dark:text-slate-400">{% if m.destino %}{{ m.destino.nome }}{% else %}{{ m.origem.nome }}{% endif %} · {{ m.criado_em|date:"d/m H:i" }}</span>
+  </div>
+  {% empty %}<p class="px-5 py-6 text-sm text-slate-500 dark:text-slate-400">Nenhuma movimentação ainda.</p>{% endfor %}
+</div>
+{% endwith %}
+
+{{ post_produtos|json_script:"post-produtos" }}
+<script>
+(function () {
+  var tipo = document.getElementById("tipo"), corpo = document.getElementById("linhas"), modelo = document.getElementById("modelo-linha");
+  function linha() { corpo.appendChild(modelo.content.cloneNode(true)); }
+  function aplicar() {
+    var t = tipo.value;
+    document.getElementById("bloco-destino").style.display = t === "TRANSFERENCIA" ? "" : "none";
+    document.getElementById("rot-almox").textContent = t === "TRANSFERENCIA" ? "Origem" : "Almoxarifado";
+    document.getElementById("rot-obs").textContent = t === "ENTRADA" ? "Observação" : "Motivo (obrigatório)";
+    Array.prototype.forEach.call(document.querySelectorAll(".col-valor"), function (e) { e.style.display = t === "ENTRADA" ? "" : "none"; });
+  }
+  document.getElementById("mais").addEventListener("click", function () { linha(); aplicar(); });
+  corpo.addEventListener("click", function (e) { if (e.target.classList.contains("remover")) { e.target.closest("tr").remove(); if (!corpo.children.length) { linha(); aplicar(); } } });
+  tipo.addEventListener("change", aplicar);
+  var produtos = JSON.parse(document.getElementById("post-produtos").textContent);
+  if (produtos.length) { produtos.forEach(function (l) { linha(); var tr = corpo.lastElementChild; tr.querySelector("[name=produto]").value = l[0]; tr.querySelector("[name=quantidade]").value = l[1]; tr.querySelector("[name=valor]").value = l[2]; }); } else { linha(); }
+  aplicar();
+})();
+</script>
+{% endblock %}

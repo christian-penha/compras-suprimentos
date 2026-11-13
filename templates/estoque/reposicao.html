@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block titulo %}Reposição de estoque{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Reposição de estoque</h1>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Itens abaixo do mínimo ou no ponto de reposição, com a quantidade sugerida para voltar ao máximo (sem máximo, ao ponto de reposição ou mínimo).</p>
+  {% include "estoque/_abas.html" %}
+  <form method="get" class="mt-5">
+    <select name="almoxarifado" onchange="this.form.submit()" class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100">
+      <option value="">Todos os almoxarifados</option>
+      {% for a in almoxarifados %}<option value="{{ a.pk }}" {% if almoxarifado_id == a.pk|stringformat:"s" %}selected{% endif %}>{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}
+    </select>
+  </form>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+<div class="grid gap-4 sm:grid-cols-3 mb-6">
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700"><p class="text-3xl font-semibold text-red-600 dark:text-red-400">{{ linhas|length }}</p><p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Itens a repor</p></div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700"><p class="text-3xl font-semibold text-slate-900 dark:text-white">R$ {{ total_estimado|floatformat:2 }}</p><p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Estimativa (custo médio atual)</p></div>
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 dark:bg-slate-800 dark:border-slate-700"><p class="text-3xl font-semibold text-amber-600 dark:text-amber-500">{{ excesso|length }}</p><p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Itens acima do máximo</p></div>
+</div>
+
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+        <tr><th class="px-6 py-3 font-medium">Produto</th><th class="px-4 py-3 font-medium">Almoxarifado</th><th class="px-4 py-3 font-medium">Situação</th>
+            <th class="px-4 py-3 font-medium text-right">Saldo</th><th class="px-4 py-3 font-medium text-right">Mín / Repos. / Máx</th>
+            <th class="px-4 py-3 font-medium text-right">Sugestão</th><th class="px-6 py-3 font-medium text-right">Estimativa</th></tr>
+      </thead>
+      <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+        {% for s in linhas %}
+        <tr class="dark:text-slate-100">
+          <td class="px-6 py-3 font-medium">{{ s.produto.nome }}<span class="block text-xs text-slate-500 font-normal dark:text-slate-400">{{ s.produto.codigo|default:"" }} {{ s.produto.especificacao }}</span></td>
+          <td class="px-4 py-3 text-slate-600 dark:text-slate-300">{{ s.almoxarifado.filial.sigla }} — {{ s.almoxarifado.nome }}</td>
+          <td class="px-4 py-3">{% if s.critico %}<span class="inline-flex items-center gap-1.5 text-xs font-medium text-red-700 dark:text-red-400"><span class="h-2.5 w-2.5 rounded-full bg-red-500"></span>Abaixo do mínimo</span>{% else %}<span class="inline-flex items-center gap-1.5 text-xs font-medium text-amber-700 dark:text-amber-400"><span class="h-2.5 w-2.5 rounded-full bg-amber-400"></span>No ponto de reposição</span>{% endif %}</td>
+          <td class="px-4 py-3 text-right font-semibold">{{ s.quantidade|floatformat:"-3" }}</td>
+          <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">{{ s.estoque_minimo|default_if_none:"—"|floatformat:"-3" }} / {{ s.ponto_reposicao|default_if_none:"—"|floatformat:"-3" }} / {{ s.estoque_maximo|default_if_none:"—"|floatformat:"-3" }}</td>
+          <td class="px-4 py-3 text-right font-semibold text-teal-700 dark:text-teal-400">{{ s.sugestao_reposicao|floatformat:"-3" }}</td>
+          <td class="px-6 py-3 text-right">R$ {{ s.valor_estimado|floatformat:2 }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="7" class="px-6 py-14 text-center text-sm text-slate-500 dark:text-slate-400">Nenhum item precisa de reposição agora. Defina mínimo e ponto de reposição em "Mínimo e máximo".</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if excesso %}
+<h2 class="text-sm font-semibold text-slate-700 dark:text-slate-200 mt-8 mb-3">Acima do máximo</h2>
+<div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+  {% for s in excesso %}
+  <div class="px-5 py-3 text-sm flex items-center justify-between gap-3 border-b border-slate-100 last:border-0 dark:border-slate-700 dark:text-slate-100">
+    <span class="font-medium">{{ s.produto.nome }}</span>
+    <span class="text-xs text-slate-500 dark:text-slate-400">{{ s.almoxarifado.nome }} · saldo {{ s.quantidade|floatformat:"-3" }} / máximo {{ s.estoque_maximo|floatformat:"-3" }}</span>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

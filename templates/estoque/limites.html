@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block titulo %}Mínimo e máximo{% endblock %}
+
+{% block cabecalho %}
+<div class="bg-white text-slate-900 border-b border-slate-200 dark:bg-slate-900 dark:text-white dark:border-slate-800 px-4 sm:px-8 py-6">
+  <h1 class="text-2xl font-semibold">Estoque mínimo, ponto de reposição e máximo</h1>
+  <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">Por almoxarifado. Regra: mínimo ≤ ponto de reposição ≤ máximo. Abaixo do mínimo o item fica crítico; no ponto de reposição fica em atenção; a sugestão de compra leva o saldo até o máximo.</p>
+  {% include "estoque/_abas.html" %}
+  <form method="get" class="mt-5 flex flex-wrap gap-3">
+    <select name="almoxarifado" onchange="this.form.submit()" class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100">
+      <option value="">Escolha o almoxarifado…</option>
+      {% for a in almoxarifados %}<option value="{{ a.pk }}" {% if almoxarifado and almoxarifado.pk == a.pk %}selected{% endif %}>{{ a.filial.sigla }} — {{ a.nome }}</option>{% endfor %}
+    </select>
+    {% if almoxarifado %}<input name="q" value="{{ busca }}" placeholder="Filtrar produto…" class="rounded-xl border border-slate-300 bg-white shadow-sm dark:border-slate-600 dark:bg-slate-800 px-4 py-3 text-sm text-slate-900 dark:text-slate-100">
+    <button class="rounded-xl bg-teal-700 text-white text-sm font-semibold px-5 py-3 hover:bg-teal-800 transition">Filtrar</button>{% endif %}
+  </form>
+</div>
+{% endblock %}
+
+{% block conteudo %}
+{% if not almoxarifado %}
+<p class="text-center py-16 text-sm text-slate-500 dark:text-slate-400">Escolha um almoxarifado para ajustar os limites.</p>
+{% else %}
+{% with campo="w-full rounded-lg border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800 px-2 py-1.5 text-sm text-right text-slate-900 dark:text-slate-100 focus:outline-none focus:border-teal-700" %}
+<form method="post">{% csrf_token %}
+  <input type="hidden" name="almoxarifado" value="{{ almoxarifado.pk }}">
+  <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden dark:bg-slate-800 dark:border-slate-700">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead class="bg-slate-50 text-slate-500 text-left dark:bg-slate-900/40 dark:text-slate-400">
+          <tr><th class="px-6 py-3 font-medium">Produto</th><th class="px-4 py-3 font-medium text-right">Saldo</th>
+              <th class="px-4 py-3 font-medium w-32">Mínimo</th><th class="px-4 py-3 font-medium w-32">Reposição</th><th class="px-6 py-3 font-medium w-32">Máximo</th></tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 dark:divide-slate-700">
+          {% for s in saldos %}
+          <tr class="dark:text-slate-100">
+            <td class="px-6 py-2.5"><input type="hidden" name="produto" value="{{ s.produto_id }}"><span class="font-medium">{{ s.produto.nome }}</span><span class="block text-xs text-slate-500 dark:text-slate-400">{{ s.produto.codigo|default:"" }} {{ s.produto.especificacao }}</span></td>
+            <td class="px-4 py-2.5 text-right font-semibold">{{ s.quantidade|floatformat:"-3" }}</td>
+            <td class="px-4 py-2.5"><input name="minimo" inputmode="decimal" value="{% if s.estoque_minimo is not None %}{{ s.estoque_minimo|floatformat:'-3' }}{% endif %}" class="{{ campo }}"></td>
+            <td class="px-4 py-2.5"><input name="reposicao" inputmode="decimal" value="{% if s.ponto_reposicao is not None %}{{ s.ponto_reposicao|floatformat:'-3' }}{% endif %}" class="{{ campo }}"></td>
+            <td class="px-6 py-2.5"><input name="maximo" inputmode="decimal" value="{% if s.estoque_maximo is not None %}{{ s.estoque_maximo|floatformat:'-3' }}{% endif %}" class="{{ campo }}"></td>
+          </tr>
+          {% empty %}
+          <tr><td colspan="5" class="px-6 py-10 text-center text-sm text-slate-500 dark:text-slate-400">Nenhum produto neste almoxarifado ainda. Use "Incluir produto" abaixo.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-2xl border border-slate-200 p-5 mt-5 grid gap-3 sm:grid-cols-5 items-end dark:bg-slate-800 dark:border-slate-700">
+    <div class="sm:col-span-2"><label class="block text-sm font-medium text-slate-600 mb-1.5 dark:text-slate-300">Incluir produto (ainda sem saldo aqui)</label>
+      <select name="novo_produto" class="w-full rounded-xl border border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-800 px-3 py-2 text-sm text-slate-900 dark:text-slate-100"><option value="">—</option>{% for p in sem_saldo %}<option value="{{ p.pk }}">{% if p.codigo %}{{ p.codigo }} · {% endif %}{{ p.nome }} — {{ p.especificacao }}</option>{% endfor %}</select></div>
+    <div><label class="block text-xs text-slate-500 mb-1 dark:text-slate-400">Mínimo</label><input name="novo_minimo" inputmode="decimal" class="{{ campo }}"></div>
+    <div><label class="block text-xs text-slate-500 mb-1 dark:text-slate-400">Reposição</label><input name="novo_reposicao" inputmode="decimal" class="{{ campo }}"></div>
+    <div><label class="block text-xs text-slate-500 mb-1 dark:text-slate-400">Máximo</label><input name="novo_maximo" inputmode="decimal" class="{{ campo }}"></div>
+  </div>
+  <div class="mt-5"><button class="rounded-xl bg-teal-700 hover:bg-teal-800 text-white font-medium px-5 py-2.5 transition">Salvar limites</button></div>
+</form>
+{% endwith %}
+{% endif %}
+{% endblock %}

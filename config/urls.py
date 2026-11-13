@@ -6,6 +6,7 @@ from django.urls import include, path
 
 from contas import views_google
 from estoque import views as estoque_views
+from estoque import views_operacao as estoque_op
 from pedidos import views as pedidos_views
 from pedidos import views_produtos as produtos_views
 
@@ -37,6 +38,12 @@ urlpatterns = [
     path("estoque/entrada-planilha/", estoque_views.entrada_planilha, name="entrada_planilha"),
     path("estoque/entrada-planilha/modelo/", estoque_views.entrada_modelo, name="entrada_modelo"),
     path("estoque/posicao/", estoque_views.posicao_estoque, name="posicao_estoque"),
+    path("estoque/movimentar/", estoque_op.movimentar, name="estoque_movimentar"),
+    path("estoque/extrato/", estoque_op.extrato, name="estoque_extrato"),
+    path("estoque/limites/", estoque_op.limites, name="estoque_limites"),
+    path("estoque/reposicao/", estoque_op.reposicao, name="estoque_reposicao"),
+    path("estoque/balanco/", estoque_op.balanco_lista, name="estoque_balanco_lista"),
+    path("estoque/balanco/<int:pk>/", estoque_op.balanco_detalhe, name="estoque_balanco_detalhe"),
     path("relatorios/centros-custo/", pedidos_views.relatorio_centros, name="relatorio_centros"),
     path("relatorios/orcamento/", pedidos_views.relatorio_orcamento, name="relatorio_orcamento"),
     path("relatorios/eventos/", pedidos_views.relatorio_eventos, name="relatorio_eventos"),

@@ -9,8 +9,8 @@
       <h1 class="text-2xl font-semibold">{% if almoxarifado_sel %}Estoque — {{ almoxarifado_sel.nome }}{% else %}Controle de estoque{% endif %}</h1>
       <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">{% if almoxarifado_sel %}{{ almoxarifado_sel.filial.nome }}{% if almoxarifado_sel.central %} · estoque central{% endif %} · saldo, mínimo e valor.{% else %}Saldo, mínimo e valor por almoxarifado.{% endif %}</p>
     </div>
-    <a href="{% url 'entrada_planilha' %}" class="inline-flex items-center gap-2 rounded-xl bg-teal-700 text-white text-sm font-semibold px-4 py-2.5 hover:bg-teal-800 transition">Entrada por planilha</a>
   </div>
+  {% include "estoque/_abas.html" %}
 
   <form method="get" class="mt-5 flex flex-wrap gap-3">
     {% if situacao %}<input type="hidden" name="situacao" value="{{ situacao }}">{% endif %}
@@ -86,6 +86,7 @@
           <th class="px-4 py-3 font-medium">Situação</th>
           <th class="px-4 py-3 font-medium text-right">Saldo</th>
           <th class="px-4 py-3 font-medium text-right">Mínimo</th>
+          <th class="px-4 py-3 font-medium text-right">Máximo</th>
           <th class="px-4 py-3 font-medium text-right">Custo médio</th>
           <th class="px-6 py-3 font-medium text-right">Valor</th>
         </tr>
@@ -114,11 +115,12 @@
           </td>
           <td class="px-4 py-3 text-right font-semibold">{{ s.quantidade|floatformat:"-3" }}</td>
           <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">{% if s.estoque_minimo is not None %}{{ s.estoque_minimo|floatformat:"-3" }}{% else %}—{% endif %}</td>
+          <td class="px-4 py-3 text-right {% if s.acima_do_maximo %}text-amber-600 font-semibold dark:text-amber-400{% else %}text-slate-500 dark:text-slate-400{% endif %}">{% if s.estoque_maximo is not None %}{{ s.estoque_maximo|floatformat:"-3" }}{% else %}—{% endif %}</td>
           <td class="px-4 py-3 text-right text-slate-500 dark:text-slate-400">R$ {{ s.custo_medio|floatformat:2 }}</td>
           <td class="px-6 py-3 text-right font-medium">R$ {{ s.valor|floatformat:2 }}</td>
         </tr>
         {% empty %}
-        <tr><td colspan="7" class="px-6 py-14 text-center">
+        <tr><td colspan="8" class="px-6 py-14 text-center">
           <p class="font-semibold text-slate-900 dark:text-slate-100">Nenhum item encontrado</p>
           <p class="text-sm text-slate-500 mt-1 dark:text-slate-400">Ajuste os filtros ou dê entrada de material por planilha.</p>
         </td></tr>
