@@ -1,0 +1,16 @@
+.git
+.venv
+.claude
+.env
+__pycache__
+*.pyc
+media
+privado
+staticfiles
+apps
+tools
+docs
+*.sql
+*.ps1
+*.csv
+*.zip

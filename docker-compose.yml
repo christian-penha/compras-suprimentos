@@ -1,0 +1,54 @@
+# Stack para o Portainer (Stacks > Add stack > Repository, ou cole este arquivo).
+# Preencha as variáveis na seção "Environment variables" do Portainer (veja .env.example).
+services:
+  db:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-compras_suprimentos}
+      POSTGRES_USER: ${POSTGRES_USER:-compras_app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      SECRET_KEY: ${SECRET_KEY:?defina SECRET_KEY}
+      DEBUG: "False"
+      DATABASE_URL: postgres://${POSTGRES_USER:-compras_app}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-compras_suprimentos}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      HTTPS: ${HTTPS:-False}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-}
+      # Administrador criado no primeiro start (opcional; ignorado se já existir).
+      DJANGO_ADMIN_USER: ${DJANGO_ADMIN_USER:-}
+      DJANGO_ADMIN_EMAIL: ${DJANGO_ADMIN_EMAIL:-}
+      DJANGO_ADMIN_PASSWORD: ${DJANGO_ADMIN_PASSWORD:-}
+    ports:
+      - "${APP_PORT:-8001}:8000"
+    volumes:
+      - media:/data/media
+      - privado:/data/privado
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/saude/', timeout=4).status == 200 else 1)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  pgdata:
+  media:
+  privado:
