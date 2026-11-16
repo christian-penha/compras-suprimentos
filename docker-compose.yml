@@ -32,8 +32,9 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       GOOGLE_ALLOWED_DOMAINS: ${GOOGLE_ALLOWED_DOMAINS:-}
-      # Administrador criado no primeiro start (opcional; ignorado se já existir).
-      DJANGO_ADMIN_USER: ${DJANGO_ADMIN_USER:-}
+      # Administrador do aplicativo (papel SuperAdmin), criado no start se ainda não houver nenhum.
+      # Sem DJANGO_ADMIN_PASSWORD, a senha é gerada e aparece no log do container.
+      DJANGO_ADMIN_USER: ${DJANGO_ADMIN_USER:-admin}
       DJANGO_ADMIN_EMAIL: ${DJANGO_ADMIN_EMAIL:-}
       DJANGO_ADMIN_PASSWORD: ${DJANGO_ADMIN_PASSWORD:-}
     ports:

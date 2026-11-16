@@ -430,3 +430,87 @@ class TelasDeEstoqueTest(EstoqueBase):
         for nome in ("estoque_movimentar", "estoque_extrato", "estoque_limites", "estoque_reposicao", "estoque_balanco_lista"):
             self.assertEqual(self.client.get(reverse(nome)).status_code, 403, nome)
         self.assertEqual(self.client.post(reverse("estoque_movimentar"), {}).status_code, 403)
+
+
+# ============================================================ entrada por planilha com almoxarifado por linha
+class EntradaComAlmoxarifadoNaPlanilhaTest(TenantTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(_gum().objects.create_superuser("root_epa", tenant=self.tenant, password=None))
+        categoria = Categoria.objects.first()
+        self.papel = Produto.objects.create(codigo="EPA-1", nome="Papel", especificacao="resma", categoria=categoria)
+        self.caneta = Produto.objects.create(codigo="EPA-2", nome="Caneta", especificacao="un", categoria=categoria)
+        self.central = Almoxarifado.objects.get(central=True)
+        self.cp_geral = Almoxarifado.objects.get(filial__sigla="CP", nome="Geral")
+        self.vc_geral = Almoxarifado.objects.get(filial__sigla="VC", nome="Geral")
+
+    def planilha(self, *linhas, cabecalho=("Código", "Almoxarifado", "Quantidade", "Valor unitário")):
+        import io
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        from openpyxl import Workbook
+
+        wb = Workbook()
+        wb.active.append(list(cabecalho))
+        for linha in linhas:
+            wb.active.append(list(linha))
+        buf = io.BytesIO()
+        wb.save(buf)
+        return SimpleUploadedFile("entrada.xlsx", buf.getvalue())
+
+    def enviar(self, arquivo, padrao=""):
+        self.client.post(reverse("entrada_planilha"), {"arquivo": arquivo, "almoxarifado": padrao, "observacao": ""})
+        return self.client.get(reverse("entrada_planilha"))
+
+    def saldo(self, produto, almoxarifado):
+        s = SaldoEstoque.objects.filter(produto=produto, almoxarifado=almoxarifado).first()
+        return s.quantidade if s else Decimal("0")
+
+    def test_modelo_traz_coluna_aba_e_lista_suspensa(self):
+        import io
+
+        from openpyxl import load_workbook
+
+        wb = load_workbook(io.BytesIO(self.client.get(reverse("entrada_modelo")).content))
+        entrada = wb["Entrada"]
+        self.assertIn("Almoxarifado", [c.value for c in entrada[1]])
+        valores = [r[0] for r in wb["Almoxarifados"].iter_rows(min_row=2, values_only=True)]
+        self.assertIn("CP — Geral", valores)
+        self.assertIn("VC — Geral", valores)
+        self.assertEqual(len(entrada.data_validations.dataValidation), 1)
+
+    def test_cada_linha_vai_para_o_seu_almoxarifado_e_vazio_usa_o_padrao(self):
+        arquivo = self.planilha(
+            ("EPA-1", "CP — Geral", 10, 2),
+            ("EPA-1", "vc - geral", 4, 2),  # sem acento/traço exato também vale
+            ("EPA-2", "", 7, 1),  # vazio: almoxarifado padrão
+        )
+        pagina = self.enviar(arquivo, padrao=self.central.pk)
+        self.assertEqual(pagina.context["previa"]["erros"], [])
+        self.assertEqual(len(pagina.context["destinos"]), 3)
+        self.assertContains(pagina, "Resumo por almoxarifado")
+
+        self.client.post(reverse("entrada_planilha"), {"acao": "aplicar"})
+        self.assertEqual(self.saldo(self.papel, self.cp_geral), Decimal("10"))
+        self.assertEqual(self.saldo(self.papel, self.vc_geral), Decimal("4"))
+        self.assertEqual(self.saldo(self.caneta, self.central), Decimal("7"))
+
+    def test_almoxarifado_desconhecido_ou_ausente_sem_padrao_vira_erro(self):
+        arquivo = self.planilha(("EPA-1", "XX — Inexistente", 5, 1), ("EPA-2", "", 3, 1), ("EPA-1", "CP — Geral", 2, 1))
+        previa = self.enviar(arquivo).context["previa"]
+        self.assertEqual(len(previa["linhas"]), 1)
+        self.assertEqual(previa["linhas"][0]["almoxarifado_id"], self.cp_geral.pk)
+        self.assertEqual(len(previa["erros"]), 2)
+        self.assertIn("XX — Inexistente", previa["erros"][0])
+        self.assertIn("almoxarifado padrão", previa["erros"][1])
+
+    def test_nome_repetido_entre_unidades_exige_a_sigla(self):
+        previa = self.enviar(self.planilha(("EPA-1", "Geral", 5, 1))).context["previa"]
+        self.assertEqual(previa["linhas"], [])  # "Geral" existe em várias unidades
+        self.assertEqual(len(previa["erros"]), 1)
+
+    def test_planilha_antiga_sem_coluna_usa_o_padrao(self):
+        arquivo = self.planilha(("EPA-1", 6, 3), cabecalho=("Código", "Quantidade", "Valor unitário"))
+        self.enviar(arquivo, padrao=self.cp_geral.pk)
+        self.client.post(reverse("entrada_planilha"), {"acao": "aplicar"})
+        self.assertEqual(self.saldo(self.papel, self.cp_geral), Decimal("6"))

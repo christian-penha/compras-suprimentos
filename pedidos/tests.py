@@ -1173,3 +1173,57 @@ class ProdutosSimilaresTest(BaseFluxoTest):
         self.assertNotIn(outro, list(self.similares_de(self.produto)))
         busca = self.client.get(reverse("produto_editar", args=[self.produto.pk]), {"busca_similar": "Massinha"})
         self.assertContains(busca, "Vincular")
+
+
+class CriarDadosTesteTest(BaseFluxoTest):
+    def rodar(self, *args):
+        import io
+
+        from django.core.management import call_command
+
+        saida = io.StringIO()
+        call_command("criar_dados_teste", *args, "--semente", "7", stdout=saida)
+        return saida.getvalue()
+
+    def test_previa_nao_grava_nada(self):
+        saida = self.rodar("--pedidos", "7")
+        self.assertIn("PRÉVIA", saida)
+        self.assertFalse(Pedido.objects.exists())
+        self.centro.refresh_from_db()
+        self.assertEqual(self.centro.orcamento_modo, "SEM")
+
+    def test_cria_orcamentos_e_pedidos_pelo_fluxo_e_remove(self):
+        from tenancy.orcamento import orcamento_do_mes
+
+        self.requisitante.almoxarifados.add(self.destino)
+        saida = self.rodar("--pedidos", "7", "--aplicar")
+        self.assertIn("Aplicado.", saida)
+
+        self.centro.refresh_from_db()
+        self.assertEqual(self.centro.orcamento_modo, "MENSAL")
+        hoje = timezone.localdate()
+        self.assertEqual(orcamento_do_mes(self.centro, hoje.year, 2), self.centro.orcamento_valor * Decimal("1.5"))
+
+        pedidos = Pedido.objects.all()
+        self.assertEqual(pedidos.count(), 7)
+        self.assertTrue(all(p.observacao.startswith("[TESTE]") for p in pedidos))
+        status = set(pedidos.values_list("status", flat=True))
+        self.assertTrue({StatusPedido.ENVIADO, StatusPedido.RECUSADO, StatusPedido.CANCELADO} <= status)
+        self.assertTrue(status & {StatusPedido.APROVADO_UNIDADE, StatusPedido.AGUARDANDO_COMPRA})
+        aprovado = pedidos.filter(status__in=[StatusPedido.APROVADO_UNIDADE, StatusPedido.AGUARDANDO_COMPRA]).first()
+        self.assertTrue(aprovado.aprovacoes_lider.filter(lider=self.aprovador).exists())
+        self.assertTrue(aprovado.itens.exclude(origem_atendimento=None).exists())  # classificado estoque/compra
+
+        real = self.novo_pedido()  # pedido de verdade não sai
+        saida = self.rodar("--remover", "--zerar-orcamentos", "--aplicar")
+        self.assertIn("Pedidos de teste apagados: 7", saida)
+        self.assertEqual(list(Pedido.objects.values_list("pk", flat=True)), [real.pk])
+        self.centro.refresh_from_db()
+        self.assertEqual(self.centro.orcamento_modo, "SEM")
+
+    def test_sem_usuario_apto_explica_o_que_falta(self):
+        from django.core.management.base import CommandError
+
+        self.setor.lideres.clear()
+        with self.assertRaisesMessage(CommandError, "setor com líder"):
+            self.rodar("--sem-orcamentos")

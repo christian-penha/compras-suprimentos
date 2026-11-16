@@ -1,7 +1,10 @@
+import re
+import unicodedata
 from decimal import Decimal, InvalidOperation
 
 from django.contrib import messages
 from django.core.paginator import Paginator
+from django.db import transaction
 from django.db.models import Q
 from django.shortcuts import redirect, render
 from django.utils.http import urlencode
@@ -19,27 +22,58 @@ from .services import registrar_entrada
 SESSAO_PREVIA = "entrada_planilha_previa"
 
 
-def _parse_planilha(arquivo):
+def _normalizar(texto):
+    """Compara nomes de almoxarifado sem diferenciar acento, caixa e o tipo de traço."""
+    texto = unicodedata.normalize("NFKD", str(texto or "")).encode("ascii", "ignore").decode()
+    return " ".join(re.sub(r"[-–—/|:]+", " ", texto).lower().split())
+
+
+def _rotulo_almoxarifado(almoxarifado):
+    return f"{almoxarifado.filial.sigla} — {almoxarifado.nome}"
+
+
+def _mapa_de_almoxarifados(almoxarifados):
+    """'CP — Geral' (ou 'cp - geral') -> almoxarifado. O nome sozinho também vale quando só
+    existe um almoxarifado com ele (ex.: 'Estoque Central')."""
+    mapa, por_nome = {}, {}
+    for a in almoxarifados:
+        mapa[_normalizar(_rotulo_almoxarifado(a))] = a
+        por_nome.setdefault(_normalizar(a.nome), []).append(a)
+    for nome, lista in por_nome.items():
+        if len(lista) == 1:
+            mapa.setdefault(nome, lista[0])
+    return mapa
+
+
+def _parse_planilha(arquivo, almoxarifados=(), padrao=None):
+    """Lê a planilha de entrada. Cada linha vai para o almoxarifado da coluna "Almoxarifado";
+    sem a coluna (ou com a célula vazia), vai para o almoxarifado padrão escolhido na tela."""
     wb = load_workbook(arquivo, read_only=True, data_only=True)
     ws = wb.active
     ws.reset_dimensions()
     linhas = ws.iter_rows(values_only=True)
-    cabecalho = [str(c or "").strip().lower() for c in next(linhas)]
+    cabecalho = [str(c or "").strip().lower() for c in next(linhas, ())]
 
-    def coluna(*termos):
+    def coluna(*termos, exceto=()):
         for i, nome in enumerate(cabecalho):
+            if i in exceto:
+                continue
             if any(t in nome for t in termos):
                 return i
         return None
 
-    col_codigo = coluna("código", "codigo")
-    col_qtd = coluna("quantidade", "estoque", "qtd")
-    col_valor = coluna("valor", "custo", "preço", "preco")
+    col_almox = coluna("almoxarifado", "almox")
+    sem_almox = (col_almox,) if col_almox is not None else ()
+    col_codigo = coluna("código", "codigo", exceto=sem_almox)
+    col_qtd = coluna("quantidade", "estoque", "qtd", exceto=sem_almox)
+    col_valor = coluna("valor", "custo", "preço", "preco", exceto=sem_almox)
     if col_codigo is None or col_qtd is None:
         return None, [f"Colunas de código/quantidade não encontradas. Cabeçalho lido: {cabecalho}"]
 
+    mapa = _mapa_de_almoxarifados(almoxarifados)
     validas, erros = [], []
     for n, linha in enumerate(linhas, start=2):
+        linha = tuple(linha) + (None,) * max(0, len(cabecalho) - len(linha))
         codigo = str(linha[col_codigo] or "").strip()
         if not codigo:
             continue
@@ -47,6 +81,21 @@ def _parse_planilha(arquivo):
         if produto is None:
             erros.append(f"Linha {n}: produto '{codigo}' não cadastrado.")
             continue
+
+        destino = padrao
+        texto_almox = str(linha[col_almox] or "").strip() if col_almox is not None else ""
+        if texto_almox:
+            destino = mapa.get(_normalizar(texto_almox))
+            if destino is None:
+                erros.append(
+                    f"Linha {n}: almoxarifado '{texto_almox}' não encontrado para {codigo} "
+                    "(use o formato da planilha modelo, ex.: 'CP — Geral')."
+                )
+                continue
+        elif destino is None:
+            erros.append(f"Linha {n}: informe o almoxarifado de {codigo} ou escolha um almoxarifado padrão.")
+            continue
+
         try:
             quantidade = Decimal(str(linha[col_qtd] or "0").replace(",", "."))
         except InvalidOperation:
@@ -61,26 +110,68 @@ def _parse_planilha(arquivo):
             except InvalidOperation:
                 erros.append(f"Linha {n}: valor inválido ('{linha[col_valor]}') para {codigo}.")
                 continue
-        validas.append(
-            {"codigo": codigo, "produto": str(produto), "quantidade": str(quantidade), "valor": str(valor)}
-        )
+            if valor < 0:
+                erros.append(f"Linha {n}: valor negativo para {codigo}.")
+                continue
+        validas.append({
+            "codigo": codigo, "produto": str(produto), "quantidade": str(quantidade), "valor": str(valor),
+            "almoxarifado_id": destino.pk, "almoxarifado": _rotulo_almoxarifado(destino),
+        })
     return validas, erros
+
+
+def _resumo_por_destino(linhas):
+    resumo = {}
+    for l in linhas:
+        r = resumo.setdefault(
+            l["almoxarifado_id"], {"almoxarifado": l["almoxarifado"], "itens": 0, "valor": Decimal("0")}
+        )
+        r["itens"] += 1
+        r["valor"] += Decimal(l["quantidade"]) * Decimal(l["valor"])
+    return sorted(resumo.values(), key=lambda r: r["almoxarifado"])
 
 
 @requer_papel(Papel.ADMINISTRADOR, modulo=Modulo.ESTOQUE)
 def entrada_modelo(request):
-    """Planilha de exemplo com as colunas que a entrada espera, já com alguns códigos reais."""
+    """Planilha de exemplo com as colunas que a entrada espera e lista suspensa de almoxarifados."""
     from django.http import HttpResponse
     from openpyxl import Workbook
+    from openpyxl.styles import Font
+    from openpyxl.worksheet.datavalidation import DataValidation
+
+    almoxarifados = list(
+        Almoxarifado.objects.filter(ativo=True).select_related("filial").order_by("filial__sigla", "nome")
+    )
+    central = next((a for a in almoxarifados if a.central), almoxarifados[0] if almoxarifados else None)
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Entrada"
-    ws.append(["Código", "Produto (só para conferência)", "Quantidade", "Valor unitário"])
+    ws.append(["Código", "Produto (só para conferência)", "Almoxarifado", "Quantidade", "Valor unitário"])
+    for celula in ws[1]:
+        celula.font = Font(bold=True)
     for p in Produto.objects.exclude(codigo__isnull=True).order_by("codigo")[:3]:
-        ws.append([p.codigo, p.nome, 10, 5.0])
-    for col, largura in zip("ABCD", (18, 44, 14, 16)):
+        ws.append([p.codigo, p.nome, _rotulo_almoxarifado(central) if central else "", 10, 5.0])
+    for col, largura in zip("ABCDE", (18, 44, 30, 14, 16)):
         ws.column_dimensions[col].width = largura
+    ws.freeze_panes = "A2"
+
+    lista = wb.create_sheet("Almoxarifados")
+    lista.append(["Almoxarifado (use exatamente assim)", "Unidade"])
+    for celula in lista[1]:
+        celula.font = Font(bold=True)
+    for a in almoxarifados:
+        lista.append([_rotulo_almoxarifado(a), a.filial.nome])
+    lista.column_dimensions["A"].width = 36
+    lista.column_dimensions["B"].width = 36
+    if almoxarifados:
+        validacao = DataValidation(
+            type="list", formula1=f"=Almoxarifados!$A$2:$A${len(almoxarifados) + 1}", allow_blank=True,
+            showErrorMessage=True, errorTitle="Almoxarifado", error="Escolha um almoxarifado da lista.",
+        )
+        ws.add_data_validation(validacao)
+        validacao.add("C2:C5000")
+
     resposta = HttpResponse(content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     resposta["Content-Disposition"] = 'attachment; filename="modelo-entrada-de-material.xlsx"'
     wb.save(resposta)
@@ -93,7 +184,9 @@ def entrada_planilha(request):
 
     if request.method == "POST" and request.FILES.get("arquivo"):
         arquivo = request.FILES["arquivo"]
-        validas, erros = _parse_planilha(arquivo)
+        padrao_id = request.POST.get("almoxarifado", "")
+        padrao = almoxarifados.filter(pk=padrao_id).first() if padrao_id.isdigit() else None
+        validas, erros = _parse_planilha(arquivo, almoxarifados, padrao)
         if validas is None:
             messages.error(request, erros[0])
             return redirect("entrada_planilha")
@@ -101,7 +194,7 @@ def entrada_planilha(request):
             "linhas": validas,
             "erros": erros,
             "arquivo": arquivo.name,
-            "almoxarifado_id": request.POST.get("almoxarifado"),
+            "almoxarifado_id": padrao.pk if padrao else None,
             "observacao": request.POST.get("observacao", ""),
         }
         return redirect("entrada_planilha")
@@ -111,21 +204,25 @@ def entrada_planilha(request):
         if not previa:
             messages.error(request, "Prévia expirada — envie a planilha novamente.")
             return redirect("entrada_planilha")
-        destino = Almoxarifado.objects.get(pk=previa["almoxarifado_id"])
-        for linha in previa["linhas"]:
-            produto = Produto.objects.get(codigo=linha["codigo"])
-            registrar_entrada(
-                produto=produto, destino=destino,
-                quantidade=Decimal(linha["quantidade"]),
-                valor_unitario=Decimal(linha["valor"]),
-                responsavel=request.user,
-                arquivo_origem=previa["arquivo"],
-                observacao=previa["observacao"],
-            )
+        ids = {l["almoxarifado_id"] for l in previa["linhas"]}
+        destinos = {a.pk: a for a in almoxarifados.filter(pk__in=ids)}
+        if len(destinos) != len(ids):
+            messages.error(request, "Um dos almoxarifados da prévia foi desativado — envie a planilha novamente.")
+            return redirect("entrada_planilha")
+        with transaction.atomic():  # ou entram todas as linhas, ou nenhuma
+            for linha in previa["linhas"]:
+                registrar_entrada(
+                    produto=Produto.objects.get(codigo=linha["codigo"]),
+                    destino=destinos[linha["almoxarifado_id"]],
+                    quantidade=Decimal(linha["quantidade"]),
+                    valor_unitario=Decimal(linha["valor"]),
+                    responsavel=request.user,
+                    arquivo_origem=previa["arquivo"],
+                    observacao=previa["observacao"],
+                )
+        onde = f"em {next(iter(destinos.values()))}" if len(destinos) == 1 else f"em {len(destinos)} almoxarifados"
         messages.success(
-            request,
-            f"{len(previa['linhas'])} entrada(s) registradas em {destino} "
-            f"(arquivo {previa['arquivo']}).",
+            request, f"{len(previa['linhas'])} entrada(s) registradas {onde} (arquivo {previa['arquivo']})."
         )
         return redirect("entrada_planilha")
 
@@ -134,9 +231,9 @@ def entrada_planilha(request):
         return redirect("entrada_planilha")
 
     previa = request.session.get(SESSAO_PREVIA)
-    destino = None
-    if previa:
-        destino = Almoxarifado.objects.filter(pk=previa["almoxarifado_id"]).first()
+    if previa and previa["linhas"] and "almoxarifado_id" not in previa["linhas"][0]:
+        request.session.pop(SESSAO_PREVIA, None)  # prévia no formato antigo (sem almoxarifado por linha)
+        previa = None
     return render(
         request, "estoque/entrada_planilha.html",
         {
@@ -144,7 +241,8 @@ def entrada_planilha(request):
             "total_valor": sum((Decimal(l["quantidade"]) * Decimal(l["valor"]) for l in previa["linhas"]), Decimal("0")) if previa else 0,
             "recentes": Movimentacao.objects.filter(tipo=TipoMovimentacao.ENTRADA)
             .select_related("produto", "destino__filial")[:8],
-            "almoxarifados": almoxarifados, "previa": previa, "destino": destino,
+            "almoxarifados": almoxarifados, "previa": previa,
+            "destinos": _resumo_por_destino(previa["linhas"]) if previa else [],
             "filiais_destino": Filial.objects.filter(pk__in=almoxarifados.values("filial_id")).order_by("nome"),
         },
     )

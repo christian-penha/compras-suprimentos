@@ -200,3 +200,44 @@ class FormularioDeUsuarioTest(TenantTestCase):
         })
         self.assertEqual(resposta.status_code, 200)
         self.assertTrue(self.root.tem_papel(Papel.SUPERADMIN))
+
+
+class CriarAdminTest(TenantTestCase):
+    def rodar(self, *args):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        saida = StringIO()
+        call_command("criar_admin", *args, stdout=saida)
+        return saida.getvalue()
+
+    def test_garantir_cria_superadmin_do_app_com_senha_gerada(self):
+        PapelUsuario.objects.filter(papel=Papel.SUPERADMIN).delete()
+        saida = self.rodar("--garantir", "--usuario", "admin", "--senha", "")
+        admin = Usuario.objects.get(username="admin")
+        self.assertTrue(admin.e_superadmin)
+        self.assertFalse(admin.is_superuser or admin.is_staff)  # nao entra no /admin/ do Django
+        self.assertEqual(admin.tenant, self.tenant)
+        self.assertTrue(admin.filiais_permitidas.exists())
+        senha = saida.split("Senha gerada para 'admin': ")[1].split(" ")[0]
+        self.assertTrue(admin.check_password(senha))
+
+    def test_admin_ve_telas_de_administracao_do_app(self):
+        self.rodar("--usuario", "admin", "--senha", "s3nha-forte")
+        self.assertTrue(self.client.login(username="admin", password="s3nha-forte"))
+        self.assertEqual(self.client.get("/estoque/limites/").status_code, 200)
+        self.assertNotEqual(self.client.get("/admin/").status_code, 200)
+
+    def test_garantir_nao_cria_outro_se_ja_existe_superadmin(self):
+        dono = Usuario.objects.create_user(username="dono", password="x", tenant=self.tenant)
+        PapelUsuario.objects.create(usuario=dono, papel=Papel.SUPERADMIN)
+        self.rodar("--garantir", "--usuario", "outro", "--senha", "y")
+        self.assertFalse(Usuario.objects.filter(username="outro").exists())
+
+    def test_nao_altera_usuario_existente(self):
+        u = Usuario.objects.create_user(username="admin", password="original", tenant=self.tenant)
+        self.rodar("--usuario", "admin", "--senha", "nova")
+        u.refresh_from_db()
+        self.assertTrue(u.check_password("original"))
+        self.assertFalse(u.e_superadmin)
