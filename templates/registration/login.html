@@ -2,48 +2,92 @@
 {% load static %}
 {% block titulo %}Entrar — Compras & Suprimentos{% endblock %}
 {% block conteudo %}
-<div class="min-h-[70vh] flex items-center justify-center">
-  <div class="w-full max-w-sm">
-    <div class="text-center mb-6">
-      <img src="{% static 'img/logo-perfil.png' %}" alt="Grupo Perfil de Educação" class="h-14 mx-auto mb-4">
-      <h1 class="text-xl font-semibold text-white">Sistema de Pedidos</h1>
-    </div>
-    <form method="post" class="bg-[#232831] border border-[#323945] rounded-2xl p-8 space-y-4">
-      {% csrf_token %}
-      {% if form.errors %}
-        <div class="rounded-xl bg-red-950/60 border border-red-900 text-red-300 text-sm px-4 py-3">
-          Usuário ou senha inválidos.
+<div class="fixed inset-0 z-10 overflow-y-auto bg-[#14171c]">
+  <div class="min-h-full grid lg:grid-cols-2">
+
+    {# Painel da marca: some no celular #}
+    <aside class="relative hidden lg:flex flex-col justify-between overflow-hidden bg-gradient-to-br from-[#0f3d3e] via-[#14292f] to-[#14171c] p-14">
+      <div class="absolute -right-32 -top-32 h-96 w-96 rounded-full bg-teal-500/10 blur-3xl"></div>
+      <div class="absolute -left-24 bottom-0 h-80 w-80 rounded-full bg-teal-400/10 blur-3xl"></div>
+      <img src="{% static 'img/logo-perfil-grande.png' %}" alt="Grupo Perfil de Educação" class="relative w-48 xl:w-56 h-auto self-center">
+      <div class="relative max-w-md w-full mx-auto">
+        <p class="mb-3 text-sm font-semibold uppercase tracking-widest text-teal-300">Sistema de Pedidos e Compras</p>
+        <h2 class="text-4xl font-bold leading-tight text-white">Do pedido à entrega,<br><span class="text-teal-300">tudo em um só lugar.</span></h2>
+        <p class="mt-4 text-[#b8c0cc]">Peça o que o seu setor precisa, acompanhe cada etapa e deixe compras, estoque e orçamento sob controle.</p>
+        <ul class="mt-8 space-y-3 text-sm text-[#d3d9e2]">
+          <li class="flex items-center gap-3"><span class="grid h-6 w-6 place-items-center rounded-full bg-teal-500/20 text-teal-300">✓</span>Pedidos com aprovação e acompanhamento das etapas</li>
+          <li class="flex items-center gap-3"><span class="grid h-6 w-6 place-items-center rounded-full bg-teal-500/20 text-teal-300">✓</span>Cotações com alçadas de aprovação por valor</li>
+          <li class="flex items-center gap-3"><span class="grid h-6 w-6 place-items-center rounded-full bg-teal-500/20 text-teal-300">✓</span>Estoque, recebimento e notas fiscais</li>
+          <li class="flex items-center gap-3"><span class="grid h-6 w-6 place-items-center rounded-full bg-teal-500/20 text-teal-300">✓</span>Orçamento por centro de custo, mês a mês</li>
+        </ul>
+      </div>
+      <p class="relative text-xs text-[#8a94a3]">© Grupo Perfil de Educação</p>
+    </aside>
+
+    {# Formulário #}
+    <section class="flex items-center justify-center px-6 py-12">
+      <div class="w-full max-w-sm">
+        <img src="{% static 'img/logo-perfil-grande.png' %}" alt="Grupo Perfil de Educação" class="w-44 h-auto mx-auto mb-8 lg:hidden">
+        <h1 class="text-3xl font-bold text-white">Bem-vindo</h1>
+        <p class="mt-2 text-sm text-[#8a94a3]">Entre para acessar o Sistema de Pedidos e Compras.</p>
+
+        {% if google_login_ativo %}
+        <a href="{% url 'auth_google_login' %}{% if next %}?next={{ next|urlencode }}{% endif %}"
+           class="mt-8 w-full flex items-center justify-center gap-3 rounded-xl bg-white hover:bg-slate-100 text-slate-900 font-semibold py-3 text-sm shadow-sm transition">
+          <svg class="w-5 h-5" viewBox="0 0 48 48" aria-hidden="true">
+            <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/>
+            <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/>
+            <path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/>
+            <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/>
+          </svg>
+          Continuar com o Google
+        </a>
+        <p class="mt-2 text-center text-xs text-[#8a94a3]">Use o e-mail do grupo. Recomendado.</p>
+        <div class="my-6 flex items-center gap-3 text-xs uppercase tracking-wide text-[#6b7482]">
+          <span class="flex-1 h-px bg-[#2b313b]"></span>ou entre com usuário e senha<span class="flex-1 h-px bg-[#2b313b]"></span>
         </div>
-      {% endif %}
-      <div>
-        <label for="id_username" class="block text-sm font-semibold text-[#b8c0cc] mb-1.5">Usuário</label>
-        <input type="text" name="username" id="id_username" autofocus autocomplete="username"
-               class="w-full rounded-lg border border-[#3a4250] bg-[#1c2027] px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+        {% else %}
+        <div class="mt-8"></div>
+        {% endif %}
+
+        <form method="post" class="space-y-4">
+          {% csrf_token %}
+          {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+          {% if form.errors %}
+            <div role="alert" class="rounded-xl bg-red-950/60 border border-red-900 text-red-300 text-sm px-4 py-3">
+              Usuário ou senha inválidos.
+            </div>
+          {% endif %}
+          <div>
+            <label for="id_username" class="block text-sm font-semibold text-[#b8c0cc] mb-1.5">Usuário</label>
+            <input type="text" name="username" id="id_username" {% if not google_login_ativo %}autofocus{% endif %} autocomplete="username"
+                   class="w-full rounded-xl border border-[#3a4250] bg-[#1c2027] px-4 py-3 text-sm text-white placeholder-[#6b7482] focus:outline-none focus:ring-2 focus:ring-teal-500">
+          </div>
+          <div>
+            <label for="id_password" class="block text-sm font-semibold text-[#b8c0cc] mb-1.5">Senha</label>
+            <div class="relative">
+              <input type="password" name="password" id="id_password" autocomplete="current-password"
+                     class="w-full rounded-xl border border-[#3a4250] bg-[#1c2027] pl-4 pr-20 py-3 text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
+              <button type="button" id="ver-senha" class="absolute inset-y-0 right-0 px-4 text-xs font-semibold text-[#8a94a3] hover:text-white">Mostrar</button>
+            </div>
+          </div>
+          <button class="w-full rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-bold py-3 transition">
+            Entrar
+          </button>
+        </form>
+        <p class="mt-8 text-center text-xs text-[#6b7482]">Problemas para entrar? Fale com o T.I. do grupo.</p>
       </div>
-      <div>
-        <label for="id_password" class="block text-sm font-semibold text-[#b8c0cc] mb-1.5">Senha</label>
-        <input type="password" name="password" id="id_password" autocomplete="current-password"
-               class="w-full rounded-lg border border-[#3a4250] bg-[#1c2027] px-4 py-2.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-teal-500">
-      </div>
-      <button class="w-full rounded-lg bg-teal-600 hover:bg-teal-500 text-white font-bold py-2.5 transition">
-        Entrar
-      </button>
-      {% if google_login_ativo %}
-      <div class="flex items-center gap-3 text-xs text-[#8a94a3]">
-        <span class="flex-1 h-px bg-[#323945]"></span>ou<span class="flex-1 h-px bg-[#323945]"></span>
-      </div>
-      <a href="{% url 'auth_google_login' %}{% if next %}?next={{ next|urlencode }}{% endif %}"
-         class="w-full flex items-center justify-center gap-2 rounded-lg border border-[#3a4250] bg-[#1c2027] hover:bg-[#2b313b] text-white font-semibold py-2.5 text-sm transition">
-        <svg class="w-4 h-4" viewBox="0 0 48 48" aria-hidden="true">
-          <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.6 17.7 9.5 24 9.5z"/>
-          <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.6 5.9c4.4-4.1 7-10.1 7-17.6z"/>
-          <path fill="#FBBC05" d="M10.5 28.7c-.5-1.4-.8-3-.8-4.7s.3-3.2.8-4.7l-7.9-6.1C.9 16.4 0 20.1 0 24s.9 7.6 2.6 10.8l7.9-6.1z"/>
-          <path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.6-5.9c-2.1 1.4-4.9 2.3-8.3 2.3-6.3 0-11.6-4.1-13.5-9.8l-7.9 6.1C6.5 42.6 14.6 48 24 48z"/>
-        </svg>
-        Entrar com o Google
-      </a>
-      {% endif %}
-    </form>
+    </section>
   </div>
 </div>
+<script>
+  (function () {
+    var b = document.getElementById("ver-senha"), i = document.getElementById("id_password");
+    b.addEventListener("click", function () {
+      var ver = i.type === "password";
+      i.type = ver ? "text" : "password";
+      b.textContent = ver ? "Ocultar" : "Mostrar";
+    });
+  })();
+</script>
 {% endblock %}
